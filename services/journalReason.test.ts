@@ -4,9 +4,11 @@ import { vi } from '../constants/vi';
 import type { TradePlan } from '../constants/scoring';
 import {
   formatJournalCloseReason,
+  isJournalRunning,
   outcomeFromClose,
-  resolveJournalOpenReasonDisplay,
   resolveJournalCloseReasonDisplay,
+  resolveJournalDisplayStatus,
+  resolveJournalOpenReasonDisplay,
   resolveOpenReasonFromTradePlan,
 } from './journalService';
 
@@ -124,5 +126,20 @@ describe('journal open/close reasons', () => {
     });
 
     expect(resolveJournalCloseReasonDisplay(entry)).toBe(vi.tradeHistory.closeReason.TP1);
+  });
+});
+
+describe('journal display status', () => {
+  it('maps OPEN to RUNNING', () => {
+    expect(resolveJournalDisplayStatus('OPEN')).toBe('RUNNING');
+  });
+
+  it('keeps PENDING as PENDING', () => {
+    expect(resolveJournalDisplayStatus('PENDING')).toBe('PENDING');
+  });
+
+  it('isJournalRunning is true only for OPEN', () => {
+    expect(isJournalRunning(miniEntry({ outcome: { status: 'OPEN' } }))).toBe(true);
+    expect(isJournalRunning(miniEntry({ outcome: { status: 'PENDING' } }))).toBe(false);
   });
 });

@@ -87,6 +87,17 @@ export function JournalScreen() {
     );
   };
 
+  const handleStopTrade = (entry: AiTradeJournalEntry) => {
+    Alert.alert(
+      'Dừng lệnh',
+      'Bạn có muốn dừng lệnh này không?',
+      [
+        { text: 'Không', style: 'cancel' },
+        { text: 'Có', onPress: () => setCloseEntry(entry) },
+      ],
+    );
+  };
+
   return (
     <View style={styles.root}>
       <Text style={styles.title}>📓 NHẬT KÝ LỆNH</Text>
@@ -122,7 +133,7 @@ export function JournalScreen() {
                   entry={entry}
                   unrealizedPnl={unrealized}
                   onDetail={setDetailEntry}
-                  onCloseTrade={setCloseEntry}
+                  onStopTrade={handleStopTrade}
                   onConfirmFill={setFillEntry}
                   onCancelPending={handleCancelPending}
                 />

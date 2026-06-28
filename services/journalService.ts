@@ -236,6 +236,18 @@ export function resolveJournalCloseReasonDisplay(entry: AiTradeJournalEntry): st
   return null;
 }
 
+/** Nhãn trạng thái journal — OPEN hiển thị RUNNING. */
+export function resolveJournalDisplayStatus(
+  status: AiTradeJournalEntry['outcome']['status'],
+): string {
+  if (status === 'OPEN') return 'RUNNING';
+  return status;
+}
+
+export function isJournalRunning(entry: AiTradeJournalEntry): boolean {
+  return entry.outcome.status === 'OPEN';
+}
+
 export interface FundingAtEntrySnapshot {
   fundingAtEntry: number | null;
   fundingVelocityAtEntry: number | null;

@@ -7,6 +7,7 @@ import {
   formatPendingCancelLabel,
   isStalePendingOrder,
   resolveJournalCloseReasonDisplay,
+  resolveJournalDisplayStatus,
   resolveJournalOpenReasonDisplay,
 } from '../services/journalService';
 import { formatUsdPrice } from '../utils/formatPrice';
@@ -18,7 +19,7 @@ interface JournalEntryCardProps {
   entry: AiTradeJournalEntry;
   unrealizedPnl?: number | null;
   onDetail?: (entry: AiTradeJournalEntry) => void;
-  onCloseTrade?: (entry: AiTradeJournalEntry) => void;
+  onStopTrade?: (entry: AiTradeJournalEntry) => void;
   onConfirmFill?: (entry: AiTradeJournalEntry) => void;
   onCancelPending?: (entry: AiTradeJournalEntry) => void;
 }
@@ -35,7 +36,7 @@ export function JournalEntryCard({
   entry,
   unrealizedPnl,
   onDetail,
-  onCloseTrade,
+  onStopTrade,
   onConfirmFill,
   onCancelPending,
 }: JournalEntryCardProps) {
@@ -70,15 +71,20 @@ export function JournalEntryCard({
     : null;
   const openReasonLabel = resolveJournalOpenReasonDisplay(entry);
   const closeReasonLabel = !isOpen && !isPending ? resolveJournalCloseReasonDisplay(entry) : null;
+  const displayStatus = resolveJournalDisplayStatus(entry.outcome.status);
 
   return (
     <View style={[styles.card, stalePending && styles.cardStalePending]}>
       {isPending ? (
         <View style={styles.pendingBadgeRow}>
-          <Text style={styles.pendingBadge}>⏳ CHỜ FILL</Text>
+          <Text style={styles.pendingBadge}>⏳ PENDING</Text>
           {stalePending ? (
             <Text style={styles.staleBadge}>⚠️ Lệnh chờ lâu — kiểm tra lại</Text>
           ) : null}
+        </View>
+      ) : isOpen ? (
+        <View style={styles.pendingBadgeRow}>
+          <Text style={styles.runningBadge}>▶ RUNNING</Text>
         </View>
       ) : null}
 
@@ -123,7 +129,7 @@ export function JournalEntryCard({
 
       <View style={styles.bottomRow}>
         {isPending ? (
-          <Text style={styles.pnl}>{statusIcon} PENDING · Limit {formatUsdPrice(sym, limitPrice)}</Text>
+          <Text style={styles.pnl}>{statusIcon} {displayStatus} · Limit {formatUsdPrice(sym, limitPrice)}</Text>
         ) : isCancelled ? (
           <Text style={[styles.pnl, styles.cancelledPnl]}>
             {statusIcon} ĐÃ HỦY
@@ -138,7 +144,7 @@ export function JournalEntryCard({
               ? ` (${entry.outcome.pnlPct.toFixed(2)}%)`
               : ''}
             {'  '}
-            {statusIcon} {isOpen ? 'ĐANG MỞ' : entry.outcome.status}
+            {statusIcon} {displayStatus}
             {!isOpen && entry.outcome.holdingTimeMinutes != null
               ? `  ${formatHolding(entry.outcome.holdingTimeMinutes)}`
               : ''}
@@ -177,12 +183,12 @@ export function JournalEntryCard({
             <Text style={styles.cancelPendingText}>❌ Huỷ</Text>
           </Pressable>
         ) : null}
-        {isOpen && onCloseTrade ? (
+        {isOpen && onStopTrade ? (
           <Pressable
-            onPress={() => onCloseTrade(entry)}
-            style={[styles.actionBtn, styles.closeBtn, webPointer]}
+            onPress={() => onStopTrade(entry)}
+            style={[styles.actionBtn, styles.stopBtn, webPointer]}
           >
-            <Text style={styles.closeText}>Đóng lệnh</Text>
+            <Text style={styles.stopText}>STOP</Text>
           </Pressable>
         ) : null}
       </View>
@@ -223,6 +229,18 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: COLORS.warning,
+  },
+  runningBadge: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: COLORS.bullish,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(14, 203, 129, 0.12)',
+    overflow: 'hidden',
   },
   topRow: {
     flexDirection: 'row',
@@ -306,13 +324,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.bearish,
   },
-  closeBtn: {
-    borderColor: COLORS.accent,
-    backgroundColor: 'rgba(14, 203, 129, 0.1)',
+  stopBtn: {
+    borderColor: COLORS.bearish,
+    backgroundColor: 'rgba(246, 70, 93, 0.1)',
   },
-  closeText: {
+  stopText: {
     fontSize: 10,
     fontWeight: '800',
-    color: COLORS.accent,
+    color: COLORS.bearish,
   },
 });

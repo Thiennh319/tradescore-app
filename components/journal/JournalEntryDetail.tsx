@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import type { AiTradeJournalEntry } from '../../constants/aiJournal';
 import { COLORS, SCORER_LAYER_NAMES, type ScorerLayerId } from '../../constants/scoring';
 import { RADIUS, SPACING } from '../../constants/theme';
-import { calculateEntryQuality, resolveJournalCloseReasonDisplay, resolveJournalOpenReasonDisplay } from '../../services/journalService';
+import { calculateEntryQuality, resolveJournalCloseReasonDisplay, resolveJournalDisplayStatus, resolveJournalOpenReasonDisplay } from '../../services/journalService';
 import {
   getRecommendationLogForTrade,
   type RecommendationLogEntry,
@@ -83,7 +83,7 @@ export function JournalEntryDetail({ entry, visible, onClose }: JournalEntryDeta
           {openReasonLabel ? <Row label="Lý do vào" value={openReasonLabel} /> : null}
 
           <Text style={styles.section}>Kết quả</Text>
-          <Row label="Status" value={entry.outcome.status} />
+          <Row label="Status" value={resolveJournalDisplayStatus(entry.outcome.status)} />
           {entry.outcome.exitPrice != null ? (
             <Row label="Exit" value={formatUsdPrice(sym, entry.outcome.exitPrice)} />
           ) : null}
