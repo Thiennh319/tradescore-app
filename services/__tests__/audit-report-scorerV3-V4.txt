@@ -1,0 +1,177 @@
+================================================================================
+AUDIT REPORT — scorerV3.ts + scorerV4.ts
+Ngày: 2026-06-22 06:31:43 (UTC+7, sau khi chạy vitest run)
+================================================================================
+
+1. TSC --noEmit
+--------------------------------------------------------------------------------
+Exit code: 2
+Tổng số lỗi: 52
+Tổng số file lỗi: 26
+
+App.tsx(60,44): error TS2307: Cannot find module './services/foregroundScanService' or its corresponding type declarations.
+App.tsx(62,44): error TS2307: Cannot find module './services/localNotification' or its corresponding type declarations.
+App.tsx(64,49): error TS2307: Cannot find module './tasks/backgroundPositionTask' or its corresponding type declarations.
+App.tsx(67,44): error TS2307: Cannot find module './services/nativePersistGuard' or its corresponding type declarations.
+App.tsx(284,47): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+App.tsx(336,47): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+App.tsx(388,47): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+components/dashboard/ScoreSpectrum.tsx(58,40): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '{ left: string; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+      Types of property 'left' are incompatible.
+        Type 'string' is not assignable to type 'DimensionValue | undefined'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '{ left: string; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+      Types of property 'left' are incompatible.
+        Type 'string' is not assignable to type 'DimensionValue | undefined'.
+components/dashboard/TradeHistoryPanel.tsx(158,13): error TS2322: Type '{ readonly cursor: "pointer"; } | { readonly cursor?: undefined; }' is not assignable to type 'Record<string, never> | { cursor: "pointer"; }'.
+  Type '{ readonly cursor?: undefined; }' is not assignable to type 'Record<string, never> | { cursor: "pointer"; }'.
+    Type '{ readonly cursor?: undefined; }' is not assignable to type '{ cursor: "pointer"; }'.
+      Types of property 'cursor' are incompatible.
+        Type 'undefined' is not assignable to type '"pointer"'.
+index.ts(4,8): error TS2882: Cannot find module or type declarations for side-effect import of './tasks/backgroundSessionTask'.
+index.ts(5,8): error TS2882: Cannot find module or type declarations for side-effect import of './tasks/backgroundPositionTask'.
+screens/SystemPerformanceScreen.tsx(264,20): error TS2367: This comparison appears to be unintentional because the types '"v4" | "all"' and '"v3"' have no overlap.
+services/__tests__/driveSync.e2e.test.ts(130,29): error TS18048: 'options.journal' is possibly 'undefined'.
+services/__tests__/driveSync.e2e.test.ts(130,45): error TS2339: Property 'content' does not exist on type 'PullJournalMock'.
+  Property 'content' does not exist on type '{ kind: "invalid_json"; }'.
+services/derivativesDataService.test.ts(62,52): error TS2345: Argument of type '"SOLUSDT"' is not assignable to parameter of type 'TradeDirection'.
+services/exportShare.ts(23,37): error TS2307: Cannot find module 'expo-file-system/legacy' or its corresponding type declarations.
+services/indicators.cache.test.ts(31,5): error TS2561: Object literal may only specify known properties, but 'takerBuyBaseVolume' does not exist in type 'Kline'. Did you mean to write 'takerBuyVolume'?
+services/indicators.cache.test.ts(68,57): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/indicators.cache.test.ts(75,7): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/indicators.cache.test.ts(90,57): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/indicators.cache.test.ts(97,7): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/journalService.test.ts(133,12): error TS2352: Conversion of type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 4 more.
+services/journalService.test.ts(172,12): error TS2352: Conversion of type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; l6Detail: { ...; }; v4: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; l6Detail: { ...; }; v4: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 5 more.
+services/journalService.test.ts(234,12): error TS2352: Conversion of type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "CO_THE_VAO"; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { direction: "LONG"; ... 11 more ...; notes: string; }; v3: { ...; }; tradePlanV3: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "CO_THE_VAO"; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { direction: "LONG"; ... 11 more ...; notes: string; }; v3: { ...; }; tradePlanV3: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 5 more.
+services/journalService.test.ts(618,12): error TS2352: Conversion of type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; squeezeRisk: { ...; }; v4: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; squeezeRisk: { ...; }; v4: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 5 more.
+services/journalService.test.ts(666,33): error TS2739: Type '{ scorerVersion: "v4"; }' is missing the following properties from type 'ScoringSnapshot': totalScore, direction, layerScores, mandatoryViolations, decision
+services/notificationService.ts(10,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/periodicTradingWork.ts(9,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/phase1Migration.ts(290,5): error TS2322: Type '"15m" | "1h" | "4h" | "1d"' is not assignable to type '"1h" | "4h" | "1d" | undefined'.
+  Type '"15m"' is not assignable to type '"1h" | "4h" | "1d" | undefined'.
+services/phase1Migration.ts(359,10): error TS2352: Conversion of type 'Record<string, unknown>' to type 'LockedTradePlan' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'Record<string, unknown>' is missing the following properties from type 'LockedTradePlan': id, pendingEntryId, lockedAt, expiresAt, and 14 more.
+services/planHealth.test.ts(179,7): error TS2345: Argument of type '{ squeezeRisk: SqueezeRiskResult; l6Detail: { fundingState: FundingState; }; layers: { layer: number; score: number; }[]; v4: { longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }; }' is not assignable to parameter of type 'Pick<SignalRow, "v4" | "squeezeRisk" | "l6Detail" | "layers">'.
+  Types of property 'v4' are incompatible.
+    Type '{ longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }' is missing the following properties from type 'SignalRowScorerSnapshot': score, longScore, shortScore, direction, and 7 more.
+services/planHealth.test.ts(195,7): error TS2345: Argument of type '{ squeezeRisk: SqueezeRiskResult; l6Detail: { fundingState: FundingState; }; layers: { layer: number; score: number; }[]; v4: { longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }; }' is not assignable to parameter of type 'Pick<SignalRow, "v4" | "squeezeRisk" | "l6Detail" | "layers">'.
+  Types of property 'v4' are incompatible.
+    Type '{ longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }' is missing the following properties from type 'SignalRowScorerSnapshot': score, longScore, shortScore, direction, and 7 more.
+services/planHealth.test.ts(211,7): error TS2345: Argument of type '{ squeezeRisk: SqueezeRiskResult; l6Detail: { fundingState: FundingState; }; layers: { layer: number; score: number; }[]; v4: { longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }; }' is not assignable to parameter of type 'Pick<SignalRow, "v4" | "squeezeRisk" | "l6Detail" | "layers">'.
+  Types of property 'v4' are incompatible.
+    Type '{ longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }' is missing the following properties from type 'SignalRowScorerSnapshot': score, longScore, shortScore, direction, and 7 more.
+services/priceAlertNotification.ts(9,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/scorer.ts(520,7): error TS2741: Property 'CHO_TAI_CHAM' is missing in type '{ KHONG_VAO: string; CHO_THEM: string; CO_THE_VAO: string; VAO_TU_TIN: string; SETUP_NGON: string; }' but required in type 'Record<TradeDecisionLabel, string>'.
+services/sessionNotification.ts(10,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/sessionNotification.ts(14,8): error TS2307: Cannot find module '../tasks/backgroundSessionTask' or its corresponding type declarations.
+services/signalScanContext.test.ts(10,9): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: never; scoring: never; plan: never; outcome: { status: "LOSS"; pnlUSDT: number; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/skippedSetupService.ts(193,7): error TS2322: Type 'number' is not assignable to type 'undefined'.
+services/tradeHistorySync.test.ts(9,7): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; outcome: { ...; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/tradeHistorySync.test.ts(56,7): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; outcome: { ...; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/tradeHistorySync.ts(23,10): error TS2678: Type '"OFFLINE_CLOSE"' is not comparable to type 'TradeExitReason | undefined'.
+services/tradePlanDisplay.ts(1,54): error TS2307: Cannot find module './scoring' or its corresponding type declarations.
+services/tradeSnapshot.test.ts(27,9): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: never; scoring: never; plan: never; outcome: { status: "WIN"; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/tradeSnapshot.ts(73,16): error TS2554: Expected 2 arguments, but got 1.
+services/whaleRadarNotification.ts(6,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/whaleRadarNotification.ts(12,58): error TS2307: Cannot find module './whaleRadarAlarm' or its corresponding type declarations.
+store/useTradeStore.ts(286,18): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(395,17): error TS2304: Cannot find name 'SkipReason'.
+store/useTradeStore.ts(696,11): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(724,11): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(725,4): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(861,18): error TS2304: Cannot find name 'SkippedSetupEntry'.
+
+Phân tích riêng cho 2 file vừa sửa:
+- services/scorerV3.ts: KHÔNG CÓ LỖI
+- services/scorerV4.ts: KHÔNG CÓ LỖI
+
+So sánh với lần audit trước (26 file / 52 lỗi, không file nào là
+scorerV3.ts hoặc scorerV4.ts):
+- Số lỗi hiện tại: GIỮ NGUYÊN (52 lỗi, 26 file) so với 52 lỗi cũ
+- Lỗi MỚI xuất hiện: KHÔNG CÓ — danh sách file và dòng lỗi trùng với
+  lần audit trước; không có dòng nào trỏ tới scorerV3.ts hoặc scorerV4.ts
+
+2. VITEST RUN
+--------------------------------------------------------------------------------
+Tổng số test: 452
+Passed: 451
+Failed: 1
+Skipped: 0
+
+ RUN  v4.1.8 D:/Thiennh3/APP/Trading/TradeScore
+
+ ❯ store/useTradeStore.driveSync.test.ts (7 tests | 1 failed) 10612ms
+     × addJournalEntry gọi syncOnAction với JOURNAL_ENTRY_ADDED 10058ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  store/useTradeStore.driveSync.test.ts > useTradeStore journal Drive sync > addJournalEntry gọi syncOnAction với JOURNAL_ENTRY_ADDED
+Error: Hook timed out in 10000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ store/useTradeStore.driveSync.test.ts:31:1
+     29| }));
+     30|
+     31| beforeEach(async () => {
+       | ^
+     32|   vi.clearAllMocks();
+     33|   syncOnActionMock.mockResolvedValue(undefined);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 62 passed (63)
+      Tests  1 failed | 451 passed (452)
+   Start at  06:28:17
+   Duration  204.69s (transform 7.23s, setup 0ms, import 152.48s, tests 33.12s, environment 326.29s)
+
+Chi tiết test FAIL:
+
+Test file: store/useTradeStore.driveSync.test.ts
+Test case: useTradeStore journal Drive sync > addJournalEntry gọi syncOnAction với JOURNAL_ENTRY_ADDED
+Lý do fail:
+  Error: Hook timed out in 10000ms.
+  If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+  ❯ store/useTradeStore.driveSync.test.ts:31:1 (beforeEach async hook)
+Liên quan scorerV3.ts / scorerV4.ts: KHÔNG
+  (test file kiểm tra Drive sync trong useTradeStore, không import hay
+  gọi hàm từ scorerV3.ts hay scorerV4.ts)
+
+Các test liên quan trực tiếp scorer (vẫn PASS):
+- services/scorerV3.test.ts — PASS (không có trong danh sách fail)
+- services/scorerV4.test.ts — PASS (không có trong danh sách fail)
+
+3. KẾT LUẬN
+--------------------------------------------------------------------------------
+- 3 đoạn sửa D/E/F (scorerV4.ts) có gây lỗi compile mới không? KHÔNG
+  (D = scoreL8V4 blockReasons merge; E = groupBlocks dynamic text;
+   F = scoreL5bV4 OI divergence signals)
+- 3 đoạn sửa D/E/F có gây test fail mới không? KHÔNG
+  (1 test fail là driveSync timeout, không liên quan scorerV4;
+   scorerV3.test.ts và scorerV4.test.ts đều pass)
+- Tổng số lỗi/fail có liên quan trực tiếp đến scorerV3.ts hoặc
+  scorerV4.ts: 0
+  (tsc: 0 lỗi trong 2 file; vitest: 0 fail trong scorerV3/scorerV4 tests)
+- Khuyến nghị: AN TOÀN ĐỂ TIẾP TỤC
+  Lý do: 6 đoạn sửa A/B/C (scorerV3) + D/E/F (scorerV4) không tạo lỗi
+  compile mới, không làm fail test scorer. Toàn bộ 52 lỗi tsc là
+  pre-existing (26 file, giữ nguyên so với audit trước). 1 test fail
+  duy nhất (driveSync hook timeout) là flaky/pre-existing, không liên
+  quan thay đổi scorer.
+
+================================================================================
+HẾT
+================================================================================

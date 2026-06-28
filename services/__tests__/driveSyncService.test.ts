@@ -1,0 +1,301 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('../googleDriveService', () => ({
+  uploadFile: vi.fn(),
+  downloadFile: vi.fn(),
+}));
+
+import { uploadFile, downloadFile } from '../googleDriveService';
+import { clearDriveSyncStoreBridge } from '../driveSyncStoreBridge';
+
+beforeEach(async () => {
+  clearDriveSyncStoreBridge();
+  vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.resetModules();
+});
+
+afterEach(async () => {
+  try {
+    const mod = await import('../driveSyncService');
+    mod.stopScheduler();
+  } catch {
+    // module may be reset
+  }
+  vi.runOnlyPendingTimers();
+  vi.useRealTimers();
+});
+
+async function loadDriveSyncService() {
+  return import('../driveSyncService');
+}
+
+describe('driveSyncService', () => {
+  it('debounce: 3 action liên tiếp chỉ sync 1 lần', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: true,
+      data: 'fileId',
+    });
+
+    const { syncOnAction } = await loadDriveSyncService();
+
+    syncOnAction('JOURNAL_ENTRY_ADDED');
+    syncOnAction('JOURNAL_ENTRY_ADDED');
+    syncOnAction('JOURNAL_ENTRY_ADDED');
+
+    await vi.advanceTimersByTimeAsync(30 * 1000);
+    await Promise.resolve();
+
+    expect(uploadFile).toHaveBeenCalledTimes(1);
+  }, 15_000);
+
+  it('ORDER_PLACED sync cả positions và journal', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: true,
+      data: 'fileId',
+    });
+
+    const { syncOnAction } = await loadDriveSyncService();
+
+    syncOnAction('ORDER_PLACED');
+
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(uploadFile).toHaveBeenCalledTimes(2);
+
+    const calledFiles = vi.mocked(uploadFile).mock.calls.map((call) => call[0]);
+
+    expect(calledFiles).toContain('tradescore_positions.json');
+    expect(calledFiles).toContain('tradescore_journal.json');
+  });
+
+  it('syncState chuyển sang success sau khi sync', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: true,
+      data: 'fileId',
+    });
+
+    const { syncOnAction, getSyncState } = await loadDriveSyncService();
+
+    syncOnAction('CAPITAL_UPDATED');
+
+    expect(getSyncState().status).toBe('idle');
+
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(getSyncState().status).toBe('success');
+    expect(getSyncState().lastSyncTime).not.toBeNull();
+  });
+
+  it('syncState chuyển error khi upload thất bại', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: false,
+      error: 'NETWORK_ERROR',
+    });
+
+    const { syncOnAction, getSyncState } = await loadDriveSyncService();
+
+    syncOnAction('CAPITAL_UPDATED');
+
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(getSyncState().status).toBe('error');
+  });
+
+  it('syncAll upload đúng 3 file', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: true,
+      data: 'fileId',
+    });
+
+    const { syncAll } = await loadDriveSyncService();
+    const result = await syncAll();
+
+    expect(result.success).toBe(true);
+    expect(result.filessynced).toHaveLength(3);
+    expect(result.filesFailed).toHaveLength(0);
+    expect(uploadFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('schedule12hSync skip khi không có data mới', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: true,
+      data: 'fileId',
+    });
+
+    const { syncAll, schedule12hSync, stopScheduler } = await loadDriveSyncService();
+
+    await syncAll();
+    vi.mocked(uploadFile).mockClear();
+
+    schedule12hSync();
+
+    await vi.advanceTimersByTimeAsync(12 * 60 * 60 * 1000);
+
+    expect(uploadFile).toHaveBeenCalledTimes(0);
+
+    stopScheduler();
+  });
+
+  it('schedule12hSync sync khi có data mới', async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      success: true,
+      data: 'fileId',
+    });
+
+    const { syncAll, syncOnAction, schedule12hSync, stopScheduler } =
+      await loadDriveSyncService();
+
+    await syncAll();
+    vi.mocked(uploadFile).mockClear();
+
+    syncOnAction('JOURNAL_ENTRY_ADDED');
+
+    schedule12hSync();
+
+    await vi.advanceTimersByTimeAsync(12 * 60 * 60 * 1000);
+
+    expect(uploadFile).toHaveBeenCalled();
+
+    stopScheduler();
+  });
+
+  it('syncAll tiếp tục dù 1 file fail', async () => {
+    vi.mocked(uploadFile)
+      .mockResolvedValueOnce({
+        success: true,
+        data: 'id1',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'UPLOAD_FAILED',
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: 'id3',
+      });
+
+    const { syncAll } = await loadDriveSyncService();
+    const result = await syncAll();
+
+    expect(result.success).toBe(false);
+    expect(result.filessynced).toHaveLength(2);
+    expect(result.filesFailed).toHaveLength(1);
+    expect(uploadFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('pullFromDrive merge journal từ Drive', async () => {
+    const driveJournal = {
+      version: '1.0.2',
+      lastUpdated: new Date().toISOString(),
+      deviceId: 'APK',
+      data: [
+        { id: 'entry_1', pnl: 1.5 },
+        { id: 'entry_2', pnl: -0.5 },
+        { id: 'entry_3', pnl: 2.0 },
+        { id: 'entry_4', pnl: 0.8 },
+        { id: 'entry_5', pnl: -1.0 },
+      ],
+    };
+
+    vi.mocked(downloadFile)
+      .mockResolvedValueOnce({
+        success: true,
+        data: JSON.stringify(driveJournal),
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NOT_FOUND',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NOT_FOUND',
+      });
+
+    const { pullFromDrive } = await loadDriveSyncService();
+    const result = await pullFromDrive();
+
+    expect(result.success).toBe(true);
+    expect(result.journalMerged).toBe(5);
+  });
+
+  it('APK version thắng khi conflict', async () => {
+    const driveData = {
+      version: '1.0.2',
+      lastUpdated: new Date().toISOString(),
+      deviceId: 'WEB',
+      data: [
+        { id: 'entry_1', pnl: 1.0 },
+        { id: 'entry_2', pnl: 0.5 },
+      ],
+    };
+
+    vi.mocked(downloadFile)
+      .mockResolvedValueOnce({
+        success: true,
+        data: JSON.stringify(driveData),
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NOT_FOUND',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NOT_FOUND',
+      });
+
+    const { pullFromDrive, seedLocalJournalForTest } = await loadDriveSyncService();
+    seedLocalJournalForTest([{ id: 'entry_1', pnl: 2.0 }]);
+
+    const result = await pullFromDrive();
+
+    expect(result.success).toBe(true);
+    expect(result.journalMerged).toBe(1);
+  });
+
+  it('pullFromDrive không crash khi offline', async () => {
+    vi.mocked(downloadFile)
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NETWORK_ERROR',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NETWORK_ERROR',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NETWORK_ERROR',
+      });
+
+    const { pullFromDrive, getSyncState } = await loadDriveSyncService();
+    const result = await pullFromDrive();
+
+    expect(result.success).toBe(false);
+    expect(getSyncState().status).toBe('offline');
+    expect(result.journalMerged).toBe(0);
+  });
+
+  it('pullFromDrive xử lý JSON parse error', async () => {
+    vi.mocked(downloadFile)
+      .mockResolvedValueOnce({
+        success: true,
+        data: 'INVALID_JSON{{{{',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NOT_FOUND',
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        error: 'NOT_FOUND',
+      });
+
+    const { pullFromDrive, getSyncState } = await loadDriveSyncService();
+    const result = await pullFromDrive();
+
+    expect(result.success).toBe(true);
+    expect(getSyncState().status).toBe('success');
+    expect(result.journalMerged).toBe(0);
+  });
+});

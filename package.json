@@ -1,0 +1,48 @@
+{
+  "name": "tradescore",
+  "version": "1.0.2",
+  "main": "index.ts",
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/slider": "5.2.0",
+    "@shopify/react-native-skia": "2.6.2",
+    "expo": "~56.0.11",
+    "expo-background-task": "~56.0.18",
+    "expo-device": "~56.0.4",
+    "expo-notifications": "~56.0.17",
+    "expo-status-bar": "~56.0.4",
+    "expo-task-manager": "~56.0.18",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-background-actions": "^4.1.0",
+    "react-native-web": "^0.21.2",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "~19.2.2",
+    "jsdom": "^29.1.1",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "scripts": {
+    "start": "expo start",
+    "start:web": "expo start --web --port 8081",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web --port 8081",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prebuild:android": "expo prebuild --platform android --clean",
+    "build:apk": "cd android && gradlew.bat assembleRelease && cd .. && node -e \"const fs=require('fs'),cp=require('child_process'),p=require('./package.json');const d='dist/TradeScore-v'+p.version+'.apk';fs.mkdirSync('dist',{recursive:true});fs.copyFileSync('android/app/build/outputs/apk/release/app-release.apk',d);if(fs.existsSync('dist/guideline.txt')){console.log('guideline.txt OK');}console.log('APK:',d);cp.execSync('node scripts/write-build-info.mjs apk dist/BUILD_INFO_APK_v'+p.version+'.txt',{stdio:'inherit'});\"",
+    "build:apk:debug": "cd android && gradlew.bat assembleDebug",
+    "build:web-exe": "powershell -ExecutionPolicy Bypass -File scripts/build-web-exe.ps1",
+    "android:setup-cmdline": "powershell -ExecutionPolicy Bypass -File scripts/install-android-cmdline.ps1",
+    "android:setup-avd": "powershell -ExecutionPolicy Bypass -File scripts/setup-android-avd.ps1",
+    "android:emu": "powershell -ExecutionPolicy Bypass -File scripts/run-android-emulator.ps1",
+    "android:log": "powershell -Command \"& $env:ANDROID_HOME\\platform-tools\\adb.exe logcat *:S ReactNative:V ReactNativeJS:V AndroidRuntime:E\""
+  },
+  "private": true
+}
