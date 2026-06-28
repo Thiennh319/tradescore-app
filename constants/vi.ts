@@ -15,7 +15,7 @@ import type { TradingBias } from '../utils/tradingBias';
 export const vi = {
   app: {
     footer: (layers: number) =>
-      `TradeScore v1.0 · Giai đoạn 1–4 · AI Scorer · Backtest · ${layers} lớp tín hiệu`,
+      `TradeCoin v1.0.3 · AI Scorer · Backtest · ${layers} lớp tín hiệu`,
     errorTitle: 'Đã xảy ra lỗi',
     loadingPersistTitle: 'Đang tải dữ liệu đã lưu…',
     loadingPersistHint:
@@ -141,6 +141,33 @@ export const vi = {
     pageLabel: (page: number, total: number) => `Trang ${page} / ${total}`,
     prevPage: 'Trước',
     nextPage: 'Sau',
+  },
+  journal: {
+    title: 'Trade Journal',
+    versionLabel: 'TradeCoin v1.0.3',
+    subtitle: (count: number) => `${count} lệnh · V3 · V4 · CVDX`,
+    empty:
+      'Chưa có lệnh. Từ Trade Plan bấm ✅ XÁC NHẬN VÀO LỆNH hoặc ⏳ ĐẶT LỆNH CHỜ để lưu snapshot.',
+    releaseTitle: 'v1.0.3',
+    releaseNotes: [
+      'Simplified dashboard',
+      'Unified Trade Journal',
+      'Strategy source tracking',
+      'Recommendation tracking',
+      'Open/close reason integration',
+      'Manual stop support',
+    ],
+    colSource: 'Source',
+    colCoin: 'Coin',
+    colStatus: 'Status',
+    colRecommendation: 'Recommendation',
+    colEntry: 'Entry',
+    colCurrentExit: 'Current/Exit',
+    colPnl: 'PnL',
+    colOpenReason: 'Open Reason',
+    colCloseReason: 'Close Reason',
+    colAction: 'Action',
+    colTime: 'Time',
   },
   psychology: {
     open: 'Phân tích nhanh',

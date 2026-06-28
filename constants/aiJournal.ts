@@ -3,7 +3,7 @@
 import type { FundingState } from './scoring';
 import type { SqueezeDirection, SqueezeLevel } from '../types/squeezeRisk';
 
-export const AI_JOURNAL_APP_VERSION = '1.0.2';
+export const AI_JOURNAL_APP_VERSION = '1.0.3';
 
 export const AI_JOURNAL_SCHEMA_VERSION = '2.0.0';
 

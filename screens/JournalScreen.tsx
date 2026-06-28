@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { JournalEntryCard } from '../components/JournalEntryCard';
 import { CloseTradeModal } from '../components/journal/CloseTradeModal';
 import { ConfirmFillModal } from '../components/journal/ConfirmFillModal';
 import { JournalEntryDetail } from '../components/journal/JournalEntryDetail';
@@ -8,11 +7,13 @@ import {
   JournalFilterBar,
   type JournalStatusFilter,
 } from '../components/journal/JournalFilterBar';
+import { JournalTradeTable } from '../components/journal/JournalTradeTable';
 import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../constants/scoring';
 import { PANEL, SPACING } from '../constants/theme';
+import { vi } from '../constants/vi';
 import { shareJournalCsv, shareSkippedSetupsCsv } from '../services/exportShare';
-import { computeTradePnl, groupJournalByDate } from '../services/journalService';
+import { computeTradePnl } from '../services/journalService';
 import { useTradeStore } from '../store/useTradeStore';
 
 export function JournalScreen() {
@@ -47,10 +48,8 @@ export function JournalScreen() {
           e.outcome.status !== 'PENDING',
       );
     }
-    return list;
+    return list.sort((a, b) => b.timestamp - a.timestamp);
   }, [allVisible, symbolFilter, statusFilter]);
-
-  const groups = useMemo(() => groupJournalByDate(entries), [entries]);
 
   const markBySymbol = useMemo(() => {
     const map: Record<string, number> = {};
@@ -60,6 +59,17 @@ export function JournalScreen() {
     }
     return map;
   }, [markPrices]);
+
+  const unrealizedById = useMemo(() => {
+    const map: Record<string, number | null> = {};
+    for (const entry of entries) {
+      if (entry.outcome.status !== 'OPEN') continue;
+      const mark = markBySymbol[entry.symbol];
+      map[entry.id] =
+        mark != null ? computeTradePnl(entry, mark, leverage).pnlUSDT : null;
+    }
+    return map;
+  }, [entries, markBySymbol, leverage]);
 
   const handleExport = async () => {
     try {
@@ -100,8 +110,20 @@ export function JournalScreen() {
 
   return (
     <View style={styles.root}>
-      <Text style={styles.title}>📓 NHẬT KÝ LỆNH</Text>
-      <Text style={styles.subtitle}>{allVisible.length} lệnh · snapshot đầy đủ cho AI</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>{vi.journal.title}</Text>
+        <Text style={styles.version}>{vi.journal.versionLabel}</Text>
+        <Text style={styles.subtitle}>{vi.journal.subtitle(allVisible.length)}</Text>
+      </View>
+
+      <View style={styles.releaseBox}>
+        <Text style={styles.releaseTitle}>{vi.journal.releaseTitle}</Text>
+        {vi.journal.releaseNotes.map((note) => (
+          <Text key={note} style={styles.releaseItem}>
+            · {note}
+          </Text>
+        ))}
+      </View>
 
       <JournalFilterBar
         symbol={symbolFilter}
@@ -111,36 +133,20 @@ export function JournalScreen() {
         onExportCsv={() => void handleExport()}
       />
 
-      {groups.length === 0 ? (
+      {entries.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>
-            Chưa có lệnh. Từ Trade Plan bấm ✅ XÁC NHẬN VÀO LỆNH hoặc ⏳ ĐẶT LỆNH CHỜ để lưu snapshot.
-          </Text>
+          <Text style={styles.emptyText}>{vi.journal.empty}</Text>
         </View>
       ) : (
-        groups.map((group) => (
-          <View key={group.date} style={styles.dayGroup}>
-            <Text style={styles.dayLabel}>{group.label}</Text>
-            {group.items.map((entry) => {
-              const mark = markBySymbol[entry.symbol];
-              const unrealized =
-                entry.outcome.status === 'OPEN' && mark != null
-                  ? computeTradePnl(entry, mark, leverage).pnlUSDT
-                  : null;
-              return (
-                <JournalEntryCard
-                  key={entry.id}
-                  entry={entry}
-                  unrealizedPnl={unrealized}
-                  onDetail={setDetailEntry}
-                  onStopTrade={handleStopTrade}
-                  onConfirmFill={setFillEntry}
-                  onCancelPending={handleCancelPending}
-                />
-              );
-            })}
-          </View>
-        ))
+        <JournalTradeTable
+          entries={entries}
+          markBySymbol={markBySymbol}
+          unrealizedById={unrealizedById}
+          onDetail={setDetailEntry}
+          onStopTrade={handleStopTrade}
+          onConfirmFill={setFillEntry}
+          onCancelPending={handleCancelPending}
+        />
       )}
 
       <JournalEntryDetail
@@ -180,22 +186,39 @@ export function JournalScreen() {
 
 const styles = StyleSheet.create({
   root: { gap: SPACING.md },
+  header: { gap: 2 },
   title: {
     fontSize: 16,
     fontWeight: '800',
     color: COLORS.textPrimary,
+    letterSpacing: 0.2,
+  },
+  version: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.accent,
   },
   subtitle: {
     fontSize: 11,
     color: COLORS.textMuted,
-    marginTop: 2,
   },
-  dayGroup: { marginTop: SPACING.sm },
-  dayLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+  releaseBox: {
+    ...PANEL,
+    padding: SPACING.md,
+    gap: 2,
+  },
+  releaseTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  releaseItem: {
+    fontSize: 10,
     color: COLORS.textMuted,
-    marginBottom: SPACING.sm,
+    lineHeight: 15,
   },
   empty: {
     ...PANEL,
