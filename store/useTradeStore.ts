@@ -169,6 +169,7 @@ import {
   resolveSqueezeExitPatchForClose,
   squeezeAtEntryFromResult,
   applyCloseWithFundingPatch,
+  formatJournalCloseReason,
   type FundingAtEntrySnapshot,
   type SqueezeAtEntrySnapshot,
   type EquityCurveStats,
@@ -1588,6 +1589,10 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
         outcome: {
           status: 'CANCELLED' as const,
           exitReason: options?.exitReason ?? ('LIMIT_NOT_FILLED' as const),
+          closeReason: formatJournalCloseReason(
+            options?.exitReason ?? 'LIMIT_NOT_FILLED',
+            options?.notes,
+          ),
           exitTimestamp,
           holdingTimeMinutes,
           limitOrderPrice: e.outcome.limitOrderPrice,

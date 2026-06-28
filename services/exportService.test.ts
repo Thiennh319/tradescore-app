@@ -58,7 +58,8 @@ describe('exportService', () => {
   it('exports full CSV headers', async () => {
     const csv = await exportJournalToCSV([miniEntry()]);
     expect(csv.split('\n')[0]).toContain('Entry Actual');
-    expect(csv.split('\n')[0]).toContain('accountSizeAfter');
+    expect(csv.split('\n')[0]).toContain('Open Reason');
+    expect(csv.split('\n')[0]).toContain('Close Reason');
     expect(csv.split('\n')[0]).toContain('positionAdvisorActionAtExit');
     expect(csv.split('\n')[0]).toContain('followedAdvisorRecommendation');
     expect(csv.split('\n')[0]).toContain('scoringDecisionAtExit');

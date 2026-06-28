@@ -2,6 +2,7 @@ import type { AccountHistoryPoint, AiTradeJournalEntry, DailySessionStats, Weekl
 import type { SkippedSetupEntry } from '../constants/scoring';
 import { SCORER_LAYER_NAMES } from '../constants/scoring';
 import type { ScorerLayerId } from '../constants/scoring';
+import { resolveJournalCloseReasonDisplay, resolveJournalOpenReasonDisplay } from './journalService';
 import { getVietnamDateParts } from '../store/useTradeStore';
 
 export type TradeJournalEntry = AiTradeJournalEntry;
@@ -81,6 +82,8 @@ function entryToCsvRow(
     e.outcome.pnlPct ?? '',
     e.outcome.holdingTimeMinutes ?? '',
     e.outcome.exitReason ?? '',
+    resolveJournalOpenReasonDisplay(e) ?? '',
+    resolveJournalCloseReasonDisplay(e) ?? '',
     e.outcome.limitOrderPrice ?? '',
     e.outcome.limitOrderPlacedAt ?? '',
     ls.l1, ls.l2, ls.l3, ls.l4, ls.l5, ls.l6, ls.l7, ls.l8, ls.l9, ls.l10,
@@ -105,7 +108,7 @@ const CSV_HEADERS = [
   'R:R', 'Size', 'CVD', 'BTC%', 'Funding%', 'L/S Ratio',
   'Session', 'Entry Zone Type',
   'Status', 'Exit Price', 'PnL USDT', 'PnL%',
-  'Holding Minutes', 'Exit Reason', 'Limit Price', 'Limit Placed At',
+  'Holding Minutes', 'Exit Reason', 'Open Reason', 'Close Reason', 'Limit Price', 'Limit Placed At',
   'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10',
   'Tags', 'Notes', 'accountSizeAfter',
   'positionAdvisorActionAtExit',

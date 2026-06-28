@@ -9,7 +9,7 @@ function isClosedAiStatus(status: AiTradeJournalEntry['outcome']['status']): boo
   return status !== 'OPEN' && status !== 'PENDING';
 }
 
-function exitReasonToCloseReason(reason?: TradeExitReason): TradeCloseReason {
+export function exitReasonToCloseReason(reason?: TradeExitReason): TradeCloseReason {
   switch (reason) {
     case 'TP1_HIT':
       return 'TP1';

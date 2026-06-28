@@ -199,6 +199,8 @@ export interface TradePlanSnapshot {
   sizeProposed: number;
   sizeActual: number;
   isSafeSL: boolean;
+  /** Lý do vào lệnh — entryZone.reasoning từ trade plan lúc mở */
+  openReason?: string;
 }
 
 export interface TradeOutcome {
@@ -211,6 +213,8 @@ export interface TradeOutcome {
   /** Alias — cùng giá trị holdingTimeMinutes khi đóng lệnh */
   holdDurationMinutes?: number;
   exitReason?: TradeExitReason;
+  /** Nhãn lý do đóng — từ vi / formatPendingCancelLabel lúc ghi */
+  closeReason?: string;
   /** Giá limit/stop/trigger đặt ban đầu (audit — không đổi sau fill). */
   limitOrderPrice?: number;
   /** Giá market tại thời điểm khớp (audit). */

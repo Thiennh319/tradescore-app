@@ -6,6 +6,8 @@ import {
   formatPendingWaitDuration,
   formatPendingCancelLabel,
   isStalePendingOrder,
+  resolveJournalCloseReasonDisplay,
+  resolveJournalOpenReasonDisplay,
 } from '../services/journalService';
 import { formatUsdPrice } from '../utils/formatPrice';
 import { formatSignedUsdt } from '../utils/positionPnl';
@@ -66,6 +68,8 @@ export function JournalEntryCard({
   const cancelLabel = isCancelled
     ? formatPendingCancelLabel(entry.outcome.exitReason, entry.outcome.notes)
     : null;
+  const openReasonLabel = resolveJournalOpenReasonDisplay(entry);
+  const closeReasonLabel = !isOpen && !isPending ? resolveJournalCloseReasonDisplay(entry) : null;
 
   return (
     <View style={[styles.card, stalePending && styles.cardStalePending]}>
@@ -113,6 +117,10 @@ export function JournalEntryCard({
         </Text>
       )}
 
+      {openReasonLabel ? (
+        <Text style={styles.reasonLine}>Vào: {openReasonLabel}</Text>
+      ) : null}
+
       <View style={styles.bottomRow}>
         {isPending ? (
           <Text style={styles.pnl}>{statusIcon} PENDING · Limit {formatUsdPrice(sym, limitPrice)}</Text>
@@ -142,6 +150,9 @@ export function JournalEntryCard({
 
       {cancelLabel ? (
         <Text style={styles.cancelNote}>{cancelLabel}</Text>
+      ) : null}
+      {closeReasonLabel && !isCancelled ? (
+        <Text style={styles.reasonLine}>Đóng: {closeReasonLabel}</Text>
       ) : null}
 
       <View style={styles.actions}>
@@ -252,6 +263,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 10,
     color: COLORS.warning,
+    lineHeight: 14,
+  },
+  reasonLine: {
+    marginTop: 4,
+    fontSize: 10,
+    color: COLORS.textSecondary,
     lineHeight: 14,
   },
   actions: {

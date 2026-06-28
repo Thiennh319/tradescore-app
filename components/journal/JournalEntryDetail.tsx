@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import type { AiTradeJournalEntry } from '../../constants/aiJournal';
 import { COLORS, SCORER_LAYER_NAMES, type ScorerLayerId } from '../../constants/scoring';
 import { RADIUS, SPACING } from '../../constants/theme';
-import { calculateEntryQuality } from '../../services/journalService';
+import { calculateEntryQuality, resolveJournalCloseReasonDisplay, resolveJournalOpenReasonDisplay } from '../../services/journalService';
 import {
   getRecommendationLogForTrade,
   type RecommendationLogEntry,
@@ -38,9 +38,12 @@ export function JournalEntryDetail({ entry, visible, onClose }: JournalEntryDeta
     void getRecommendationLogForTrade(entry.id).then(setRecLog);
   }, [entry?.id, entry?.outcome.status]);
 
-  if (!entry) return null;  const sym = entry.symbol as import('../../constants/scoring').AppTradeSymbol;
+  if (!entry) return null;
+  const sym = entry.symbol as import('../../constants/scoring').AppTradeSymbol;
   const quality = calculateEntryQuality(entry);
   const layers = Object.entries(entry.scoring.layerScores) as Array<[string, number]>;
+  const openReasonLabel = resolveJournalOpenReasonDisplay(entry);
+  const closeReasonLabel = resolveJournalCloseReasonDisplay(entry);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -77,6 +80,7 @@ export function JournalEntryDetail({ entry, visible, onClose }: JournalEntryDeta
           <Row label="TP1" value={formatUsdPrice(sym, entry.plan.tp1Actual)} />
           <Row label="Size" value={`$${entry.plan.sizeActual}`} />
           <Row label="Entry quality" value={`${quality.score}/100 · ${quality.assessment}`} />
+          {openReasonLabel ? <Row label="Lý do vào" value={openReasonLabel} /> : null}
 
           <Text style={styles.section}>Kết quả</Text>
           <Row label="Status" value={entry.outcome.status} />
@@ -89,9 +93,7 @@ export function JournalEntryDetail({ entry, visible, onClose }: JournalEntryDeta
           {entry.outcome.holdingTimeMinutes != null ? (
             <Row label="Giữ" value={`${entry.outcome.holdingTimeMinutes} phút`} />
           ) : null}
-          {entry.outcome.exitReason ? (
-            <Row label="Lý do" value={entry.outcome.exitReason} />
-          ) : null}
+          {closeReasonLabel ? <Row label="Lý do đóng" value={closeReasonLabel} /> : null}
           {entry.outcome.offlineClose ? (
             <Row label="Offline" value="Có" />
           ) : null}

@@ -225,6 +225,7 @@ function migratePlan(raw: unknown, entryPrice = 0): TradePlanSnapshot {
     sizeProposed: num(p.sizeProposed, 1),
     sizeActual: num(p.sizeActual, 1),
     isSafeSL: Boolean(p.isSafeSL),
+    openReason: typeof p.openReason === 'string' ? p.openReason : undefined,
   };
 }
 
@@ -252,6 +253,7 @@ function migrateOutcome(raw: unknown): TradeOutcome {
       typeof o.exitReason === 'string'
         ? (o.exitReason as TradeOutcome['exitReason'])
         : undefined,
+    closeReason: typeof o.closeReason === 'string' ? o.closeReason : undefined,
     limitOrderPrice:
       o.limitOrderPrice != null ? num(o.limitOrderPrice) : undefined,
     fillMarketPrice:

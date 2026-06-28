@@ -4,6 +4,9 @@ import { computePositionPnl } from '../utils/positionPnl';
 import type { L6DetailV4 } from './scorerV4';
 import type { SqueezeDirection, SqueezeLevel, SqueezeRiskResult } from '../types/squeezeRisk';
 import type { CancelReason } from '../services/lockedPlanScoring';
+import { vi } from '../constants/vi';
+import type { EntryZoneType } from './indicators';
+import { exitReasonToCloseReason } from './tradeHistorySync';
 import { SCORER_LAYER_NAMES, type ScorerLayerId } from '../constants/scoring';
 import type { SignalRow } from '../services/signalBoardScan';
 import { resolveJournalAdvisorSnapshot } from './journalAdvisorSnapshot';
@@ -182,7 +185,55 @@ export function buildPlanSnapshot(input: {
     sizeProposed: input.sizeProposed ?? input.sizeActual,
     sizeActual: input.sizeActual,
     isSafeSL: plan?.isSafeSL ?? false,
+    openReason: resolveOpenReasonFromTradePlan(plan),
   };
+}
+
+/** Lý do mở lệnh — entryZone.reasoning / notes từ trade plan (entry engine). */
+export function resolveOpenReasonFromTradePlan(plan: TradePlan | null | undefined): string | undefined {
+  const reasoning = plan?.entryZone?.reasoning ?? plan?.notes;
+  const trimmed = reasoning?.trim();
+  return trimmed || undefined;
+}
+
+/** Hiển thị openReason — fallback entryZoneType qua vi cho entry cũ. */
+export function resolveJournalOpenReasonDisplay(entry: AiTradeJournalEntry): string | null {
+  const stored = entry.plan.openReason?.trim();
+  if (stored) return stored;
+  const type = entry.plan.entryZoneType as EntryZoneType;
+  return vi.recommend.entryZoneTypes[type] ?? entry.plan.entryZoneType ?? null;
+}
+
+const CANCEL_EXIT_REASONS = new Set<TradeExitReason>([
+  'PLAN_EXPIRED',
+  'PLAN_HEALTH_CANCEL',
+  'LIMIT_NOT_FILLED',
+]);
+
+/** Nhãn lý do đóng — vi.tradeHistory + formatPendingCancelLabel (không hardcode mới). */
+export function formatJournalCloseReason(
+  exitReason?: TradeExitReason,
+  notes?: string,
+): string | undefined {
+  if (!exitReason) return undefined;
+  if (CANCEL_EXIT_REASONS.has(exitReason)) {
+    return formatPendingCancelLabel(exitReason, notes);
+  }
+  const code = exitReasonToCloseReason(exitReason);
+  return vi.tradeHistory.closeReason[code] ?? vi.tradeHistory.closeReason.OTHER;
+}
+
+/** Hiển thị closeReason — fallback từ exitReason cho entry cũ. */
+export function resolveJournalCloseReasonDisplay(entry: AiTradeJournalEntry): string | null {
+  const stored = entry.outcome.closeReason?.trim();
+  if (stored) return stored;
+  if (entry.outcome.status === 'CANCELLED' || CANCEL_EXIT_REASONS.has(entry.outcome.exitReason!)) {
+    return formatPendingCancelLabel(entry.outcome.exitReason, entry.outcome.notes);
+  }
+  if (entry.outcome.exitReason) {
+    return formatJournalCloseReason(entry.outcome.exitReason, entry.outcome.notes) ?? null;
+  }
+  return null;
 }
 
 export interface FundingAtEntrySnapshot {
@@ -510,6 +561,7 @@ export function outcomeFromClose(input: {
     holdingTimeMinutes,
     holdDurationMinutes: holdingTimeMinutes,
     exitReason: input.exitReason ?? 'MANUAL_CLOSE',
+    closeReason: formatJournalCloseReason(input.exitReason ?? 'MANUAL_CLOSE', input.notes),
     notes: input.notes,
     offlineClose: input.offlineClose,
     wasGracePeriodTriggered: input.wasGracePeriodTriggered,
