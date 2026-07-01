@@ -30,6 +30,8 @@ function rowSnapshot(row: SignalRow, version: ScorerVersion): SignalRowScorerSna
     layers: row.layers,
     mandatoryViolations: row.mandatoryViolations,
     hardBlocked: row.hardBlocked,
+    isAmbiguousDirection: row.isAmbiguousDirection,
+    ambiguousMessage: row.ambiguousMessage,
   };
 }
 

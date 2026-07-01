@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
+import { CancelPendingConfirmModal } from '../components/journal/CancelPendingConfirmModal';
 import { CloseTradeModal } from '../components/journal/CloseTradeModal';
 import { ConfirmFillModal } from '../components/journal/ConfirmFillModal';
 import { JournalEntryDetail } from '../components/journal/JournalEntryDetail';
@@ -12,18 +13,26 @@ import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../constants/scoring';
 import { PANEL, SPACING } from '../constants/theme';
 import { vi } from '../constants/vi';
+import { useJournalMarketSync } from '../hooks/useJournalMarketSync';
+import type { SignalRow } from '../hooks/useSignalBoard';
 import { shareJournalCsv, shareSkippedSetupsCsv } from '../services/exportShare';
-import { computeTradePnl } from '../services/journalService';
 import { useTradeStore } from '../store/useTradeStore';
 
-export function JournalScreen() {
+interface JournalScreenProps {
+  signalRows: SignalRow[];
+}
+
+export function JournalScreen({ signalRows }: JournalScreenProps) {
   const getVisibleAiJournal = useTradeStore((s) => s.getVisibleAiJournal);
   const getAccountHistory = useTradeStore((s) => s.getAccountHistory);
   const closeTradeEntry = useTradeStore((s) => s.closeTradeEntry);
   const confirmOrderFilled = useTradeStore((s) => s.confirmOrderFilled);
   const cancelPendingOrder = useTradeStore((s) => s.cancelPendingOrder);
   const skippedSetups = useTradeStore((s) => s.skippedSetups);
-  const markPrices = useTradeStore((s) => s.tradeJournal);
+  const scorerVersion = useTradeStore((s) => s.scorerVersion);
+  const scoringResultV4 = useTradeStore((s) => s.scoringResultV4);
+  const scoringResultV3 = useTradeStore((s) => s.scoringResultV3);
+  const lockedPlan = useTradeStore((s) => s.lockedPlan);
   const leverage = useTradeStore((s) => s.settings.leverage) ?? 5;
 
   const [symbolFilter, setSymbolFilter] = useState<AppTradeSymbol | 'ALL'>('ALL');
@@ -31,6 +40,7 @@ export function JournalScreen() {
   const [detailEntry, setDetailEntry] = useState<AiTradeJournalEntry | null>(null);
   const [closeEntry, setCloseEntry] = useState<AiTradeJournalEntry | null>(null);
   const [fillEntry, setFillEntry] = useState<AiTradeJournalEntry | null>(null);
+  const [cancelEntry, setCancelEntry] = useState<AiTradeJournalEntry | null>(null);
 
   const allVisible = getVisibleAiJournal();
 
@@ -51,25 +61,15 @@ export function JournalScreen() {
     return list.sort((a, b) => b.timestamp - a.timestamp);
   }, [allVisible, symbolFilter, statusFilter]);
 
-  const markBySymbol = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const t of markPrices) {
-      if (t.status !== 'OPEN' || !t.symbol) continue;
-      map[t.symbol] = t.entryPrice;
-    }
-    return map;
-  }, [markPrices]);
-
-  const unrealizedById = useMemo(() => {
-    const map: Record<string, number | null> = {};
-    for (const entry of entries) {
-      if (entry.outcome.status !== 'OPEN') continue;
-      const mark = markBySymbol[entry.symbol];
-      map[entry.id] =
-        mark != null ? computeTradePnl(entry, mark, leverage).pnlUSDT : null;
-    }
-    return map;
-  }, [entries, markBySymbol, leverage]);
+  const { markBySymbol, unrealizedById, advisorLabelById } = useJournalMarketSync({
+    entries,
+    signalRows,
+    leverage,
+    scorerVersion,
+    scoringResultV4,
+    scoringResultV3,
+    lockedPlan,
+  });
 
   const handleExport = async () => {
     try {
@@ -83,29 +83,11 @@ export function JournalScreen() {
   };
 
   const handleCancelPending = (entry: AiTradeJournalEntry) => {
-    Alert.alert(
-      'Huỷ lệnh chờ',
-      `Huỷ limit ${entry.symbol.replace('USDT', '')} ${entry.scoring.direction}?`,
-      [
-        { text: 'Không', style: 'cancel' },
-        {
-          text: 'Huỷ lệnh',
-          style: 'destructive',
-          onPress: () => void cancelPendingOrder(entry.id),
-        },
-      ],
-    );
+    setCancelEntry(entry);
   };
 
   const handleStopTrade = (entry: AiTradeJournalEntry) => {
-    Alert.alert(
-      'Dừng lệnh',
-      'Bạn có muốn dừng lệnh này không?',
-      [
-        { text: 'Không', style: 'cancel' },
-        { text: 'Có', onPress: () => setCloseEntry(entry) },
-      ],
-    );
+    setCloseEntry(entry);
   };
 
   return (
@@ -140,8 +122,10 @@ export function JournalScreen() {
       ) : (
         <JournalTradeTable
           entries={entries}
+          pageResetKey={`${symbolFilter}|${statusFilter}`}
           markBySymbol={markBySymbol}
           unrealizedById={unrealizedById}
+          advisorLabelById={advisorLabelById}
           onDetail={setDetailEntry}
           onStopTrade={handleStopTrade}
           onConfirmFill={setFillEntry}
@@ -159,6 +143,11 @@ export function JournalScreen() {
         visible={closeEntry != null}
         entry={closeEntry}
         markPrice={closeEntry ? markBySymbol[closeEntry.symbol] : null}
+        signalRow={
+          closeEntry
+            ? signalRows.find((r) => r.symbol === closeEntry.symbol) ?? null
+            : null
+        }
         onClose={() => setCloseEntry(null)}
         onConfirm={(result) => {
           if (!closeEntry) return;
@@ -178,6 +167,16 @@ export function JournalScreen() {
             values.actualSL,
             values.actualSize,
           ).then(() => setFillEntry(null));
+        }}
+      />
+
+      <CancelPendingConfirmModal
+        visible={cancelEntry != null}
+        entry={cancelEntry}
+        onCancel={() => setCancelEntry(null)}
+        onConfirm={() => {
+          if (!cancelEntry) return;
+          void cancelPendingOrder(cancelEntry.id).then(() => setCancelEntry(null));
         }}
       />
     </View>

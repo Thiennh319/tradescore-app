@@ -1,8 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SyncState, SyncStatus } from '../types/driveSync';
 
 export interface SyncStatusBadgeProps {
   syncState: SyncState;
+  /** Web mirror: Đang tải... / Cập nhật lúc HH:MM / Lỗi kết nối */
+  webMirror?: boolean;
+  onPress?: () => void;
 }
 
 export function formatSyncTime(isoTime: string | null): string {
@@ -25,7 +28,31 @@ export function formatSyncTime(isoTime: string | null): string {
 export function getSyncConfig(
   status: SyncStatus,
   lastSyncTime: string | null,
+  webMirror = false,
 ): { icon: string; text: string; color: string } {
+  if (webMirror) {
+    switch (status) {
+      case 'syncing':
+        return { icon: '🔄', text: 'Đang tải...', color: '#F59E0B' };
+      case 'success':
+        return {
+          icon: '✅',
+          text: `Cập nhật lúc ${formatSyncTime(lastSyncTime)}`,
+          color: '#10B981',
+        };
+      case 'error':
+      case 'offline':
+        return { icon: '⚠️', text: 'Lỗi kết nối', color: '#EF4444' };
+      case 'idle':
+      default:
+        return {
+          icon: '☁️',
+          text: lastSyncTime ? `Cập nhật lúc ${formatSyncTime(lastSyncTime)}` : 'Bấm để đồng bộ',
+          color: '#6B7280',
+        };
+    }
+  }
+
   switch (status) {
     case 'syncing':
       return {
@@ -61,10 +88,12 @@ export function getSyncConfig(
   }
 }
 
-export function SyncStatusBadge({ syncState }: SyncStatusBadgeProps) {
-  const config = getSyncConfig(syncState.status, syncState.lastSyncTime);
+export function SyncStatusBadge({ syncState, webMirror, onPress }: SyncStatusBadgeProps) {
+  const isWeb = webMirror ?? Platform.OS === 'web';
+  const config = getSyncConfig(syncState.status, syncState.lastSyncTime, isWeb);
+  const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
 
-  return (
+  const badge = (
     <View
       style={[styles.badge, { backgroundColor: `${config.color}20` }]}
       testID="sync-status-badge"
@@ -80,6 +109,22 @@ export function SyncStatusBadge({ syncState }: SyncStatusBadgeProps) {
       ) : null}
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        disabled={syncState.status === 'syncing'}
+        accessibilityRole="button"
+        accessibilityLabel={isWeb ? 'Đồng bộ từ GitHub' : 'Đồng bộ GitHub'}
+        style={({ pressed }) => [pressed && styles.pressed, webPointer]}
+      >
+        {badge}
+      </Pressable>
+    );
+  }
+
+  return badge;
 }
 
 const styles = StyleSheet.create({
@@ -100,5 +145,8 @@ const styles = StyleSheet.create({
   pendingDot: {
     color: '#F59E0B',
     fontSize: 10,
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });

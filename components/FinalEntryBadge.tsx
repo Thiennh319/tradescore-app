@@ -3,11 +3,14 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { RADIUS } from '../constants/theme';
 import type { FinalEntryDisplay } from '../services/finalEntryStatus';
 
+const AMBIGUOUS_BADGE_COLOR = '#D97706';
+
 interface FinalEntryBadgeProps {
   display: FinalEntryDisplay;
   score?: number | null;
   maxScore?: number;
   size?: 'sm' | 'md' | 'lg';
+  isAmbiguousDirection?: boolean;
 }
 
 export function FinalEntryBadge({
@@ -15,11 +18,12 @@ export function FinalEntryBadge({
   score,
   maxScore = 15,
   size = 'md',
+  isAmbiguousDirection,
 }: FinalEntryBadgeProps) {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!display.pulse) return;
+    if (isAmbiguousDirection || !display.pulse) return;
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 0.55, duration: 1000, useNativeDriver: true }),
@@ -28,10 +32,30 @@ export function FinalEntryBadge({
     );
     anim.start();
     return () => anim.stop();
-  }, [display.pulse, pulse]);
+  }, [display.pulse, isAmbiguousDirection, pulse]);
 
   const sizeStyle = size === 'lg' ? styles.lg : size === 'sm' ? styles.sm : styles.md;
   const textSize = size === 'lg' ? styles.textLg : size === 'sm' ? styles.textSm : styles.textMd;
+
+  if (isAmbiguousDirection) {
+    return (
+      <View
+        style={[
+          styles.badge,
+          sizeStyle,
+          {
+            borderColor: AMBIGUOUS_BADGE_COLOR,
+            backgroundColor: `${AMBIGUOUS_BADGE_COLOR}1A`,
+          },
+        ]}
+      >
+        <Text style={[styles.text, textSize, { color: AMBIGUOUS_BADGE_COLOR }]}>
+          ⚠️ Chờ xu hướng rõ
+        </Text>
+      </View>
+    );
+  }
+
   const color = display.borderColor;
 
   const badge = (

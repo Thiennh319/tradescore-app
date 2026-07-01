@@ -58,6 +58,16 @@ import { calculateTradePlanV4 } from './tradePlanV4';
 import { FinalEntryStatus } from '../types/scoring';
 import { computeFinalEntryStatusForSide } from './finalEntryStatus';
 import type { SqueezeRiskResult } from '../types/squeezeRisk';
+import {
+  resolveDirectionAmbiguity,
+  type AmbiguityState,
+} from './directionAmbiguity';
+
+/** Per-symbol ambiguity hysteresis — truyền từ useSignalBoard (optional). */
+export interface AmbiguityStateStores {
+  v3?: Map<string, AmbiguityState>;
+  v4?: Map<string, AmbiguityState>;
+}
 
 export interface SignalScanContext {
   consecutiveLosses: number;
@@ -106,6 +116,9 @@ export interface SignalRowScorerSnapshot {
   finalEntryStatus?: FinalEntryStatus;
   /** L11 EXTREME squeeze — cùng hướng setup, ENTRY_VALID */
   squeezeWarning?: string | null;
+  /** Long vs Short quá sát — block vào lệnh (hysteresis 2-scan) */
+  isAmbiguousDirection?: boolean;
+  ambiguousMessage?: string;
 }
 
 function latestCvdValue(cvdPoints: CVDPoint[]): number {
@@ -172,6 +185,8 @@ export interface SignalRow {
   squeezeWarning?: string | null;
   /** L11 Squeeze Risk snapshot — V4 only */
   squeezeRisk?: SqueezeRiskResult;
+  isAmbiguousDirection?: boolean;
+  ambiguousMessage?: string;
 }
 
 function errorRow(symbol: AppTradeSymbol, message: string): SignalRow {
@@ -292,6 +307,19 @@ function enrichSnapshotFinalStatus(
   };
 }
 
+function applyAmbiguityToSnapshot(
+  snap: SignalRowScorerSnapshot,
+  ambiguity: AmbiguityState,
+): SignalRowScorerSnapshot {
+  if (ambiguity.status !== 'AMBIGUOUS') return snap;
+  return {
+    ...snap,
+    isAmbiguousDirection: true,
+    ambiguousMessage: ambiguity.message,
+    canEnter: false,
+  };
+}
+
 function applySnapshotToRow(row: SignalRow, snap: SignalRowScorerSnapshot): SignalRow {
   return {
     ...row,
@@ -308,6 +336,8 @@ function applySnapshotToRow(row: SignalRow, snap: SignalRowScorerSnapshot): Sign
     hardBlocked: snap.hardBlocked,
     finalEntryStatus: snap.finalEntryStatus,
     squeezeWarning: snap.squeezeWarning,
+    isAmbiguousDirection: snap.isAmbiguousDirection,
+    ambiguousMessage: snap.ambiguousMessage,
   };
 }
 
@@ -317,6 +347,7 @@ export async function scanSignalSymbol(
   btcChange24h: number,
   psychologyChecklist: PsychologyChecklistV2,
   scanContext?: SignalScanContext,
+  ambiguityStores?: AmbiguityStateStores,
 ): Promise<SignalRow> {
   try {
     const [market, ticker, change24h] = await Promise.all([
@@ -385,10 +416,35 @@ export async function scanSignalSymbol(
 
     const scoringV3 = scoreAnalysisV3(analysisInputV3, todayStatsV3);
     const scoringV4 = scoreAnalysisV4(analysisInputV4, todayStatsV4);
+
+    const longScoreV4 =
+      scoringV4.long.officialTotalScore ?? scoringV4.long.referenceTotalScore;
+    const shortScoreV4 =
+      scoringV4.short.officialTotalScore ?? scoringV4.short.referenceTotalScore;
+    const prevStateV4 = ambiguityStores?.v4?.get(symbol) ?? null;
+    const ambiguityV4 = resolveDirectionAmbiguity(
+      longScoreV4,
+      shortScoreV4,
+      prevStateV4,
+    );
+    ambiguityStores?.v4?.set(symbol, ambiguityV4);
+
+    const longScoreV3 = scoringV3.long.totalScore;
+    const shortScoreV3 = scoringV3.short.totalScore;
+    const prevStateV3 = ambiguityStores?.v3?.get(symbol) ?? null;
+    const ambiguityV3 = resolveDirectionAmbiguity(
+      longScoreV3,
+      shortScoreV3,
+      prevStateV3,
+    );
+    ambiguityStores?.v3?.set(symbol, ambiguityV3);
+
     const directionV3 = suggestDirectionV3(scoringV3);
     const directionV4 = suggestDirectionV4(scoringV4);
-    const v3Base = snapshotFromV3(scoringV3, directionV3);
-    const v4Base = snapshotFromV4(scoringV4, directionV4);
+    let v3Base = snapshotFromV3(scoringV3, directionV3);
+    let v4Base = snapshotFromV4(scoringV4, directionV4);
+    v3Base = applyAmbiguityToSnapshot(v3Base, ambiguityV3);
+    v4Base = applyAmbiguityToSnapshot(v4Base, ambiguityV4);
 
     const bundle = computeFullAnalysisBundle(
       market,
@@ -514,12 +570,20 @@ export async function scanAllSignalRows(
   timeframe: AnalysisTimeframe,
   psychologyChecklist: PsychologyChecklistV2,
   scanContext?: SignalScanContext,
+  ambiguityStores?: AmbiguityStateStores,
 ): Promise<SignalRow[]> {
   const btcChange24h = await fetchBtcChange24hPct();
   const rows: SignalRow[] = [];
   for (const sym of TRADE_SYMBOLS) {
     rows.push(
-      await scanSignalSymbol(sym, timeframe, btcChange24h, psychologyChecklist, scanContext),
+      await scanSignalSymbol(
+        sym,
+        timeframe,
+        btcChange24h,
+        psychologyChecklist,
+        scanContext,
+        ambiguityStores,
+      ),
     );
   }
   return rows;

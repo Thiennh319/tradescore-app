@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHydrationGate } from './components/AppHydrationGate';
@@ -25,7 +25,7 @@ import {
 } from './components/dashboard/ScoringVisibilityBar';
 import { ScoreSpectrum } from './components/dashboard/ScoreSpectrum';
 import { SignalBoard } from './components/dashboard/SignalBoard';
-import { TradeHistoryPanel } from './components/dashboard/TradeHistoryPanel';
+import { ActiveTradesPanel } from './components/journal/ActiveTradesPanel';
 import type { ManualTradeSetup } from './components/TradeRecommendationTable';
 import {
   ConfirmTradeWizard,
@@ -73,6 +73,7 @@ import {
   initialDriveSyncState,
   useDriveSyncLifecycle,
 } from './hooks/useDriveSyncLifecycle';
+import { pullFromDrive, syncAll } from './services/driveSyncService';
 import type { SyncState } from './types/driveSync';
 import { buildSnapshotsFromSignalRow, buildLockedTradePlanInput } from './services/journalService';
 import { inferSkipReasonFromSignalRow } from './services/skippedSetupService';
@@ -462,6 +463,14 @@ export default function App() {
 
   useDriveSyncLifecycle(setSyncState);
 
+  const handleManualSyncPress = useCallback(() => {
+    if (Platform.OS === 'web') {
+      void pullFromDrive();
+      return;
+    }
+    void syncAll();
+  }, []);
+
   useEffect(() => {
     let stopAutoRefresh = () => {};
     let unregisterWebPersist = () => {};
@@ -587,6 +596,7 @@ export default function App() {
           tierName={capitalManagement.currentTier.tierName}
           onTierPress={goToCapitalSettings}
           syncState={syncState}
+          onSyncPress={handleManualSyncPress}
         />
 
         <View style={styles.interactionShell}>
@@ -630,7 +640,7 @@ export default function App() {
         >
           {activeTab === 'journal' ? (
             <View style={styles.section}>
-              <JournalScreen />
+              <JournalScreen signalRows={signalBoard.rows} />
             </View>
           ) : activeTab === 'insights' ? (
             <View style={styles.section}>
@@ -698,7 +708,7 @@ export default function App() {
           </View>
 
           <View style={styles.section}>
-            <TradeHistoryPanel />
+            <ActiveTradesPanel signalRows={signalBoard.rows} />
           </View>
 
           {SHOW_ADVANCED_UI ? (

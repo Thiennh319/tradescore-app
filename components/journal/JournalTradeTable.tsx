@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AiTradeJournalEntry } from '../../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../../constants/scoring';
@@ -13,6 +14,8 @@ import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
 
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
+
+export const JOURNAL_TABLE_PAGE_SIZE = 5;
 
 const COL = {
   source: 44,
@@ -46,10 +49,17 @@ export interface JournalTradeTableProps {
   entries: AiTradeJournalEntry[];
   markBySymbol: Record<string, number>;
   unrealizedById: Record<string, number | null>;
+  /** Live Position Advisor label keyed by entry id (OPEN only). */
+  advisorLabelById?: Record<string, string>;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
   onConfirmFill?: (entry: AiTradeJournalEntry) => void;
   onCancelPending?: (entry: AiTradeJournalEntry) => void;
+  /** Bật phân trang (mặc định 5 dòng/trang). */
+  paginated?: boolean;
+  pageSize?: number;
+  /** Đổi khi filter thay đổi → reset về trang 1. */
+  pageResetKey?: string;
 }
 
 function HeadCell({ text, width }: { text: string; width: number }) {
@@ -82,6 +92,7 @@ function JournalTradeRow({
   entry,
   markPrice,
   unrealizedPnl,
+  advisorLabel,
   onDetail,
   onStopTrade,
   onConfirmFill,
@@ -90,6 +101,7 @@ function JournalTradeRow({
   entry: AiTradeJournalEntry;
   markPrice?: number;
   unrealizedPnl?: number | null;
+  advisorLabel?: string;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
   onConfirmFill?: (entry: AiTradeJournalEntry) => void;
@@ -121,7 +133,16 @@ function JournalTradeRow({
     pnl == null ? COLORS.textMuted : pnl >= 0 ? COLORS.bullish : COLORS.bearish;
 
   const sourceLabel = entry.strategySource ?? '—';
-  const recommendation = entry.scoring.recommendationLabel?.trim() || '—';
+  const liveAdvisor = isOpen ? advisorLabel?.trim() : '';
+  const recommendation =
+    liveAdvisor || entry.scoring.recommendationLabel?.trim() || '—';
+  const recommendationColor =
+    isOpen && liveAdvisor
+      ? liveAdvisor.toLowerCase().includes('đóng') ||
+        liveAdvisor.toLowerCase().includes('cắt')
+        ? COLORS.bearish
+        : COLORS.bullish
+      : COLORS.textSecondary;
 
   return (
     <View style={[styles.tableRow, stalePending && styles.rowStale]}>
@@ -140,7 +161,10 @@ function JournalTradeRow({
       >
         {displayStatus}
       </Text>
-      <Text style={[styles.cell, { width: COL.recommendation }]} numberOfLines={2}>
+      <Text
+        style={[styles.cell, { width: COL.recommendation, color: recommendationColor }]}
+        numberOfLines={2}
+      >
         {recommendation}
       </Text>
       <Text style={[styles.cell, { width: COL.entry }]} numberOfLines={1}>
@@ -201,11 +225,34 @@ export function JournalTradeTable({
   entries,
   markBySymbol,
   unrealizedById,
+  advisorLabelById,
   onDetail,
   onStopTrade,
   onConfirmFill,
   onCancelPending,
+  paginated = true,
+  pageSize = JOURNAL_TABLE_PAGE_SIZE,
+  pageResetKey,
 }: JournalTradeTableProps) {
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageResetKey]);
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
+
+  const visibleEntries = useMemo(() => {
+    if (!paginated) return entries;
+    const start = (safePage - 1) * pageSize;
+    return entries.slice(start, start + pageSize);
+  }, [entries, paginated, safePage, pageSize]);
+
   if (entries.length === 0) return null;
 
   return (
@@ -225,12 +272,13 @@ export function JournalTradeTable({
             <HeadCell text={vi.journal.colAction} width={COL.action} />
             <HeadCell text={vi.journal.colTime} width={COL.time} />
           </View>
-          {entries.map((entry) => (
+          {visibleEntries.map((entry) => (
             <JournalTradeRow
               key={entry.id}
               entry={entry}
               markPrice={markBySymbol[entry.symbol]}
               unrealizedPnl={unrealizedById[entry.id] ?? null}
+              advisorLabel={advisorLabelById?.[entry.id]}
               onDetail={onDetail}
               onStopTrade={onStopTrade}
               onConfirmFill={onConfirmFill}
@@ -239,6 +287,37 @@ export function JournalTradeTable({
           ))}
         </View>
       </ScrollView>
+      {paginated && entries.length > pageSize ? (
+        <View style={styles.pagination}>
+          <Pressable
+            disabled={safePage <= 1}
+            onPress={() => setPage(safePage - 1)}
+            style={[styles.pageBtn, safePage <= 1 && styles.pageBtnDisabled, webPointer]}
+          >
+            <Text style={[styles.pageBtnText, safePage <= 1 && styles.pageBtnTextDisabled]}>
+              {vi.journal.prevPage}
+            </Text>
+          </Pressable>
+          <View style={styles.pageLabelWrap}>
+            <Text style={styles.pageLabelPrefix}>Trang </Text>
+            <View style={styles.pageCurrentPill}>
+              <Text style={styles.pageCurrentText}>{safePage}</Text>
+            </View>
+            <Text style={styles.pageLabelSuffix}> / {totalPages}</Text>
+          </View>
+          <Pressable
+            disabled={safePage >= totalPages}
+            onPress={() => setPage(safePage + 1)}
+            style={[styles.pageBtn, safePage >= totalPages && styles.pageBtnDisabled, webPointer]}
+          >
+            <Text
+              style={[styles.pageBtnText, safePage >= totalPages && styles.pageBtnTextDisabled]}
+            >
+              {vi.journal.nextPage}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -368,5 +447,64 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     color: COLORS.bearish,
+  },
+  pagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.surfaceElevated,
+  },
+  pageBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  pageBtnDisabled: {
+    opacity: 0.4,
+  },
+  pageBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  pageBtnTextDisabled: {
+    color: COLORS.textMuted,
+  },
+  pageLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 88,
+    justifyContent: 'center',
+  },
+  pageLabelPrefix: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  pageLabelSuffix: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  pageCurrentPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.accent,
+    marginHorizontal: 2,
+  },
+  pageCurrentText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.background,
+    fontVariant: ['tabular-nums'],
   },
 });

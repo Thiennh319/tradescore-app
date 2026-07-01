@@ -1,4 +1,5 @@
 import { shouldTriggerBackgroundSessionCheck, sessionLockKeyForParts } from './backgroundSessionSchedule';
+import { Platform } from 'react-native';
 import { buildSessionCheckMessage } from './sessionNotificationMessage';
 import {
   getNativePermissionStatus,
@@ -99,6 +100,12 @@ export async function runSignalBoardScanPersist(now = new Date()): Promise<Perio
   const rows = await scanAllSignalRows(timeframe, scoringPsychology, scanContext);
   const scannedAt = now.getTime();
   await savePersistedSignalBoard(timeframe, rows, scannedAt);
+
+  if (Platform.OS !== 'web') {
+    const { stageSignalBoardForSync, syncOnAction } = await import('./driveSyncService');
+    stageSignalBoardForSync({ timeframe, rows, scannedAt });
+    await syncOnAction('SIGNAL_BOARD_SCANNED');
+  }
 
   const prices = new Map<string, number>();
   for (const row of rows) {

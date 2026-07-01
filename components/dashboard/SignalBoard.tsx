@@ -79,6 +79,8 @@ const DECISION_COLOR: Record<TradeDecisionLabel, string> = {
 };
 
 const MAX_SCORE = 15;
+const AMBIGUOUS_BORDER_COLOR = '#D97706';
+const BIAS_NEUTRAL_COLOR = '#9CA3AF';
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
 
 function manualSetupFromTradePlanV3(
@@ -401,7 +403,8 @@ function SignalCard({
     hardBlockReasons,
     groupBlockReasons: snap.groupBlocks ?? [],
   });
-  const cardBorderColor = entryDisplay.borderColor;
+  const isAmbiguous = snap.isAmbiguousDirection === true;
+  const cardBorderColor = isAmbiguous ? AMBIGUOUS_BORDER_COLOR : entryDisplay.borderColor;
   const trend = trendMeta(row.trend);
   const changeColor = row.change24h >= 0 ? COLORS.bullish : COLORS.bearish;
   const isTrending = snap.marketMode === 'TRENDING';
@@ -470,6 +473,7 @@ function SignalCard({
                 display={entryDisplay}
                 score={entryDisplay.subtitle ? undefined : displayScore ?? undefined}
                 size="md"
+                isAmbiguousDirection={isAmbiguous}
               />
               {showMacdSuppressedHint ? (
                 <Text style={styles.macdSuppressedHint}>
@@ -494,9 +498,14 @@ function SignalCard({
             longScore={snap.longScore}
             shortScore={snap.shortScore}
             direction={snap.direction}
+            isAmbiguousDirection={isAmbiguous}
           />
 
-          {canShowPlan ? (
+          {isAmbiguous && snap.ambiguousMessage ? (
+            <Text style={styles.ambiguousMessage}>⚠️ {snap.ambiguousMessage}</Text>
+          ) : null}
+
+          {canShowPlan && !isAmbiguous ? (
             <View style={styles.planWrap}>
               {showPlan ? (
                 <>
@@ -685,7 +694,7 @@ function SignalCard({
                   <Text style={styles.skipSetupText}>{vi.signalBoard.recordSkip}</Text>
                 </Pressable>
               ) : null}
-              {onOpenPosition ? (
+              {onOpenPosition && !isAmbiguous ? (
                 confirmManual ? (
                   <View style={styles.manualWrap}>
                     <Text style={styles.manualWarn}>
@@ -776,14 +785,42 @@ function BiasBar({
   longScore,
   shortScore,
   direction,
+  isAmbiguousDirection,
 }: {
   longScore: number;
   shortScore: number;
   direction: TradeDirection;
+  isAmbiguousDirection?: boolean;
 }) {
   const total = Math.max(0.001, longScore + shortScore);
   const longPct = (longScore / total) * 100;
   const shortPct = 100 - longPct;
+
+  if (isAmbiguousDirection) {
+    return (
+      <View style={styles.biasWrap}>
+        <View style={styles.biasHeader}>
+          <Text style={styles.biasLabel}>{vi.signalBoard.biasLabel}</Text>
+          <Text style={[styles.biasValue, { color: BIAS_NEUTRAL_COLOR }]}>
+            ⇄ Long {longScore.toFixed(1)}đ ↔ Short {shortScore.toFixed(1)}đ
+          </Text>
+        </View>
+        <View style={styles.biasBar}>
+          <View style={[styles.biasFillNeutral, { width: `${longPct}%` }]} />
+          <View style={[styles.biasFillNeutral, { width: `${shortPct}%` }]} />
+        </View>
+        <View style={styles.biasFooter}>
+          <Text style={[styles.biasFootText, { color: BIAS_NEUTRAL_COLOR }]}>
+            L {longScore.toFixed(1)}
+          </Text>
+          <Text style={[styles.biasFootText, { color: BIAS_NEUTRAL_COLOR }]}>
+            S {shortScore.toFixed(1)}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const isLong = direction === 'LONG';
   const dirColor = isLong ? COLORS.bullish : COLORS.bearish;
 
@@ -1104,6 +1141,17 @@ const styles = StyleSheet.create({
   biasFillShort: {
     height: '100%',
     backgroundColor: COLORS.bearish,
+  },
+  biasFillNeutral: {
+    height: '100%',
+    backgroundColor: BIAS_NEUTRAL_COLOR,
+  },
+  ambiguousMessage: {
+    marginTop: SPACING.xs,
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 16,
+    color: AMBIGUOUS_BORDER_COLOR,
   },
   biasFooter: {
     flexDirection: 'row',

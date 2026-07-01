@@ -209,3 +209,51 @@ export function calculateCVDDivergenceScore(
   if (percentDiff >= 5) return 50;
   return 0;
 }
+
+/**
+ * Engine 3 — Reversal Probability tổng hợp (0-100).
+ * Theo V4.1_FORMULAS.md Engine 3 — công thức tổng:
+ * 0.40×TrendExhaustion + 0.35×RSI_Divergence + 0.25×CVD_Divergence
+ *
+ * KHÔNG PHẢI DỰ ĐOÁN GIÁ — chỉ số thống kê dựa trên pattern kỹ
+ * thuật đã xảy ra (đúng EXPLICIT NON-GOALS trong FORMULAS).
+ *
+ * divergenceType cần xác định TRƯỚC khi gọi hàm này, dựa trên
+ * trend_direction từ Engine 1: nếu đang BULL (tìm đỉnh kiệt sức)
+ * → dùng BEARISH divergence; nếu đang BEAR (tìm đáy kiệt sức)
+ * → dùng BULLISH divergence. NEUTRAL → không có ý nghĩa rõ ràng,
+ * caller tự quyết định truyền gì hoặc bỏ qua việc gọi hàm này.
+ */
+export function calculateReversalProbability(
+  klines: KlineV41[],
+  trendExhaustion: number,
+  divergenceType: 'BULLISH' | 'BEARISH',
+  maxLookback: number = 50,
+): {
+  reversalProbability: number;
+  rsiDivergenceScore: 0 | 50 | 100;
+  cvdDivergenceScore: 0 | 50 | 100;
+} {
+  const rsiDivergenceScore = calculateRSIDivergenceScore(
+    klines,
+    divergenceType,
+    maxLookback,
+  ) as 0 | 50 | 100;
+
+  const cvdDivergenceScore = calculateCVDDivergenceScore(
+    klines,
+    divergenceType,
+    maxLookback,
+  ) as 0 | 50 | 100;
+
+  const raw =
+    0.4 * trendExhaustion + 0.35 * rsiDivergenceScore + 0.25 * cvdDivergenceScore;
+
+  const reversalProbability = Math.min(100, Math.max(0, raw));
+
+  return {
+    reversalProbability,
+    rsiDivergenceScore,
+    cvdDivergenceScore,
+  };
+}

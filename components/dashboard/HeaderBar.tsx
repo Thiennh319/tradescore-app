@@ -15,6 +15,7 @@ interface HeaderBarProps {
   tierName: string;
   onTierPress?: () => void;
   syncState?: SyncState;
+  onSyncPress?: () => void;
 }
 
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
@@ -26,6 +27,7 @@ export function HeaderBar({
   tierName,
   onTierPress,
   syncState,
+  onSyncPress,
 }: HeaderBarProps) {
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const tradeAppEnabled = useTradeAppState((s) => s.tradeAppEnabled);
@@ -84,7 +86,13 @@ export function HeaderBar({
           <Text style={styles.metaText}>{timezone}</Text>
           <Text style={styles.metaDivider}>·</Text>
           <Text style={styles.metaText}>{vi.header.refreshSec(refreshInterval)}</Text>
-          {syncState ? <SyncStatusBadge syncState={syncState} /> : null}
+          {syncState ? (
+            <SyncStatusBadge
+              syncState={syncState}
+              webMirror={Platform.OS === 'web'}
+              onPress={onSyncPress}
+            />
+          ) : null}
           <Pressable
             onPress={tradeAppEnabled ? onTierPress : undefined}
             disabled={!tradeAppEnabled}

@@ -3,8 +3,19 @@ import { AppState, Platform } from 'react-native';
 import type { AnalysisTimeframe } from '../constants/scoring';
 import { DEFAULT_SETTINGS } from '../constants/scoring';
 import { SCAN_INTERVAL_MS } from '../constants/scanSchedule';
+import type { AmbiguityState } from '../services/directionAmbiguity';
+import {
+  onPullMirrorComplete,
+  onSignalBoardMirrorApplied,
+  stageSignalBoardForSync,
+  syncOnAction,
+} from '../services/driveSyncService';
 import { fillPendingOrdersAtPrices } from '../services/pendingOrderFillService';
-import { loadPersistedSignalBoard, savePersistedSignalBoard } from '../services/signalBoardPersist';
+import {
+  loadPersistedSignalBoard,
+  savePersistedSignalBoard,
+  type PersistedSignalBoard,
+} from '../services/signalBoardPersist';
 import { scanAllSignalRows, type SignalRow } from '../services/signalBoardScan';
 import { buildSignalScanContext } from '../services/signalScanContext';
 import {
@@ -18,6 +29,8 @@ import {
 const AUTO_TICK_MS = SCAN_INTERVAL_MS;
 const NATIVE_CACHE_POLL_MS = 5_000;
 const STALE_SCAN_MS = SCAN_INTERVAL_MS + 15_000;
+/** Web: tin snapshot APK trong 3 phút — tránh quét lại lệch điểm. */
+const WEB_APK_MIRROR_MAX_AGE_MS = 3 * SCAN_INTERVAL_MS;
 
 export type { SignalRow };
 
@@ -29,9 +42,30 @@ export interface SignalBoardResult {
   scan: () => void;
 }
 
+function applyPersistedBoard(
+  cached: PersistedSignalBoard,
+  setRows: (rows: SignalRow[]) => void,
+  setLastScannedAt: (t: number) => void,
+  lastScannedAtRef: React.MutableRefObject<number | null>,
+  setLoading: (v: boolean) => void,
+): boolean {
+  if (
+    lastScannedAtRef.current != null &&
+    cached.scannedAt <= lastScannedAtRef.current
+  ) {
+    return false;
+  }
+  setRows(cached.rows);
+  setLastScannedAt(cached.scannedAt);
+  lastScannedAtRef.current = cached.scannedAt;
+  setLoading(false);
+  return true;
+}
+
 /**
- * Quét tất cả cặp (BTC, NEAR, SOL, BNB) và chấm điểm Scorer V3 cho mỗi cặp.
- * Native: foreground service quét mỗi phút; UI đọc cache + quét khi đổi timeframe.
+ * Quét tất cả cặp (BTC, NEAR, SOL, BNB) — V3+V4+CVDX.
+ * APK: upload snapshot lên Gist sau mỗi lần quét.
+ * Web: mirror snapshot từ APK khi còn mới.
  */
 export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult {
   const [rows, setRows] = useState<SignalRow[]>([]);
@@ -41,28 +75,52 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
   const runningRef = useRef(false);
   const lockRef = useRef<string | null>(null);
   const lastScannedAtRef = useRef<number | null>(null);
+  const ambiguityStateRefV4 = useRef<Map<string, AmbiguityState>>(new Map());
+  const ambiguityStateRefV3 = useRef<Map<string, AmbiguityState>>(new Map());
+  const isWeb = Platform.OS === 'web';
 
   const hydrateFromCache = useCallback(async () => {
     const cached = await loadPersistedSignalBoard(timeframe);
     if (!cached) return false;
-    if (
-      lastScannedAtRef.current != null &&
-      cached.scannedAt <= lastScannedAtRef.current
-    ) {
-      return false;
-    }
-    setRows(cached.rows);
-    setLastScannedAt(cached.scannedAt);
-    lastScannedAtRef.current = cached.scannedAt;
-    setLoading(false);
-    return true;
+    return applyPersistedBoard(
+      cached,
+      setRows,
+      setLastScannedAt,
+      lastScannedAtRef,
+      setLoading,
+    );
   }, [timeframe]);
+
+  const uploadScanToGist = useCallback(
+    async (board: PersistedSignalBoard) => {
+      if (isWeb) return;
+      stageSignalBoardForSync(board);
+      await syncOnAction('SIGNAL_BOARD_SCANNED');
+    },
+    [isWeb],
+  );
 
   const scan = useCallback(async () => {
     if (runningRef.current) return;
     runningRef.current = true;
     setLoading(true);
     try {
+      if (isWeb) {
+        const cached = await loadPersistedSignalBoard(timeframe);
+        const mirrorFresh =
+          cached != null && Date.now() - cached.scannedAt <= WEB_APK_MIRROR_MAX_AGE_MS;
+        if (mirrorFresh) {
+          applyPersistedBoard(
+            cached,
+            setRows,
+            setLastScannedAt,
+            lastScannedAtRef,
+            setLoading,
+          );
+          return;
+        }
+      }
+
       const { tradeJournal, settings, psychologyChecklist, aiTradeJournal } =
         useTradeStore.getState();
       const scoringPsychology = toScoringPsychologyChecklist(
@@ -75,12 +133,17 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
         aiTradeJournal,
         settings,
       });
-      const next = await scanAllSignalRows(timeframe, scoringPsychology, scanContext);
+      const next = await scanAllSignalRows(timeframe, scoringPsychology, scanContext, {
+        v3: ambiguityStateRefV3.current,
+        v4: ambiguityStateRefV4.current,
+      });
       const scannedAt = Date.now();
       setRows(next);
       setLastScannedAt(scannedAt);
       lastScannedAtRef.current = scannedAt;
+      const board: PersistedSignalBoard = { timeframe, rows: next, scannedAt };
       await savePersistedSignalBoard(timeframe, next, scannedAt);
+      await uploadScanToGist(board);
 
       const prices = new Map<string, number>();
       for (const row of next) {
@@ -98,7 +161,7 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
       setLoading(false);
       runningRef.current = false;
     }
-  }, [timeframe]);
+  }, [timeframe, isWeb, uploadScanToGist]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,13 +203,44 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
             }
           });
 
+    const unsubMirror = isWeb
+      ? onSignalBoardMirrorApplied((board) => {
+          if (board.timeframe !== timeframe) return;
+          applyPersistedBoard(
+            board,
+            setRows,
+            setLastScannedAt,
+            lastScannedAtRef,
+            setLoading,
+          );
+        })
+      : () => {};
+
+    const unsubPull = isWeb
+      ? onPullMirrorComplete((result) => {
+          if (
+            result.signalBoardUpdated ||
+            result.journalMerged > 0 ||
+            result.capitalUpdated
+          ) {
+            void hydrateFromCache().then((ok) => {
+              if (!ok && !result.signalBoardUpdated) {
+                void scan();
+              }
+            });
+          }
+        })
+      : () => {};
+
     return () => {
       cancelled = true;
       clearInterval(scanInterval);
       if (cachePoll) clearInterval(cachePoll);
       appStateSub?.remove();
+      unsubMirror();
+      unsubPull();
     };
-  }, [hydrateFromCache, scan]);
+  }, [hydrateFromCache, scan, timeframe, isWeb]);
 
   useEffect(() => {
     const tick = () => {

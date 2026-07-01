@@ -168,6 +168,12 @@ export const vi = {
     colCloseReason: 'Close Reason',
     colAction: 'Action',
     colTime: 'Time',
+    activeTradesTitle: 'Lệnh đang chạy',
+    activeTradesSubtitle: (count: number) => `${count} lệnh · giá & khuyến nghị live`,
+    activeTradesEmpty: 'Không có lệnh đang chạy hoặc chờ khớp.',
+    prevPage: '< Trước',
+    nextPage: 'Sau >',
+    pageLabel: (page: number, total: number) => `Trang ${page} / ${total}`,
   },
   psychology: {
     open: 'Phân tích nhanh',
