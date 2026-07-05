@@ -5,6 +5,8 @@ import { computeDailyLossUsdt, derivePsychology, buildTodayStatsLockExtras } fro
 import { computePositionPnl } from '../utils/positionPnl';
 import { evaluatePositionV2 } from './positionAdvisorV3';
 import { computePositionMaxLossUSDT, evaluatePositionV4 } from './positionAdvisorV4';
+import { getADXAnalysis } from './indicators';
+import type { AllMarketData } from './binanceApi';
 import { scoringResultV4ToLegacyV3 } from './tradePlanV4';
 import { LEGACY_STORAGE_KEYS } from './appPersistence';
 import type { ScorerVersion } from '../constants/scoring';
@@ -23,6 +25,10 @@ import {
 } from './tradeStorePersist';
 import { storageGetItem, storageSetItem } from './storage';
 import { buildTodayStatsFromJournal } from './scorerV3';
+import { isV41JournalEntry } from '../hooks/useJournalMarketSync';
+import { evaluatePositionV41 } from './v41/positionAdvisorV41';
+import { NEUTRAL_PROTECTION } from './v41/protectionLayer';
+import { useV41Store } from '../store/useV41Store';
 
 async function readJson<T>(key: string): Promise<T | null> {
   const raw = await storageGetItem(key);
@@ -112,6 +118,23 @@ function computeTradeAdvisorPnl(
   };
 }
 
+function buildV41OpenPositionFromJournal(
+  trade: AiTradeJournalEntry,
+  leverage: number,
+) {
+  return {
+    entryPrice: trade.market.entryPrice,
+    direction: trade.scoring.direction,
+    size: trade.plan.sizeActual,
+    leverage,
+    sl: trade.plan.slActual,
+    tp1: trade.plan.tp1Actual,
+    tp2: trade.plan.tp2,
+    tp3: trade.plan.tp3,
+    openedAt: trade.timestamp,
+  };
+}
+
 export interface PositionAdvisorAlertContext {
   openTrades: AiTradeJournalEntry[];
   settings: AppSettings;
@@ -119,6 +142,17 @@ export interface PositionAdvisorAlertContext {
   timeframe: Awaited<ReturnType<typeof loadPersistedTimeframe>>;
   legacyJournal: Awaited<ReturnType<typeof loadPersistedJournal>>;
   scorerVersion: ScorerVersion;
+}
+
+function resolveAdxDataFromMarket(market: AllMarketData) {
+  try {
+    const klines1h = market.klines['1h']?.klines ?? [];
+    const klines4h = market.klines['4h']?.klines ?? [];
+    if (klines1h.length === 0 || klines4h.length === 0) return undefined;
+    return getADXAnalysis(klines1h, klines4h);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function loadPositionAdvisorAlertContext(): Promise<PositionAdvisorAlertContext> {
@@ -183,6 +217,48 @@ export async function runPositionAdvisorAlerts(
       if (!analysis) continue;
 
       const direction = trade.scoring.direction;
+      const pnl = computeTradeAdvisorPnl(trade, analysis.currentPrice, leverage);
+
+      if (isV41JournalEntry(trade)) {
+        const lastSnapshot = useV41Store.getState().getSymbolState(trade.symbol).lastSnapshot;
+        const recommendation = lastSnapshot
+          ? evaluatePositionV41({
+              snapshot: lastSnapshot,
+              protection: NEUTRAL_PROTECTION,
+              openPosition: buildV41OpenPositionFromJournal(trade, leverage),
+              markPrice: analysis.currentPrice,
+            })
+          : {
+              label: 'V4.1 — đang theo dõi',
+              urgency: 'LOW' as const,
+              reason: 'no v41 snapshot',
+            };
+
+        const entry = throttle[trade.id];
+        if (!shouldNotifyForUrgency(entry, recommendation.urgency)) continue;
+
+        const sent = await sendPositionAlert({
+          symbol: trade.symbol,
+          direction,
+          recommendationLabel: recommendation.label,
+          urgency: recommendation.urgency,
+          reasons: recommendation.reason ? [recommendation.reason] : [],
+          currentPnlUSDT: pnl.usdt,
+        });
+
+        if (sent) {
+          throttle = {
+            ...throttle,
+            [trade.id]: {
+              lastNotifiedUrgency: recommendation.urgency,
+              lastNotifiedAt: Date.now(),
+            },
+          };
+          hasAlertSent = true;
+        }
+        continue;
+      }
+
       const scoringForAdvisor =
         scorerVersion === 'v4'
           ? scoringResultV4ToLegacyV3(analysis.scoringResultV4)
@@ -191,8 +267,6 @@ export async function runPositionAdvisorAlerts(
         direction === 'LONG' ? scoringForAdvisor.long : scoringForAdvisor.short;
       const oppositeScore =
         direction === 'LONG' ? scoringForAdvisor.short : scoringForAdvisor.long;
-
-      const pnl = computeTradeAdvisorPnl(trade, analysis.currentPrice, leverage);
 
       const positionPayload = {
         direction,
@@ -246,6 +320,7 @@ export async function runPositionAdvisorAlerts(
               atr1h: analysis.scoringResultV4.atr1h,
               currentFundingState: analysis.scoringResultV4.l6Detail?.fundingState,
               currentSqueezeRisk: analysis.scoringResultV4.squeezeRisk,
+              adxData: resolveAdxDataFromMarket(analysis.market),
             })
           : evaluatePositionV2({
               ...advisorInput,

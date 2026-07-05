@@ -42,7 +42,7 @@ export function ActiveTradesPanel({ signalRows }: ActiveTradesPanelProps) {
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [aiTradeJournal]);
 
-  const { markBySymbol, unrealizedById, advisorLabelById } = useJournalMarketSync({
+  const { markBySymbol, unrealizedById, pnlBreakdownById, advisorLabelById } = useJournalMarketSync({
     entries: activeEntries,
     signalRows,
     leverage,
@@ -79,6 +79,7 @@ export function ActiveTradesPanel({ signalRows }: ActiveTradesPanelProps) {
             pageResetKey={`active-${activeEntries.length}`}
             markBySymbol={markBySymbol}
             unrealizedById={unrealizedById}
+            pnlBreakdownById={pnlBreakdownById}
             advisorLabelById={advisorLabelById}
             onDetail={setDetailEntry}
             onStopTrade={handleStopTrade}

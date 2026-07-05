@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { TradePlanV3 } from '../constants/scoring';
 import type { SignalRow } from '../services/signalBoardScan';
 import {
   computeHypotheticalPnlPct,
@@ -6,6 +7,7 @@ import {
   inferSkipReasonFromSignalRow,
   newSkippedSetupEntry,
   refreshSkippedSetupMarkPrices,
+  resolveSkipPriceFromSignalRow,
 } from './skippedSetupService';
 
 function sampleRow(overrides: Partial<SignalRow> = {}): SignalRow {
@@ -47,6 +49,18 @@ describe('skippedSetupService', () => {
   it('infers LOW_SCORE when score below 9', () => {
     const r = inferSkipReasonFromSignalRow(sampleRow({ score: 7.5 }));
     expect(r.skipReason).toBe('LOW_SCORE');
+  });
+
+  it('resolveSkipPrice falls back to plan entry when row.price is null', () => {
+    const plan = { direction: 'LONG', recommendedEntry: 2.05 } as TradePlanV3;
+    const price = resolveSkipPriceFromSignalRow(
+      sampleRow({
+        price: null,
+        tradePlansByScorer: { v4: plan },
+      }),
+      'LONG',
+    );
+    expect(price).toBe(2.05);
   });
 
   it('infers MANDATORY_FAIL first', () => {

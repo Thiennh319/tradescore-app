@@ -247,6 +247,8 @@ export const COLORS = {
   info: '#3861FB',
   warning: '#F0B90B',
   neutral: '#848E9C',
+  success: '#22C55E',
+  danger: '#EF4444',
   chartGrid: '#2B3139',
   overlay: 'rgba(11, 14, 17, 0.85)',
 } as const;
@@ -1118,3 +1120,10 @@ export interface TradePlanV3 {
 }
 
 export { FinalEntryStatus } from '../types/scoring';
+
+/** Ngưỡng ADX — dùng bởi getADXAnalysis / adxGate (tham chiếu UI & docs). */
+export const ADX_THRESHOLDS = {
+  CHOPPY: 15,
+  RANGING_MAX: 25,
+  TRENDING_STRONG: 35,
+} as const;

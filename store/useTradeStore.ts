@@ -102,6 +102,7 @@ import {
   type TradeOutcome,
   type TradePlanSnapshot,
   type WeeklyStats,
+  type PartialCloseReason,
 } from '../constants/aiJournal';
 import {
   calculatePlanExpiry,
@@ -122,6 +123,7 @@ import {
   formatFillAuditNote,
   resolveActualEntryPrice,
 } from '../services/orderFillResolution';
+import { isPendingEntryFilled } from '../utils/pendingOrderFill';
 import {
   shouldNotifyForUrgency,
   type NotificationThrottleState,
@@ -170,11 +172,13 @@ import {
   squeezeAtEntryFromResult,
   applyCloseWithFundingPatch,
   formatJournalCloseReason,
+  formatPartialCloseExitReason,
   type FundingAtEntrySnapshot,
   type SqueezeAtEntrySnapshot,
   type EquityCurveStats,
 } from '../services/journalService';
 import { syncOnAction } from '../services/driveSyncService';
+import { applyPartialCloseToEntry } from '../services/partialClose';
 import { registerDriveSyncStoreBridge } from '../services/driveSyncStoreBridge';
 import type { CancelReason } from '../services/lockedPlanScoring';
 
@@ -247,6 +251,18 @@ export interface StoredTradeJournalEntry extends TradeJournalEntry {
   realizedPnlUsdt?: number;
   realizedPnlPercent?: number;
   strategySource?: StrategySource;
+  /** Margin gốc lúc mở — sau chốt một phần */
+  sizeOriginal?: number;
+  /** Lịch sử chốt một phần (đồng bộ với ai journal) */
+  partialCloses?: import('../constants/aiJournal').PartialCloseRecord[];
+  /** Regime ADX lúc vào lệnh — legacy journal */
+  adxRegime?: string;
+  /** Nguồn SL lúc vào lệnh — STRUCTURE | ATR_FALLBACK */
+  slSource?: string;
+  /** Zone VWAP lúc vào lệnh — legacy journal */
+  vwapZone?: string;
+  /** Entry quality VWAP lúc vào lệnh — legacy journal */
+  vwapEntryQuality?: string;
 }
 
 export interface AnalysisSnapshot {
@@ -360,6 +376,9 @@ export interface TradeStoreActions {
     fundingAtEntry?: FundingAtEntrySnapshot,
     squeezeAtEntry?: SqueezeAtEntrySnapshot,
     strategySource?: StrategySource,
+    adxSnapshot?: import('../constants/aiJournal').AdxJournalSnapshot,
+    structureSLSnapshot?: import('../constants/aiJournal').StructureSLSnapshot,
+    vwapSnapshot?: import('../constants/aiJournal').VWAPSnapshot,
   ) => Promise<string>;
   updateTradeOutcome: (id: string, outcome: Partial<TradeOutcome>) => Promise<void>;
   closeWin: (
@@ -370,6 +389,13 @@ export interface TradeStoreActions {
   closeLoss: (id: string, exitPrice: number) => Promise<void>;
   closeBreakeven: (id: string, exitPrice?: number) => Promise<void>;
   closeTradeEntry: (id: string, options: CloseTradeOptions) => Promise<void>;
+  /** Chốt một phần lệnh OPEN — cập nhật size còn lại + partialCloses */
+  applyPartialClose: (input: {
+    aiEntryId: string;
+    legacyEntryId?: string;
+    markPrice: number;
+    reason: PartialCloseReason;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   /** Ghi nhận grace period đã chặn maturity rule trong quá trình giữ lệnh */
   markGracePeriodTriggered: (tradeId: string) => Promise<void>;
   /** Lưu fundingState sau mỗi lần Position Advisor V4 scan */
@@ -391,6 +417,9 @@ export interface TradeStoreActions {
     plan: TradePlanSnapshot,
     limitOrderPrice: number,
     strategySource?: StrategySource,
+    adxSnapshot?: import('../constants/aiJournal').AdxJournalSnapshot,
+    structureSLSnapshot?: import('../constants/aiJournal').StructureSLSnapshot,
+    vwapSnapshot?: import('../constants/aiJournal').VWAPSnapshot,
   ) => Promise<string>;
   /** PENDING → OPEN sau khi limit/stop/trigger fill */
   confirmOrderFilled: (
@@ -1434,6 +1463,9 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
     fundingAtEntry,
     squeezeAtEntry,
     strategySource,
+    adxSnapshot,
+    structureSLSnapshot,
+    vwapSnapshot,
   ) => {
     const funding = fundingAtEntry ?? {
       fundingAtEntry: null,
@@ -1455,6 +1487,9 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
       strategySource,
       ...funding,
       ...squeeze,
+      adxSnapshot,
+      structureSLSnapshot,
+      vwapSnapshot,
     });
     const nextJournal = [...get().aiTradeJournal, entry];
     const nextStats = refreshDailyStatsForEntry(nextJournal, get().dailyStats);
@@ -1466,7 +1501,17 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
     return entry.id;
   },
 
-  placePendingOrder: async (symbol, market, scoring, plan, limitOrderPrice, strategySource) => {
+  placePendingOrder: async (
+    symbol,
+    market,
+    scoring,
+    plan,
+    limitOrderPrice,
+    strategySource,
+    adxSnapshot,
+    structureSLSnapshot,
+    vwapSnapshot,
+  ) => {
     const entry = newAiJournalPendingEntry({
       symbol,
       accountSizeAtEntry: get().settings.accountSize,
@@ -1475,6 +1520,9 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
       plan,
       limitOrderPrice,
       strategySource,
+      adxSnapshot,
+      structureSLSnapshot,
+      vwapSnapshot,
     });
     const nextJournal = [...get().aiTradeJournal, entry];
     const persisted = applyJournalPersist(nextJournal, get().dailyStats);
@@ -1490,6 +1538,15 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
 
     const orderEntryPrice =
       entry.outcome.limitOrderPrice ?? entry.market.entryPrice;
+    if (
+      !isPendingEntryFilled(
+        entry.scoring.direction,
+        marketPriceAtFill,
+        orderEntryPrice,
+      )
+    ) {
+      return;
+    }
     const resolved = resolveActualEntryPrice(
       entry.scoring.direction,
       orderEntryPrice,
@@ -1726,7 +1783,8 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
     clearKeyLevelsCache(entry.symbol);
     const leverage = get().settings.leverage ?? 5;
     const { pnlUSDT, pnlPct } = computeTradePnl(entry, options.exitPrice, leverage);
-    const outcome = outcomeFromClose({
+    const partialExitLabel = formatPartialCloseExitReason(entry, options.exitPrice);
+    const outcomeBase = outcomeFromClose({
       exitPrice: options.exitPrice,
       pnlUSDT,
       pnlPct,
@@ -1738,6 +1796,9 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
       breakeven: options.exitReason === 'BE_CLOSE',
       wasGracePeriodTriggered: entry.gracePeriodEverTriggered === true,
     });
+    const outcome = partialExitLabel
+      ? { ...outcomeBase, closeReason: partialExitLabel }
+      : outcomeBase;
 
     const state = get();
     const fundingExitPatch = resolveFundingExitPatchForClose({
@@ -1820,6 +1881,58 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
 
     triggerJournalDriveSync();
     triggerPositionClosedSync();
+  },
+
+  applyPartialClose: async ({ aiEntryId, legacyEntryId, markPrice, reason }) => {
+    const entry = get().aiTradeJournal.find((e) => e.id === aiEntryId);
+    if (!entry) {
+      return { ok: false as const, error: 'Không tìm thấy lệnh' };
+    }
+
+    const leverage = get().settings.leverage ?? 5;
+    const result = applyPartialCloseToEntry(entry, markPrice, reason, leverage);
+    if (!result.ok) {
+      return { ok: false as const, error: result.error };
+    }
+
+    const nextJournal = get().aiTradeJournal.map((e) =>
+      e.id === aiEntryId ? result.entry : e,
+    );
+    const nextStats = refreshDailyStatsForEntry(nextJournal, get().dailyStats);
+    const persisted = applyJournalPersist(nextJournal, nextStats);
+    set(persisted);
+    await persistAiJournal(
+      persisted.aiTradeJournal,
+      nextStats,
+      persisted.currentOpenDataTrade,
+      get,
+    );
+
+    const legacyId =
+      legacyEntryId ??
+      get().tradeJournal.find(
+        (e) =>
+          e.symbol === entry.symbol &&
+          e.status === 'OPEN' &&
+          e.direction === entry.scoring.direction,
+      )?.id;
+
+    if (legacyId) {
+      const updated = result.entry;
+      const realizedPartial = (updated.partialCloses ?? []).reduce(
+        (sum, record) => sum + record.realizedPnlUSDT,
+        0,
+      );
+      await get().updateJournalEntry(legacyId, {
+        size: updated.plan.sizeActual,
+        sizeOriginal: updated.plan.sizeOriginal,
+        partialCloses: updated.partialCloses,
+        realizedPnlUsdt: realizedPartial,
+      });
+    }
+
+    triggerJournalDriveSync();
+    return { ok: true as const };
   },
 
   closeWin: async (id, exitPrice, exitReason = 'MANUAL_CLOSE') => {
@@ -1982,17 +2095,25 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
 
     if (reason === 'FILLED') {
       if (entry && entry.outcome.status === 'PENDING') {
+        const limitPrice =
+          entry.outcome.limitOrderPrice ?? entry.market.entryPrice ?? plan.limitOrderPrice;
         const fillPrice =
           marketPriceAtFill ??
           get().analysisResults?.price ??
           entry.market.entryPrice ??
           plan.limitOrderPrice;
-        await get().confirmOrderFilled(
-          entryId,
-          fillPrice,
-          plan.sl,
-          entry.plan.sizeActual,
-        );
+        if (
+          fillPrice != null &&
+          Number.isFinite(fillPrice) &&
+          isPendingEntryFilled(entry.scoring.direction, fillPrice, limitPrice)
+        ) {
+          await get().confirmOrderFilled(
+            entryId,
+            fillPrice,
+            plan.sl,
+            entry.plan.sizeActual,
+          );
+        }
       }
       set({ lockedPlan: null });
       await persistLockedPlan(null, get);

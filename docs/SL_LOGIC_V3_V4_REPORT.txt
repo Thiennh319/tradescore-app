@@ -1,0 +1,344 @@
+================================================================================
+  TradeScore — BÁO CÁO LOGIC STOP LOSS (SL / Structure SL)
+  V3 vs V4 · Mỗi trường hợp đặt SL do chỉ số gì · Vì sao SL hay bị XA
+  Ngày: 2026-07-03
+================================================================================
+
+LƯU Ý THUẬT NGỮ
+--------------------------------------------------------------------------------
+Trong codebase không có tên "SLT" riêng. Người dùng thường gọi:
+  • SL (Stop Loss) — toàn bộ logic đặt cắt lỗ trong Trade Plan
+  • Structure SL — "SL theo cấu trúc giá 4H" (panel 🏗️ trên Signal Board)
+  • slSource — 'STRUCTURE' | 'ATR_FALLBACK' (journal)
+
+Báo cáo này cover CẢ HAI tầng:
+  (A) SL gốc trong tradePlanV3/V4 — calculateOptimalSL
+  (B) Structure SL overlay — calculateStructureSL (chạy SAU, có thể đẩy SL xa hơn)
+
+
+1. PIPELINE TỔNG THỂ (CẢ V3 VÀ V4)
+--------------------------------------------------------------------------------
+
+Mỗi lần scan (signalBoardScan.ts), thứ tự áp dụng lên SL:
+
+  1. score V3 + V4 (10 lớp — KHÔNG tính SL trực tiếp)
+  2. calculateTradePlanV3 / calculateTradePlanV4
+       └─ calculateOptimalSL  ← SL gốc (ATR / key level / whale)
+       └─ applyTierMaxLossCap ← chỉ CẢNH BÁO nếu maxLoss > tier, KHÔNG thu hẹp SL
+  3. evaluateADXGate → scaleTradePlanByAdxGate (scale SL + TP)
+  4. applyVWAPEntryToPlan (chỉ entry, không đổi SL)
+  5. calculateStructureSL → applyStructureSlToPlan  ← có thể override SL xa hơn
+  6. enrichSnapshotFinalStatus (R:R tối thiểu, canEnter…)
+
+SL CUỐI CÙNG trên thẻ tín hiệu = sau bước 5 (nếu slSource = STRUCTURE).
+
+
+2. KHÁC BIỆT V3 vs V4 Ở BƯỚC ĐẶT SL
+--------------------------------------------------------------------------------
+
+| Khía cạnh              | V3 (calculateTradePlanV3)     | V4 (calculateTradePlanV4Native) |
+|------------------------|-------------------------------|----------------------------------|
+| Hàm SL cốt lõi         | calculateOptimalSL (chung)    | calculateOptimalSL (chung)       |
+| ATR multiplier         | Theo decision V3 (điểm 10 lớp)| Theo decision V4 + resolveV4SlMultiplier |
+| Điều chỉnh CVD         | Không                         | Có — thu hẹp 0.3×ATR khi CVD-dominant |
+| ADX Gate               | Giống nhau                    | Giống nhau                       |
+| Structure SL 4H        | Giống nhau (dùng plan V4 entry + direction V4) | Giống nhau |
+| Entry zone             | calculateOptimalEntry (chung) | calculateOptimalEntry (chung)    |
+
+→ V4 có thể CHẶT HƠN V3 khi setup "mạnh nhờ CVD, trend vừa đủ".
+→ Cả hai đều có thể bị Structure SL kéo XA sau cùng.
+
+
+3. BƯỚC 2A — calculateOptimalSL (SL GỐC)
+--------------------------------------------------------------------------------
+File: services/tradePlanV3.ts — calculateOptimalSL()
+Dùng chung V3 và V4.
+
+INPUT chính:
+  • direction (LONG/SHORT)
+  • entry (từ calculateOptimalEntry)
+  • atr — ATR 14 nến 1H
+  • decision — SETUP_NGON | VAO_TU_TIN | CO_THE_VAO | CHO_THEM
+  • marketMode — TRENDING | RANGING (từ scorer)
+  • supports / resistances — getKeyLevelsCached (1H+4H swing, EMA, round, whale)
+  • whaleWalls — bid/ask walls
+  • notional — size tier
+
+────────────────────────────────────────────────────────────────────────────
+CASE 1 — ATR_BASED (mặc định, không có structure/whale đặc biệt)
+────────────────────────────────────────────────────────────────────────────
+
+Chỉ số quyết định:
+  • ATR 1H (14 kỳ)
+  • ATR_SL_MULTIPLIER theo decision (constants/scoring.ts TRADE_PLAN_V3_CONFIG)
+  • MARKET_MODE_FACTOR.slFactor
+
+Công thức LONG:
+  atrDistance = atr × atrMult × slFactor
+  slCandidate = entry - atrDistance
+
+Bảng atrMult theo decision (điểm tổng → nhãn):
+  SETUP_NGON   (≥11.5đ) → 1.5×ATR   ← SL CHẶT nhất
+  VAO_TU_TIN   (10–11.5) → 2.0×ATR
+  CO_THE_VAO   (9–10)    → 2.5×ATR
+  CHO_THEM     (8–9)     → 3.0×ATR   ← SL RỘNG nhất (thường không vào)
+
+slFactor theo marketMode:
+  TRENDING → 0.9  (SL chặt hơn 10% — momentum rõ)
+  RANGING  → 1.1  (SL rộng hơn 10% — nhiễu sideway)
+
+Vì sao thiết kế vậy:
+  Điểm thấp → SL rộng để tránh bị quét nhiễu.
+  Điểm cao → SL chặt vì setup tin cậy hơn.
+  Ranging → SL rộng hơn vì giá dao động hai đầu.
+
+SHORT: đối xứng (entry + atrDistance).
+
+────────────────────────────────────────────────────────────────────────────
+CASE 2 — STRUCTURE_BASED (key level 1H/4H trong trade plan)
+────────────────────────────────────────────────────────────────────────────
+
+Chỉ số quyết định:
+  • supports (LONG) hoặc resistances (SHORT) từ getKeyLevelsCached
+  • Điều kiện: strength === 'STRONG'
+  • Khoảng cách: level nằm trong vùng ±0.5×ATR quanh slCandidate ATR
+
+LONG:
+  Tìm support STRONG với:
+    support.price < slCandidate
+    support.price > slCandidate - 0.5×ATR
+  → slCandidate = support.price - 0.3×ATR
+
+SHORT:
+  resistance STRONG với:
+    resistance.price > slCandidate
+    resistance.price < slCandidate + 0.5×ATR
+  → slCandidate = resistance.price + 0.3×ATR
+
+Nguồn STRONG level (indicators.ts getKeyLevels):
+  • Swing 4H (detectSwingLevels, lookback 50, neighbor 3) → STRONG
+  • Swing 1H → MEDIUM (không trigger case này)
+  • EMA → MEDIUM
+  • Whale wall ≥10× → STRONG
+
+Vì sao:
+  Đặt SL sau mức hỗ trợ/kháng cự "mạnh" + buffer 0.3×ATR để không bị
+  quét đúng đáy/đỉnh swing.
+
+Hệ quả SL xa:
+  Nếu support STRONG nằm xa entry (swing 4H cũ), SL có thể xa hơn nhiều
+  so với纯 ATR — nhưng vẫn bị cap 4×ATR ở bước sau (trước Structure overlay).
+
+────────────────────────────────────────────────────────────────────────────
+CASE 3 — WHALE_PROTECTED (tường whale bảo vệ SL)
+────────────────────────────────────────────────────────────────────────────
+
+Chỉ số:
+  • Whale bid walls (LONG) / ask walls (SHORT)
+  • findWallProtectingSL — wall nằm giữa entry và slCandidate
+
+LONG:
+  slCandidate = wall.price - 0.2×ATR
+
+Vì sao:
+  Coi tường lệnh lớn là "sàn" — SL đặt sau wall để tránh bị hunt qua wall.
+
+Ưu tiên: Whale ghi đè STRUCTURE_BASED nếu cả hai khớp.
+
+────────────────────────────────────────────────────────────────────────────
+CASE 4 — CAP 4×ATR (chỉ trong calculateOptimalSL)
+────────────────────────────────────────────────────────────────────────────
+
+LONG: nếu entry - slCandidate > 4×ATR → slCandidate = entry - 4×ATR
+SHORT: nếu slCandidate - entry > 4×ATR → slCandidate = entry + 4×ATR
+
+Vì sao:
+  Giới hạn rủi ro kỹ thuật tối đa ~4×ATR ở tầng trade plan.
+
+⚠️ QUAN TRỌNG: Cap này KHÔNG áp dụng sau khi Structure SL 4H override (bước 5).
+
+────────────────────────────────────────────────────────────────────────────
+CASE 5 — applyTierMaxLossCap
+────────────────────────────────────────────────────────────────────────────
+
+Chỉ số: tierMaxLossPerTrade (capital tier GD1/GD2…)
+
+Hành vi HIỆN TẠI (cố ý):
+  • Nếu maxLoss thực tế > tier → CHỈ CẢNH BÁO, KHÔNG dời SL gần entry
+  • Lý do code: "phá vỡ ý nghĩa kỹ thuật của SL (mất liên kết support/resistance)"
+
+Hệ quả:
+  SL xa + size tier → warning nhưng SL vẫn xa → giữ lệnh lâu trước khi chạm SL.
+
+
+4. BƯỚC 2B — V4 RIÊNG: resolveV4SlMultiplier
+--------------------------------------------------------------------------------
+File: services/tradePlanV4.ts
+
+Chỉ số:
+  • Group A score (trend kỹ thuật)
+  • L5a raw (CVD / dòng tiền)
+  • decision VAO_TU_TIN | SETUP_NGON
+
+Profile:
+  BALANCED / TREND_DOMINANT → giữ base ATR mult
+  CVD_DOMINANT → adjustedMult = max(1.0, baseMult - 0.3)
+
+Điều kiện CVD_DOMINANT:
+  decision ∈ {VAO_TU_TIN, SETUP_NGON}
+  AND Group A ≤ 2.8 (vừa đủ ngưỡng)
+  AND L5a raw ≥ 1.5 (CVD mạnh)
+
+Vì sao:
+  Setup tin cậy chủ yếu nhờ dòng tiền, trend chưa mạnh → SL chặt hơn 0.3×ATR.
+
+Đây là điểm V4 có thể GẦN entry hơn V3 trên cùng symbol.
+
+
+5. BƯỚC 3 — ADX GATE (scale SL)
+--------------------------------------------------------------------------------
+File: services/adxGate.ts → scaleTradePlanByAdxGate trong signalBoardScan.ts
+
+Chỉ số: ADX 1H + 4H (regime, isChoppy, bothChoppy, regimeStrength)
+
+| Tình huống ADX              | slMultiplier | Ảnh hưởng SL        |
+|-----------------------------|--------------|---------------------|
+| bothChoppy (BLOCK)          | 1.0          | Không vào — block   |
+| 1H hoặc 4H choppy (WARNING) | 1.1          | SL XA thêm 10%      |
+| RANGING                     | 1.1          | SL XA thêm 10%      |
+| TRENDING STRONG (BONUS)     | 0.9          | SL GẦN hơn 10%      |
+| TRENDING / OK               | 1.0          | Không đổi           |
+
+Cách scale LONG:
+  newSL = entry - (entry - oldSL) × slMultiplier
+  slMultiplier > 1 → SL xa hơn (giá thấp hơn)
+
+Vì sao RANGING/choppy tăng SL:
+  Thị trường nhiễu → cần "đệm" rộng hơn tránh stop hunt.
+
+→ Đây là nguồn phổ biến làm SL xa khi alt sideway.
+
+
+6. BƯỚC 5 — STRUCTURE SL 4H (NGUỒN CHÍNH SL QUÁ XA)
+--------------------------------------------------------------------------------
+File: services/structureSL.ts — calculateStructureSL
+Wire: signalBoardScan.applyStructureSLToPlans
+
+Chỉ số:
+  • Klines 4H (limit 250 từ fetch)
+  • Swing low/high: pivot thấp/cao hơn 2 nến trước + 2 nến sau
+  • LOOKBACK_CANDLES = 20 (tối đa ~80 giờ 4H)
+  • MIN_CANDLES_BACK = 3 (swing cách nến hiện tại ≥ 3 nến 4H = 12h)
+  • BUFFER_PCT = 0.3%
+  • atrSL = plan.stopLoss.price SAU ADX (đầu vào so sánh)
+
+LONG:
+  1. findRecentSwingLow — swing GẦN NHẤT (index cao nhất trong lookback)
+  2. structureSL = swingLow × (1 - 0.3%)
+  3. Nếu structureSL > entry → ATR_FALLBACK
+  4. slPrice = min(structureSL, atrSL)  ← LẤY MỨC XA ENTRY HƠN (giá thấp hơn)
+
+SHORT:
+  4. slPrice = max(structureSL, atrSL)  ← LẤY MỨC XA ENTRY HƠN (giá cao hơn)
+
+Nguyên tắc thiết kế:
+  "An toàn hơn" = SL xa hơn, tránh bị quét râu trước khi trend tiếp diễn.
+
+Khi nào STRUCTURE thắng ATR (SL xa hơn):
+  • Swing 4H gần đây thấp hơn (LONG) / cao hơn (SHORT) nhiều so với ATR SL
+  • Ví dụ test: entry 100, swing low 95 → SL ~94.72; ATR SL 96 → chọn 94.72
+  • Badge cam trên UI: "SL rộng hơn ATR"
+
+Khi ATR_FALLBACK:
+  • Không tìm được swing trong 20 nến
+  • Swing invalid (structure SL nằm sai phía entry)
+  • Giữ nguyên SL ATR (sau ADX)
+
+⚠️ KHÔNG CÓ CAP % hoặc cap ×ATR sau bước này.
+  Structure có thể đẩy SL tới 5–10%+ cách entry nếu swing 4H xa
+  (positionAdvisorV4.test: entry 100, SL 93 = 7%).
+
+Chỉ override plan khi slSource === 'STRUCTURE'.
+Recalc tp1/2/3.rrRatio theo risk mới (SL xa → risk lớn → TP xa theo cùng giá TP cũ).
+
+
+7. TẠI SAO "SL XA → GIỮ LỆNH QUÁ LÂU"
+--------------------------------------------------------------------------------
+
+(A) SL xa trực tiếp
+  • Giá phải đi xa hơn mới chạm SL → lệnh "sống" lâu hơn trong drawdown
+  • Đúng với thiết kế anti-whipsaw, nhưng khó chịu nếu muốn cắt nhanh
+
+(B) TP cũng xa theo (gián tiếp)
+  • TP tính từ slDistance × R:R (calculateOptimalTPs)
+  • Structure chỉ đổi SL + R:R label, giá TP1/2/3 giữ nguyên sau applyStructureSlToPlan
+  • R:R hiển thị giảm khi SL xa (cùng TP, risk lớn hơn)
+  • Nếu chờ TP thay vì trailing → thời gian giữ lệnh dài hơn
+
+(C) Cộng dồn nhiều lớp "nới rộng"
+  Ví dụ LONG sideway:
+    CO_THE_VAO 2.5×ATR
+    × RANGING 1.1
+    × ADX WARNING 1.1
+    ≈ 3.0×ATR trước structure
+    → Structure 4H chọn swing xa → có thể >> 4×ATR
+
+(D) Tier cap không thu hẹp
+  maxLoss vượt tier → warning, SL không dời gần
+
+(E) V3 vs V4
+  V4 CVD-dominant có thể chặt hơn ở bước ATR
+  Nhưng nếu Structure thắng → cả V3 lẫn V4 cùng SL cuối (apply cả 2 plan)
+
+
+8. BẢNG TRA CỨU NHANH — "SL CỦA TÔI DO ĐÂU?"
+--------------------------------------------------------------------------------
+
+Xem trên Signal Board (expand thẻ):
+  1. Trade Plan → stopLoss.reasoning, type, atrDistance, quality (TIGHT/NORMAL/WIDE)
+  2. ADX panel → regime, slMultiplier message
+  3. Structure SL panel → slSource, swing price, candlesBack, badge cam/xanh
+
+| Triệu chứng UI                          | Nguyên nhân chính              |
+|----------------------------------------|--------------------------------|
+| type = ATR_BASED, reasoning ×ATR       | Case 1 — decision + marketMode |
+| type = STRUCTURE_BASED, support/resist | Case 2 — key level STRONG 1H/4H|
+| type = WHALE_PROTECTED                 | Case 3 — whale wall            |
+| slMultiplierNote chứa "CVD"            | V4 CVD_DOMINANT thu hẹp        |
+| ADX "RANGING" / "xu hướng yếu"         | slMultiplier 1.1               |
+| 🏗️ slSource = STRUCTURE, badge cam     | Swing 4H xa hơn ATR SL         |
+| 🏗️ slSource = ATR_FALLBACK, badge xám  | Không swing / ATR đã xa hơn    |
+| Warning tier maxLoss                   | SL xa nhưng không bị kéo gần   |
+| quality = WIDE (atrDistance > 3)       | SL > 3×ATR từ bước optimal     |
+
+
+9. FILE THAM CHIẾU
+--------------------------------------------------------------------------------
+
+  services/tradePlanV3.ts       calculateOptimalSL, applyTierMaxLossCap
+  services/tradePlanV4.ts       resolveV4SlMultiplier, calculateTradePlanV4Native
+  services/structureSL.ts       calculateStructureSL, findRecentSwingLow/High
+  services/signalBoardScan.ts   pipeline ADX → Structure → enrich
+  services/adxGate.ts           evaluateADXGate
+  services/indicators.ts        getKeyLevels, detectSwingLevels
+  constants/scoring.ts          TRADE_PLAN_V3_CONFIG, TRADE_PLAN_V4_CONFIG
+  components/dashboard/StructureSLSection.tsx
+  services/tradePlanExplainer.ts explainSL
+  docs/STRUCTURE_SL_FEATURE_REPORT.md
+
+
+10. HƯỚNG ĐIỀU CHỈNH (GỢI Ý — CHƯA IMPLEMENT)
+--------------------------------------------------------------------------------
+
+Nếu muốn SL gần hơn / giữ lệnh ngắn hơn (product decision):
+
+  1. Structure SL: đổi min/max → max() LONG (chọn GẦN entry hơn) hoặc cap % tối đa
+  2. Giảm LOOKBACK_CANDLES 20 → 10 (swing gần hơn)
+  3. Bật lại thu hẹp SL khi vượt tier (trade-off kỹ thuật)
+  4. ADX RANGING: slMultiplier 1.1 → 1.0 hoặc 0.95
+  5. Cap structure distance tối đa (vd. 4×ATR hoặc 3% entry) sau overlay
+  6. TP độc lập SL — không scale TP khi chỉ muốn siết risk
+
+================================================================================
+  Kết thúc báo cáo SL Logic V3/V4
+================================================================================

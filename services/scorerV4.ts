@@ -922,27 +922,28 @@ export function scoreL10V4(
   todayStats: TodayStats,
   journal: Array<{ outcome: { status: string } }>,
 ): { layerResult: LayerResultV4; hardBlock: string | null; warning: string | null } {
-  if (todayStats.lossStreakLocked) {
-    const cooldown = lossStreakCooldownL10(todayStats);
-    if (cooldown) {
-      return {
-        layerResult: layerC(10, 0, cooldown.layerReason),
-        hardBlock: cooldown.hardBlock,
-        warning: null,
-      };
-    }
-  }
-  if (todayStats.dailyLossUSDT >= HARD_BLOCK_RULES_V4.MAX_DAILY_LOSS_USDT) {
-    return {
-      layerResult: layerC(
-        10,
-        0,
-        `Lỗ ngày ${todayStats.dailyLossUSDT.toFixed(2)} USDT — dừng hôm nay`,
-      ),
-      hardBlock: 'Lỗ ngày ≥ 3 USDT — chặn giao dịch',
-      warning: null,
-    };
-  }
+  // TODO: BẬT LẠI KHI PRODUCTION
+  // if (todayStats.lossStreakLocked) {
+  //   const cooldown = lossStreakCooldownL10(todayStats);
+  //   if (cooldown) {
+  //     return {
+  //       layerResult: layerC(10, 0, cooldown.layerReason),
+  //       hardBlock: cooldown.hardBlock,
+  //       warning: null,
+  //     };
+  //   }
+  // }
+  // if (todayStats.dailyLossUSDT >= HARD_BLOCK_RULES_V4.MAX_DAILY_LOSS_USDT) {
+  //   return {
+  //     layerResult: layerC(
+  //       10,
+  //       0,
+  //       `Lỗ ngày ${todayStats.dailyLossUSDT.toFixed(2)} USDT — dừng hôm nay`,
+  //     ),
+  //     hardBlock: 'Lỗ ngày ≥ 3 USDT — chặn giao dịch',
+  //     warning: null,
+  //   };
+  // }
 
   const checked = Object.values(checklist).filter(Boolean).length;
   const total = Object.keys(checklist).length;

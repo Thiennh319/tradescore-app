@@ -10,6 +10,15 @@ import {
   type TradePlan,
   type TradePlanV3,
   DEFAULT_SETTINGS,
+  convertToGroupScore,
+  convertToGroupScoreV4,
+  LAYER_L5B_ID,
+  SCORING_GROUPS_V3,
+  SCORING_GROUPS_V4,
+  DECISION_LABELS_V2,
+  DECISION_LABELS_V4,
+  type DecisionTypeV2,
+  type DecisionTypeV4,
 } from '../constants/scoring';
 import type { CvdTrend } from '../constants/aiJournal';
 import {
@@ -17,6 +26,7 @@ import {
   fetchAllMarketData,
   fetchTickerPrice,
   statsPeriodFor,
+  type Kline,
 } from './binanceApi';
 import {
   fetchBtcChange24hPct,
@@ -50,7 +60,7 @@ import {
   type L6DetailV4,
   type ScoringResultV4,
 } from './scorerV4';
-import { analyzeCVD, type CVDPoint } from './indicators';
+import { analyzeCVD, type ADXAnalysis, type CVDPoint } from './indicators';
 import { buildWhaleEntryWalls } from './whaleEntryWalls';
 import { computeAtr1hFromKlines } from './atr1h';
 import { calculateTradePlanV3 } from './tradePlanV3';
@@ -62,6 +72,18 @@ import {
   resolveDirectionAmbiguity,
   type AmbiguityState,
 } from './directionAmbiguity';
+import { evaluateADXGate, type ADXGateResult } from './adxGate';
+import {
+  calculateStructureSL,
+  STRUCTURE_SL_DEFAULTS,
+  type StructureSLResult,
+} from './structureSL';
+import {
+  getVWAPEntrySignal,
+  type VWAPEntrySignal,
+  type VWAPResult,
+} from './vwapService';
+import { calculateVWAPBonus, type VWAPBonusResult } from './vwapBonus';
 
 /** Per-symbol ambiguity hysteresis — truyền từ useSignalBoard (optional). */
 export interface AmbiguityStateStores {
@@ -187,6 +209,20 @@ export interface SignalRow {
   squeezeRisk?: SqueezeRiskResult;
   isAmbiguousDirection?: boolean;
   ambiguousMessage?: string;
+  /** Cổng lọc ADX độc lập — không thuộc scorer 10 lớp */
+  adxGate?: ADXGateResult;
+  /** Set khi adxGate.block — vd. ADX_CHOPPY */
+  adxBlockReason?: string;
+  /** Snapshot ADX 1H/4H — dùng journal / audit */
+  adxData?: ADXAnalysis;
+  /** Structure-based SL — swing 4H + buffer */
+  structureSL?: StructureSLResult;
+  /** VWAP session snapshot */
+  vwapData?: VWAPResult;
+  /** VWAP entry signal — hướng V4 active */
+  vwapSignal?: VWAPEntrySignal;
+  /** L5 volume bonus từ VWAP — hướng V4 active */
+  vwapBonus?: VWAPBonusResult;
 }
 
 function errorRow(symbol: AppTradeSymbol, message: string): SignalRow {
@@ -341,6 +377,346 @@ function applySnapshotToRow(row: SignalRow, snap: SignalRowScorerSnapshot): Sign
   };
 }
 
+function scaleTradePlanByAdxGate(plan: TradePlanV3, gate: ADXGateResult): TradePlanV3 {
+  const entry = plan.recommendedEntry;
+  const isLong = plan.direction === 'LONG';
+
+  const scaleTp = (price: number): number => {
+    if (isLong) return entry + (price - entry) * gate.tpMultiplier;
+    return entry - (entry - price) * gate.tpMultiplier;
+  };
+
+  const scaleSl = (price: number): number => {
+    if (isLong) return entry - (entry - price) * gate.slMultiplier;
+    return entry + (price - entry) * gate.slMultiplier;
+  };
+
+  return {
+    ...plan,
+    stopLoss: { ...plan.stopLoss, price: scaleSl(plan.stopLoss.price) },
+    tp1: { ...plan.tp1, price: scaleTp(plan.tp1.price) },
+    tp2: { ...plan.tp2, price: scaleTp(plan.tp2.price) },
+    tp3: { ...plan.tp3, price: scaleTp(plan.tp3.price) },
+  };
+}
+
+function applyAdxBlockToSnapshot(snap: SignalRowScorerSnapshot): SignalRowScorerSnapshot {
+  const violations = snap.mandatoryViolations.includes('ADX_CHOPPY')
+    ? snap.mandatoryViolations
+    : [...snap.mandatoryViolations, 'ADX_CHOPPY'];
+  return {
+    ...snap,
+    canEnter: false,
+    hardBlocked: true,
+    finalEntryStatus: FinalEntryStatus.HARD_BLOCKED,
+    mandatoryViolations: violations,
+  };
+}
+
+function applyAdxBlockToPlan(plan: TradePlanV3): TradePlanV3 {
+  const blockReasons = plan.blockReasons.includes('ADX_CHOPPY')
+    ? plan.blockReasons
+    : [...plan.blockReasons, 'ADX_CHOPPY'];
+  return {
+    ...plan,
+    isValid: false,
+    tradePlanValid: false,
+    blockReasons,
+  };
+}
+
+type TradePlanWithVwapFields = TradePlanV3 & {
+  entryOptions?: number[];
+  entryNote?: string;
+};
+
+function resolveDecisionV3(total: number): DecisionTypeV2 {
+  if (total >= 11.5) return 'SETUP_NGON';
+  if (total >= 10) return 'VAO_TU_TIN';
+  if (total >= 9) return 'CO_THE_VAO';
+  if (total >= 8) return 'CHO_THEM';
+  return 'KHONG_VAO';
+}
+
+function resolveDecisionV4(total: number): DecisionTypeV4 {
+  if (total >= 11.5) return 'SETUP_NGON';
+  if (total >= 10) return 'VAO_TU_TIN';
+  if (total >= 9) return 'CO_THE_VAO';
+  if (total >= 8) return 'CHO_THEM';
+  return 'KHONG_VAO';
+}
+
+function updateGroupBBlocks(
+  groupBlocks: string[],
+  groupB: number,
+  minRequired: number,
+): string[] {
+  const filtered = groupBlocks.filter((b) => !b.startsWith('Nhóm B'));
+  if (groupB < minRequired) {
+    filtered.push(
+      `Nhóm B (Dòng tiền) ${groupB.toFixed(1)}/5đ < ${minRequired}đ`,
+    );
+  }
+  return filtered;
+}
+
+function patchDirectionalV3WithL5Bonus(
+  dir: DirectionalScoreV3,
+  bonus: VWAPBonusResult,
+): DirectionalScoreV3 {
+  if (!bonus.applied) return dir;
+
+  const newL5 = Math.min(2, (dir.rawLayerScores[5] ?? 0) + bonus.bonusRaw);
+  const rawB =
+    newL5 +
+    (dir.rawLayerScores[6] ?? 0) +
+    (dir.rawLayerScores[7] ?? 0);
+  const groupB = convertToGroupScore(rawB, 'GROUP_B_FLOW');
+  const groupA = dir.groupScores.A;
+  const groupC = dir.groupScores.C;
+  const totalScore = +(groupA + groupB + groupC).toFixed(2);
+  const groupBlocks = updateGroupBBlocks(
+    dir.groupBlocks,
+    groupB,
+    SCORING_GROUPS_V3.GROUP_B_FLOW.minRequired,
+  );
+  const isBlocked = dir.hardBlocks.length > 0 || groupBlocks.length > 0;
+
+  const layers = dir.layers.map((l) =>
+    l.layerNumber === 5
+      ? { ...l, score: newL5, reason: `${l.reason} | ${bonus.reason}` }
+      : l,
+  );
+
+  let decision = dir.decision;
+  let decisionLabel = dir.decisionLabel;
+  let winrate = dir.winrate;
+  if (!isBlocked) {
+    decision = resolveDecisionV3(totalScore);
+    const info = DECISION_LABELS_V2[decision];
+    decisionLabel = info.label;
+    winrate = info.winrate;
+  }
+
+  return {
+    ...dir,
+    layers,
+    rawLayerScores: { ...dir.rawLayerScores, 5: newL5 },
+    groupScores: { ...dir.groupScores, B: groupB },
+    groupBlocks,
+    totalScore,
+    decision,
+    decisionLabel,
+    winrate,
+  };
+}
+
+function patchDirectionalV4WithL5Bonus(
+  dir: DirectionalScoreV4,
+  bonus: VWAPBonusResult,
+): DirectionalScoreV4 {
+  if (!bonus.applied) return dir;
+
+  const newL5a = Math.min(2, (dir.rawLayerScores[5] ?? 0) + bonus.bonusRaw);
+  const rawB =
+    newL5a +
+    (dir.rawLayerScores[LAYER_L5B_ID] ?? 0) +
+    (dir.rawLayerScores[6] ?? 0) +
+    (dir.rawLayerScores[7] ?? 0);
+  const groupB = convertToGroupScoreV4(rawB, 'GROUP_B_FLOW');
+  const groupA = dir.groupScores.A;
+  const groupC = dir.groupScores.C;
+  const referenceTotalScore = +(groupA + groupB + groupC).toFixed(2);
+  const groupBlocks = updateGroupBBlocks(
+    dir.groupBlocks,
+    groupB,
+    SCORING_GROUPS_V4.GROUP_B_FLOW.minRequired,
+  );
+  const isBlocked = dir.hardBlocks.length > 0 || groupBlocks.length > 0;
+
+  const layers = dir.layers.map((l) =>
+    l.layerNumber === 5
+      ? { ...l, score: newL5a, reason: `${l.reason} | ${bonus.reason}` }
+      : l,
+  );
+
+  const rawLayerScores = { ...dir.rawLayerScores, 5: newL5a };
+
+  if (dir.awaitingRescore) {
+    return {
+      ...dir,
+      layers,
+      rawLayerScores,
+      groupScores: { ...dir.groupScores, B: groupB },
+      groupBlocks,
+      referenceTotalScore,
+    };
+  }
+
+  let decision = dir.decision;
+  let decisionLabel = dir.decisionLabel;
+  let officialTotalScore = dir.officialTotalScore;
+  let winrate = dir.winrate;
+
+  if (!isBlocked) {
+    decision = resolveDecisionV4(referenceTotalScore);
+    officialTotalScore = referenceTotalScore;
+    const info = DECISION_LABELS_V4[decision];
+    decisionLabel = info.label;
+    winrate = info.winrate;
+  }
+
+  return {
+    ...dir,
+    layers,
+    rawLayerScores,
+    groupScores: { ...dir.groupScores, B: groupB },
+    groupBlocks,
+    referenceTotalScore,
+    officialTotalScore,
+    decision,
+    decisionLabel,
+    winrate,
+  };
+}
+
+function applyVwapBonusToScoring(
+  scoringV3: ScoringResultV3,
+  scoringV4: ScoringResultV4,
+  vwapData: VWAPResult | undefined,
+): {
+  scoringV3: ScoringResultV3;
+  scoringV4: ScoringResultV4;
+  longBonus: VWAPBonusResult;
+  shortBonus: VWAPBonusResult;
+} {
+  const longBonus = calculateVWAPBonus(
+    vwapData,
+    'LONG',
+    scoringV4.long.rawLayerScores[5] ?? 0,
+  );
+  const shortBonus = calculateVWAPBonus(
+    vwapData,
+    'SHORT',
+    scoringV4.short.rawLayerScores[5] ?? 0,
+  );
+
+  const longBonusV3 = calculateVWAPBonus(
+    vwapData,
+    'LONG',
+    scoringV3.long.rawLayerScores[5] ?? 0,
+  );
+  const shortBonusV3 = calculateVWAPBonus(
+    vwapData,
+    'SHORT',
+    scoringV3.short.rawLayerScores[5] ?? 0,
+  );
+
+  return {
+    scoringV3: {
+      ...scoringV3,
+      long: patchDirectionalV3WithL5Bonus(scoringV3.long, longBonusV3),
+      short: patchDirectionalV3WithL5Bonus(scoringV3.short, shortBonusV3),
+    },
+    scoringV4: {
+      ...scoringV4,
+      long: patchDirectionalV4WithL5Bonus(scoringV4.long, longBonus),
+      short: patchDirectionalV4WithL5Bonus(scoringV4.short, shortBonus),
+    },
+    longBonus,
+    shortBonus,
+  };
+}
+
+function applyVWAPEntryToPlan(
+  plan: TradePlanV3 | null,
+  vwapData: VWAPResult | undefined,
+  direction: TradeDirection,
+): TradePlanV3 | null {
+  if (!plan || !vwapData) return plan;
+
+  const signal = getVWAPEntrySignal(vwapData, direction);
+  if (signal.quality !== 'IDEAL' && signal.quality !== 'GOOD') return plan;
+
+  const extended = plan as TradePlanWithVwapFields;
+  const entryOptions = extended.entryOptions?.length
+    ? [...extended.entryOptions, vwapData.vwap]
+    : [vwapData.vwap];
+
+  return {
+    ...plan,
+    entryOptions,
+    entryNote: `VWAP ${vwapData.vwap.toFixed(2)} — ${signal.entryReason}`,
+  } as TradePlanV3;
+}
+
+function applyStructureSlToPlan(plan: TradePlanV3, newSlPrice: number): TradePlanV3 {
+  const entry = plan.recommendedEntry;
+  const isLong = plan.direction === 'LONG';
+  const risk = isLong ? entry - newSlPrice : newSlPrice - entry;
+  if (risk <= 0) return plan;
+
+  const rrForTp = (tpPrice: number): number =>
+    isLong ? (tpPrice - entry) / risk : (entry - tpPrice) / risk;
+
+  const tp1RR = rrForTp(plan.tp1.price);
+  const tp2RR = rrForTp(plan.tp2.price);
+  const tp3RR = rrForTp(plan.tp3.price);
+  const distancePct = (Math.abs(entry - newSlPrice) / entry) * 100;
+
+  return {
+    ...plan,
+    stopLoss: {
+      ...plan.stopLoss,
+      price: newSlPrice,
+      distancePct,
+    },
+    tp1: { ...plan.tp1, rrRatio: tp1RR },
+    tp2: { ...plan.tp2, rrRatio: tp2RR },
+    tp3: { ...plan.tp3, rrRatio: tp3RR },
+    primaryRR: tp1RR,
+  };
+}
+
+function applyStructureSLToPlans(
+  planV3: TradePlanV3 | null,
+  planV4: TradePlanV3 | null,
+  direction: TradeDirection,
+  klines4H: Kline[],
+): { planV3: TradePlanV3 | null; planV4: TradePlanV3 | null; structureSL?: StructureSLResult } {
+  if (!planV4 || klines4H.length === 0) {
+    return { planV3, planV4, structureSL: undefined };
+  }
+
+  try {
+    const structureSL = calculateStructureSL({
+      direction,
+      entryPrice: planV4.recommendedEntry,
+      atrSL: planV4.stopLoss.price,
+      klines4H,
+      bufferPct: STRUCTURE_SL_DEFAULTS.BUFFER_PCT,
+      lookback: STRUCTURE_SL_DEFAULTS.LOOKBACK_CANDLES,
+    });
+
+    if (structureSL.slSource !== 'STRUCTURE') {
+      return { planV3, planV4, structureSL };
+    }
+
+    const planV4Updated = applyStructureSlToPlan(planV4, structureSL.slPrice);
+    const planV3Updated = planV3
+      ? applyStructureSlToPlan(planV3, structureSL.slPrice)
+      : null;
+
+    return {
+      planV3: planV3Updated,
+      planV4: planV4Updated,
+      structureSL,
+    };
+  } catch {
+    return { planV3, planV4, structureSL: undefined };
+  }
+}
+
 export async function scanSignalSymbol(
   symbol: AppTradeSymbol,
   timeframe: AnalysisTimeframe,
@@ -417,10 +793,17 @@ export async function scanSignalSymbol(
     const scoringV3 = scoreAnalysisV3(analysisInputV3, todayStatsV3);
     const scoringV4 = scoreAnalysisV4(analysisInputV4, todayStatsV4);
 
+    const vwapData = analysisInputV4.vwapData;
+    const vwapBonusApplied = applyVwapBonusToScoring(scoringV3, scoringV4, vwapData);
+    const scoringV3WithBonus = vwapBonusApplied.scoringV3;
+    const scoringV4WithBonus = vwapBonusApplied.scoringV4;
+
     const longScoreV4 =
-      scoringV4.long.officialTotalScore ?? scoringV4.long.referenceTotalScore;
+      scoringV4WithBonus.long.officialTotalScore ??
+      scoringV4WithBonus.long.referenceTotalScore;
     const shortScoreV4 =
-      scoringV4.short.officialTotalScore ?? scoringV4.short.referenceTotalScore;
+      scoringV4WithBonus.short.officialTotalScore ??
+      scoringV4WithBonus.short.referenceTotalScore;
     const prevStateV4 = ambiguityStores?.v4?.get(symbol) ?? null;
     const ambiguityV4 = resolveDirectionAmbiguity(
       longScoreV4,
@@ -429,8 +812,8 @@ export async function scanSignalSymbol(
     );
     ambiguityStores?.v4?.set(symbol, ambiguityV4);
 
-    const longScoreV3 = scoringV3.long.totalScore;
-    const shortScoreV3 = scoringV3.short.totalScore;
+    const longScoreV3 = scoringV3WithBonus.long.totalScore;
+    const shortScoreV3 = scoringV3WithBonus.short.totalScore;
     const prevStateV3 = ambiguityStores?.v3?.get(symbol) ?? null;
     const ambiguityV3 = resolveDirectionAmbiguity(
       longScoreV3,
@@ -439,10 +822,10 @@ export async function scanSignalSymbol(
     );
     ambiguityStores?.v3?.set(symbol, ambiguityV3);
 
-    const directionV3 = suggestDirectionV3(scoringV3);
-    const directionV4 = suggestDirectionV4(scoringV4);
-    let v3Base = snapshotFromV3(scoringV3, directionV3);
-    let v4Base = snapshotFromV4(scoringV4, directionV4);
+    const directionV3 = suggestDirectionV3(scoringV3WithBonus);
+    const directionV4 = suggestDirectionV4(scoringV4WithBonus);
+    let v3Base = snapshotFromV3(scoringV3WithBonus, directionV3);
+    let v4Base = snapshotFromV4(scoringV4WithBonus, directionV4);
     v3Base = applyAmbiguityToSnapshot(v3Base, ambiguityV3);
     v4Base = applyAmbiguityToSnapshot(v4Base, ambiguityV4);
 
@@ -484,7 +867,7 @@ export async function scanSignalSymbol(
         ticker.price,
         klines1h,
         klines4h,
-        scoringV3,
+        scoringV3WithBonus,
         directionV3,
         whaleWalls,
         currentCapital,
@@ -495,7 +878,7 @@ export async function scanSignalSymbol(
         ticker.price,
         klines1h,
         klines4h,
-        scoringV4,
+        scoringV4WithBonus,
         directionV4,
         whaleWalls,
         currentCapital,
@@ -503,23 +886,72 @@ export async function scanSignalSymbol(
       );
     }
 
-    const activeV3 = directionV3 === 'LONG' ? scoringV3.long : scoringV3.short;
-    const activeV4 = directionV4 === 'LONG' ? scoringV4.long : scoringV4.short;
-    const v3 = enrichSnapshotFinalStatus(
+    const activeV3 = directionV3 === 'LONG' ? scoringV3WithBonus.long : scoringV3WithBonus.short;
+    const activeV4 = directionV4 === 'LONG' ? scoringV4WithBonus.long : scoringV4WithBonus.short;
+
+    const vwapBonus =
+      directionV4 === 'LONG'
+        ? vwapBonusApplied.longBonus
+        : vwapBonusApplied.shortBonus;
+    const vwapSignal =
+      vwapData != null ? getVWAPEntrySignal(vwapData, directionV4) : undefined;
+
+    let v3Final = v3Base;
+    let v4Final = v4Base;
+    let planV3Final = tradePlanV3Scorer;
+    let planV4Final = tradePlanV4Scorer;
+    let adxGate: ADXGateResult | undefined;
+    let adxBlockReason: string | undefined;
+    let structureSL: StructureSLResult | undefined;
+
+    const adxData = analysisInputV4.adxData;
+    if (adxData != null) {
+      adxGate = evaluateADXGate(adxData, directionV4);
+      if (adxGate.tpMultiplier !== 1.0 || adxGate.slMultiplier !== 1.0) {
+        if (planV3Final) planV3Final = scaleTradePlanByAdxGate(planV3Final, adxGate);
+        if (planV4Final) planV4Final = scaleTradePlanByAdxGate(planV4Final, adxGate);
+      }
+    }
+
+    if (planV4Final) {
+      planV4Final = applyVWAPEntryToPlan(planV4Final, vwapData, directionV4);
+    }
+
+    const structureApplied = applyStructureSLToPlans(
+      planV3Final,
+      planV4Final,
+      directionV4,
+      klines4h,
+    );
+    planV3Final = structureApplied.planV3;
+    planV4Final = structureApplied.planV4;
+    structureSL = structureApplied.structureSL;
+
+    v3Final = enrichSnapshotFinalStatus(
       v3Base,
-      tradePlanV3Scorer,
+      planV3Final,
       activeV3.hardBlocks,
       activeV3.groupBlocks,
       directionV3,
     );
-    const v4 = enrichSnapshotFinalStatus(
+    v4Final = enrichSnapshotFinalStatus(
       v4Base,
-      tradePlanV4Scorer,
+      planV4Final,
       activeV4.hardBlocks,
       activeV4.groupBlocks,
       directionV4,
-      scoringV4.squeezeRisk,
+      scoringV4WithBonus.squeezeRisk,
     );
+
+    if (adxData != null && adxGate != null) {
+      if (adxGate.block) {
+        adxBlockReason = 'ADX_CHOPPY';
+        v3Final = applyAdxBlockToSnapshot(v3Final);
+        v4Final = applyAdxBlockToSnapshot(v4Final);
+        if (planV3Final) planV3Final = applyAdxBlockToPlan(planV3Final);
+        if (planV4Final) planV4Final = applyAdxBlockToPlan(planV4Final);
+      }
+    }
 
     const baseRow: SignalRow = {
       symbol,
@@ -527,20 +959,20 @@ export async function scanSignalSymbol(
       change24h,
       trend: analysis.smc.trend,
       regimeConfidence: analysis.regime.confidence,
-      score: v4.score,
-      longScore: v4.longScore,
-      shortScore: v4.shortScore,
-      direction: v4.direction,
-      decisionLabel: v4.decisionLabel,
-      decisionDisplay: v4.decisionDisplay,
-      winrate: v4.winrate,
-      canEnter: v4.canEnter,
+      score: v4Final.score,
+      longScore: v4Final.longScore,
+      shortScore: v4Final.shortScore,
+      direction: v4Final.direction,
+      decisionLabel: v4Final.decisionLabel,
+      decisionDisplay: v4Final.decisionDisplay,
+      winrate: v4Final.winrate,
+      canEnter: v4Final.canEnter,
       tradePlan,
-      tradePlanV3: tradePlanV4Scorer,
-      tradePlansByScorer: { v3: tradePlanV3Scorer, v4: tradePlanV4Scorer },
-      layers: v4.layers,
-      mandatoryViolations: v4.mandatoryViolations,
-      hardBlocked: v4.hardBlocked,
+      tradePlanV3: planV4Final,
+      tradePlansByScorer: { v3: planV3Final, v4: planV4Final },
+      layers: v4Final.layers,
+      mandatoryViolations: v4Final.mandatoryViolations,
+      hardBlocked: v4Final.hardBlocked,
       fromCache: market.fromCache,
       tradePlans: {
         LONG: longTradePlan ?? undefined,
@@ -550,16 +982,23 @@ export async function scanSignalSymbol(
       cvdTrend,
       fundingRate: analysisInputV4.fundingRate,
       topLSRatio,
-      v3,
-      v4,
-      atr1h: scoringV4.atr1h,
-      l6Detail: scoringV4.l6Detail,
-      squeezeRisk: scoringV4.squeezeRisk,
-      finalEntryStatus: v4.finalEntryStatus,
-      squeezeWarning: v4.squeezeWarning,
+      v3: v3Final,
+      v4: v4Final,
+      atr1h: scoringV4WithBonus.atr1h,
+      l6Detail: scoringV4WithBonus.l6Detail,
+      squeezeRisk: scoringV4WithBonus.squeezeRisk,
+      finalEntryStatus: v4Final.finalEntryStatus,
+      squeezeWarning: v4Final.squeezeWarning,
+      adxGate,
+      adxBlockReason,
+      adxData,
+      structureSL,
+      vwapData,
+      vwapSignal,
+      vwapBonus,
     };
 
-    return applySnapshotToRow(baseRow, v4);
+    return applySnapshotToRow(baseRow, v4Final);
   } catch (e) {
     return errorRow(symbol, String(e));
   }

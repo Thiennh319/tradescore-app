@@ -7,8 +7,10 @@ import { vi } from '../../constants/vi';
 import {
   isStalePendingOrder,
   resolveJournalCloseReasonDisplay,
-  resolveJournalDisplayStatus,
   resolveJournalOpenReasonDisplay,
+  resolveJournalStatusLabel,
+  hasJournalPartialClose,
+  type JournalPnlBreakdown,
 } from '../../services/journalService';
 import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
@@ -20,11 +22,11 @@ export const JOURNAL_TABLE_PAGE_SIZE = 5;
 const COL = {
   source: 44,
   coin: 76,
-  status: 72,
+  status: 108,
   recommendation: 108,
   entry: 76,
   currentExit: 76,
-  pnl: 72,
+  pnl: 108,
   openReason: 96,
   closeReason: 96,
   action: 108,
@@ -51,6 +53,8 @@ export interface JournalTradeTableProps {
   unrealizedById: Record<string, number | null>;
   /** Live Position Advisor label keyed by entry id (OPEN only). */
   advisorLabelById?: Record<string, string>;
+  /** PnL tách partial — OPEN only (từ useJournalMarketSync). */
+  pnlBreakdownById?: Record<string, JournalPnlBreakdown>;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
   onConfirmFill?: (entry: AiTradeJournalEntry) => void;
@@ -70,13 +74,18 @@ function HeadCell({ text, width }: { text: string; width: number }) {
   );
 }
 
-function statusColor(status: string): string {
-  if (status === 'RUNNING') return COLORS.bullish;
+function statusColorForBase(status: AiTradeJournalEntry['outcome']['status'] | string): string {
+  if (status === 'RUNNING' || status === 'OPEN') return COLORS.bullish;
   if (status === 'PENDING') return COLORS.warning;
   if (status === 'WIN') return COLORS.bullish;
   if (status === 'LOSS') return COLORS.bearish;
   if (status === 'CANCELLED') return COLORS.textMuted;
   return COLORS.textSecondary;
+}
+
+function statusColor(status: string): string {
+  if (status.includes('PARTIAL')) return '#F97316';
+  return statusColorForBase(status);
 }
 
 function formatJournalTime(ts: number): string {
@@ -88,10 +97,70 @@ function formatJournalTime(ts: number): string {
   });
 }
 
+function JournalSourceCell({ entry, width }: { entry: AiTradeJournalEntry; width: number }) {
+  const scorerVersion = entry.scoring.scorerVersion as string | undefined;
+
+  if (scorerVersion === 'unified') {
+    return (
+      <View style={[styles.sourceBadgeWrap, { width }]}>
+        <View
+          style={[
+            styles.sourceBadgeUnified,
+            Platform.OS === 'web'
+              ? ({
+                  backgroundImage: 'linear-gradient(135deg, #A78BFA 0%, #8B5CF6 50%, #6D28D9 100%)',
+                } as object)
+              : null,
+          ]}
+        >
+          <Text style={styles.sourceBadgeUnifiedText} numberOfLines={1}>
+            ⭐ V4+V4.1
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (scorerVersion === 'v41') {
+    return (
+      <View style={[styles.sourceBadgeWrap, { width }]}>
+        <View style={styles.sourceBadgeV41}>
+          <Text style={styles.sourceBadgeV41Text} numberOfLines={1}>
+            V4.1
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (scorerVersion === 'v4') {
+    return (
+      <Text style={[styles.cell, styles.sourceCell, { width }]} numberOfLines={1}>
+        V4
+      </Text>
+    );
+  }
+
+  if (scorerVersion === 'v3') {
+    return (
+      <Text style={[styles.cell, styles.sourceCell, { width }]} numberOfLines={1}>
+        V3
+      </Text>
+    );
+  }
+
+  return (
+    <Text style={[styles.cell, styles.sourceMuted, { width }]} numberOfLines={1}>
+      —
+    </Text>
+  );
+}
+
 function JournalTradeRow({
   entry,
   markPrice,
   unrealizedPnl,
+  pnlBreakdown,
   advisorLabel,
   onDetail,
   onStopTrade,
@@ -101,6 +170,7 @@ function JournalTradeRow({
   entry: AiTradeJournalEntry;
   markPrice?: number;
   unrealizedPnl?: number | null;
+  pnlBreakdown?: JournalPnlBreakdown;
   advisorLabel?: string;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
@@ -112,11 +182,14 @@ function JournalTradeRow({
   const isPending = entry.outcome.status === 'PENDING';
   const isLong = entry.scoring.direction === 'LONG';
   const dirColor = isLong ? COLORS.bullish : COLORS.bearish;
-  const displayStatus = resolveJournalDisplayStatus(entry.outcome.status);
+  const displayStatus = resolveJournalStatusLabel(entry);
+  const hasPartial = hasJournalPartialClose(entry);
   const openReason = resolveJournalOpenReasonDisplay(entry);
   const closeReason = resolveJournalCloseReasonDisplay(entry);
   const stalePending = isPending && isStalePendingOrder(entry);
   const limitPrice = entry.outcome.limitOrderPrice ?? entry.market.entryPrice;
+
+  const showPartialPnl = isOpen && (pnlBreakdown?.hasPartial ?? hasPartial);
 
   const currentExit = isOpen
     ? markPrice != null
@@ -129,10 +202,18 @@ function JournalTradeRow({
         : '—';
 
   const pnl = isOpen ? unrealizedPnl : entry.outcome.pnlUSDT;
+  const totalPnl = showPartialPnl ? pnlBreakdown?.totalPnl : pnl;
   const pnlColor =
-    pnl == null ? COLORS.textMuted : pnl >= 0 ? COLORS.bullish : COLORS.bearish;
+    totalPnl == null ? COLORS.textMuted : totalPnl >= 0 ? COLORS.bullish : COLORS.bearish;
+  const realizedColor =
+    pnlBreakdown != null && pnlBreakdown.realizedPnl >= 0 ? COLORS.bullish : COLORS.bearish;
+  const unrealizedColor =
+    pnlBreakdown?.unrealizedPnl == null
+      ? COLORS.textMuted
+      : pnlBreakdown.unrealizedPnl >= 0
+        ? COLORS.bullish
+        : COLORS.bearish;
 
-  const sourceLabel = entry.strategySource ?? '—';
   const liveAdvisor = isOpen ? advisorLabel?.trim() : '';
   const recommendation =
     liveAdvisor || entry.scoring.recommendationLabel?.trim() || '—';
@@ -146,9 +227,7 @@ function JournalTradeRow({
 
   return (
     <View style={[styles.tableRow, stalePending && styles.rowStale]}>
-      <Text style={[styles.cell, styles.sourceCell, { width: COL.source }]} numberOfLines={1}>
-        {sourceLabel}
-      </Text>
+      <JournalSourceCell entry={entry} width={COL.source} />
       <View style={{ width: COL.coin }}>
         <Text style={styles.coinText} numberOfLines={1}>
           {entry.symbol.replace('USDT', '')}{' '}
@@ -174,14 +253,36 @@ function JournalTradeRow({
         {currentExit}
       </Text>
       <View style={{ width: COL.pnl }}>
-        <Text style={[styles.pnlCell, { color: pnlColor }]} numberOfLines={1}>
-          {pnl != null ? formatSignedUsdt(pnl) : '—'}
-        </Text>
-        {!isOpen && !isPending && entry.outcome.pnlPct != null ? (
-          <Text style={[styles.pnlPctCell, { color: pnlColor }]}>
-            {formatSignedPercent(entry.outcome.pnlPct)}
-          </Text>
-        ) : null}
+        {showPartialPnl && pnlBreakdown ? (
+          <>
+            <Text style={[styles.pnlLine, { color: realizedColor }]} numberOfLines={2}>
+              {vi.journal.pnlRealizedLine(
+                formatSignedUsdt(pnlBreakdown.realizedPnl),
+                pnlBreakdown.closedPercent,
+              )}
+            </Text>
+            <Text style={[styles.pnlLine, { color: unrealizedColor }]} numberOfLines={2}>
+              {vi.journal.pnlUnrealizedLine(
+                formatSignedUsdt(pnlBreakdown.unrealizedPnl),
+                pnlBreakdown.remainingPercent,
+              )}
+            </Text>
+            <Text style={[styles.pnlTotalLine, { color: pnlColor }]} numberOfLines={1}>
+              {vi.journal.pnlTotalLine(formatSignedUsdt(pnlBreakdown.totalPnl))}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.pnlCell, { color: pnlColor }]} numberOfLines={1}>
+              {pnl != null ? formatSignedUsdt(pnl) : '—'}
+            </Text>
+            {!isOpen && !isPending && entry.outcome.pnlPct != null ? (
+              <Text style={[styles.pnlPctCell, { color: pnlColor }]}>
+                {formatSignedPercent(entry.outcome.pnlPct)}
+              </Text>
+            ) : null}
+          </>
+        )}
       </View>
       <Text style={[styles.cell, styles.reasonCell, { width: COL.openReason }]} numberOfLines={2}>
         {openReason ?? '—'}
@@ -226,6 +327,7 @@ export function JournalTradeTable({
   markBySymbol,
   unrealizedById,
   advisorLabelById,
+  pnlBreakdownById,
   onDetail,
   onStopTrade,
   onConfirmFill,
@@ -278,6 +380,7 @@ export function JournalTradeTable({
               entry={entry}
               markPrice={markBySymbol[entry.symbol]}
               unrealizedPnl={unrealizedById[entry.id] ?? null}
+              pnlBreakdown={pnlBreakdownById?.[entry.id]}
               advisorLabel={advisorLabelById?.[entry.id]}
               onDetail={onDetail}
               onStopTrade={onStopTrade}
@@ -373,6 +476,39 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     letterSpacing: 0.2,
   },
+  sourceMuted: {
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  sourceBadgeWrap: {
+    justifyContent: 'center',
+  },
+  sourceBadgeV41: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#8B5CF6',
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  sourceBadgeUnified: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#8B5CF6',
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  sourceBadgeUnifiedText: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.1,
+  },
+  sourceBadgeV41Text: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
   coinText: {
     fontSize: 11,
     fontWeight: '800',
@@ -391,6 +527,18 @@ const styles = StyleSheet.create({
   pnlCell: {
     fontSize: 10,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  pnlLine: {
+    fontSize: 8,
+    fontWeight: '700',
+    lineHeight: 11,
+    fontVariant: ['tabular-nums'],
+  },
+  pnlTotalLine: {
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 1,
     fontVariant: ['tabular-nums'],
   },
   pnlPctCell: {

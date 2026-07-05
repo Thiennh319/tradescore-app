@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import { FundingState } from '../constants/scoring';
 import {
+  buildAdxJournalSnapshot,
   buildMarketSnapshot,
   buildEquityCurveData,
   buildScoringSnapshot,
@@ -688,5 +689,147 @@ describe('L11 squeeze journal fields', () => {
     });
     expect(patch.squeezeRiskLevelAtExit).toBe('HIGH');
     expect(patch.squeezeRiskScoreAtExit).toBe(8);
+  });
+
+  it('buildAdxJournalSnapshot ghi adxSnapshot khi row có adxGate và adxData', () => {
+    const snapshot = buildAdxJournalSnapshot({
+      symbol: 'BTCUSDT',
+      price: 100,
+      change24h: 1,
+      trend: 'UP',
+      regimeConfidence: 0.8,
+      score: 11,
+      longScore: 11,
+      shortScore: 5,
+      direction: 'LONG',
+      decisionLabel: 'VAO_TU_TIN',
+      decisionDisplay: 'Vào',
+      winrate: '~60%',
+      canEnter: true,
+      tradePlan: null,
+      layers: [],
+      mandatoryViolations: [],
+      hardBlocked: false,
+      fromCache: false,
+      adxData: {
+        adx1H: 12,
+        adx4H: 22,
+        adxAvg: 17,
+        regime: 'RANGING',
+        regimeStrength: 'WEAK',
+        isChoppy1H: true,
+        isChoppy4H: false,
+        bothChoppy: false,
+      },
+      adxGate: {
+        allowed: true,
+        block: false,
+        regime: 'RANGING',
+        tpMultiplier: 0.85,
+        slMultiplier: 1.1,
+        message: '⚠️ Thị trường RANGING — TP thu hẹp',
+        severity: 'WARNING',
+      },
+    });
+
+    expect(snapshot).toEqual({
+      adx1H: 12,
+      adx4H: 22,
+      adxAvg: 17,
+      regime: 'RANGING',
+      regimeStrength: undefined,
+      bothChoppy: false,
+      gateResult: 'WARNING',
+      tpMultiplier: 0.85,
+      slMultiplier: 1.1,
+    });
+  });
+
+  it('buildSnapshotsFromSignalRow trả adxSnapshot khi đủ adxGate + adxData', () => {
+    const snapshots = buildSnapshotsFromSignalRow({
+      row: {
+        symbol: 'ETHUSDT',
+        price: 3000,
+        change24h: 2,
+        trend: 'UP',
+        regimeConfidence: 0.7,
+        score: 10,
+        longScore: 10,
+        shortScore: 4,
+        direction: 'LONG',
+        decisionLabel: 'CO_THE_VAO',
+        decisionDisplay: 'Có thể vào',
+        winrate: '~55%',
+        canEnter: true,
+        tradePlan: null,
+        layers: [],
+        mandatoryViolations: [],
+        hardBlocked: false,
+        fromCache: false,
+        adxData: {
+          adx1H: 40,
+          adx4H: 38,
+          adxAvg: 39,
+          regime: 'TRENDING',
+          regimeStrength: 'STRONG',
+          isChoppy1H: false,
+          isChoppy4H: false,
+          bothChoppy: false,
+        },
+        adxGate: {
+          allowed: true,
+          block: false,
+          regime: 'TRENDING',
+          tpMultiplier: 1.2,
+          slMultiplier: 0.9,
+          message: '✅ Xu hướng mạnh — mở rộng TP',
+          severity: 'BONUS',
+        },
+      },
+      entryPrice: 3000,
+      sizeActual: 50,
+    });
+
+    expect(snapshots.adxSnapshot?.gateResult).toBe('BONUS');
+    expect(snapshots.adxSnapshot?.adxAvg).toBe(39);
+  });
+
+  it('newAiJournalEntry lưu adxSnapshot optional', () => {
+    const entry = newAiJournalEntry({
+      symbol: 'BTCUSDT',
+      accountSizeAtEntry: 1000,
+      market: buildMarketSnapshot({ entryPrice: 100, priceAtAnalysis: 100 }),
+      scoring: buildScoringSnapshot({
+        totalScore: 11,
+        direction: 'LONG',
+        layers: [],
+        mandatoryViolations: [],
+        decision: 'VAO_TU_TIN',
+      }),
+      plan: {
+        entryZoneOptimal: 100,
+        entryZoneType: 'PULLBACK',
+        stopLoss: 95,
+        takeProfit1: 110,
+        takeProfit2: 120,
+        takeProfit3: 130,
+        sizeActual: 50,
+        sizeProposed: 50,
+        riskRewardRatio: 2,
+        openReason: null,
+      },
+      adxSnapshot: {
+        adx1H: 10,
+        adx4H: 10,
+        adxAvg: 10,
+        regime: 'CHOPPY',
+        bothChoppy: true,
+        gateResult: 'BLOCK',
+        tpMultiplier: 1,
+        slMultiplier: 1,
+      },
+    });
+
+    expect(entry.adxSnapshot?.gateResult).toBe('BLOCK');
   });
 });

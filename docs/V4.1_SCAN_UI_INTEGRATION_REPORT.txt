@@ -1,0 +1,280 @@
+================================================================================
+  TradeScore V4.1 — BÁO CÁO TÍCH HỢP SCAN + UI
+  Ngày: 2026-07-03
+  Phạm vi: scanV41 · SignalBoardV41 · Tab V4.1 trong App
+  Spec: docs/V4.1_ARCHITECTURE.md · docs/V4.1_FORMULAS.md
+================================================================================
+
+1. TÓM TẮT ĐIỀU HÀNH
+--------------------------------------------------------------------------------
+
+  | Hạng mục                         | Trạng thái                          |
+  |----------------------------------|-------------------------------------|
+  | Pipeline Bước 0→2 (scan thật)    | ✅ Chạy được end-to-end live        |
+  | Orchestrator Market Intelligence | ✅ runMarketIntelligenceLayer       |
+  | Raw fetch 4H + BTC               | ✅ fetchRawMarketV41                |
+  | Entry scan                       | ✅ scanV41 (4 symbol song song)     |
+  | UI tab V4.1                      | ✅ Toggle V3/V4 ↔ V4.1 trong App    |
+  | Signal Board V4.1                | ✅ SignalBoardV41 + SignalCardV41   |
+  | Wire trade modal                 | ❌ console.log tạm (task sau)       |
+  | useV41Store / hysteresis persist | ❌ Chưa                             |
+  | Bước 3–7 (Opportunity→Support)   | ❌ Chưa                             |
+  | Unit tests services/v41          | ✅ 152/152 pass (8 files)           |
+
+  Tiến độ pipeline V4.1 (ước lượng): ~48%
+    - Bước 0 Raw Market Data        100%
+    - Bước 1 Market Intelligence    100%
+    - Bước 2 Visibility Manager      75% (logic + nối scan; chưa store)
+    - Bước 3–7                      0%
+    - Tích hợp App (UI shell)        35%
+
+  Production V3/V4: KHÔNG thay đổi logic — tab mặc định vẫn V3/V4.
+
+
+2. FILE MỚI (GIAI ĐOẠN NÀY)
+--------------------------------------------------------------------------------
+
+  services/v41/
+    rawMarketFetcher.ts           Bước 0 — fetch klines 4H, adapt KlineV41
+    marketIntelligenceLayer.ts  Bước 1 — orchestrator E1→E4 + Market State
+    marketStateEngine.ts          8 category, waterfall 15 rules
+    scanV41.ts                    Entry scan: fetch → MI → visibility
+
+  components/dashboard/
+    SignalBoardV41.tsx            UI thẻ tín hiệu V4.1
+
+  services/v41/__tests__/
+    marketIntelligenceLayer.test.ts   6 tests
+    marketStateEngine.test.ts         28 tests (27 matrix + count)
+
+  App.tsx (chỉ wire tab — không đụng SignalBoard V3/V4):
+    signalBoardTab: 'v4' | 'v41'  (default 'v4')
+    Toggle [ V3/V4 ] [ V4.1 ]
+    ActiveTradesPanel chỉ hiện khi tab V3/V4
+
+
+3. LUỒNG SCAN V4.1 (scanV41.ts)
+--------------------------------------------------------------------------------
+
+  Input:  symbols: string[]  (default NEAR, SOL, BNB, BTC)
+
+  Mỗi symbol (Promise.allSettled — song song):
+    1. fetchRawMarketV41(symbol)
+         - fetchKlines từ services/binanceApi.ts
+         - interval 4h, limit 250
+         - symbol + BTCUSDT song song
+         - lọc nến đóng: closeTime < now - 1000ms
+
+    2. runMarketIntelligenceLayer(klines, btcKlines)
+         a) Engine 1 → trendStrength, trendDirection
+         b) Engine 2 → trendExhaustion, volumeDivergencePts
+         c) Engine 3 → reversalProbability, rsi/cvd divergence
+         d) buildBTCContext(btcKlines) → btcDirection
+         e) resolveAltBtcAlignmentFactor (matrix alt/BTC)
+         f) computeMarketConfidence
+         g) calculateMarketState → marketState
+         - Throw toàn cục → neutral snapshot (Transition)
+
+    3. Visibility
+         resolveVisibilityHysteresis(mi, EMPTY_POSITION, 'INACTIVE')
+         resolveTradeModeUpgrade(mode, false, marketConfidence)
+         ※ marketConfidence tạm thay entry_quality (Bước 3 chưa có)
+         ※ previousMode luôn INACTIVE — chưa persist hysteresis
+
+  Output: SignalRowV41[]
+    {
+      symbol, snapshot, visibilityMode, fetchedAt, error?
+    }
+
+  Lỗi 1 symbol:
+    - Không crash batch
+    - error field + snapshot neutral + visibilityMode INACTIVE
+
+
+4. UI — SignalBoardV41.tsx
+--------------------------------------------------------------------------------
+
+  Framework: Expo + React Native + react-native-web
+  Style: View, Text, Pressable, StyleSheet · COLORS · SPACING
+
+  Mỗi thẻ (SignalCardV41):
+  ┌─────────────────────────────────┐
+  │  NEAR/USDT      1.836  -0.48%   │  ← binanceApi ticker + 24h%
+  │  [BADGE MARKET STATE]           │  ← 8 màu theo spec
+  │  Confidence: 78/100             │  ← ≥70 xanh, 40-69 vàng, <40 đỏ
+  │  Trend: 85  |  Exhaust: 20      │
+  │  BTC: BULL ✅                   │  ← icon theo btcAlignmentFactor
+  │  [ LONG ]      [ SHORT ]        │
+  └─────────────────────────────────┘
+
+  VisibilityMode → nút:
+    TRADE_MODE / POSITION_MODE  LONG #22C55E · SHORT #EF4444
+    WATCH_MODE                  Cả 2 xám COLORS.surface · text "WATCH"
+    INACTIVE                    Ẩn cả 2 nút
+
+  Bấm LONG/SHORT (TRADE_MODE):
+    console.log('[V4.1] trade intent:', { symbol, direction })
+
+  Tự scan on mount + nút "Quét lại"
+
+
+5. BADGE MARKET STATE
+--------------------------------------------------------------------------------
+
+  StrongUptrend    #22C55E  🚀 STRONG UPTREND
+  HealthyUptrend   #86EFAC  📈 HEALTHY UPTREND
+  LateUptrend      #F59E0B  ⚠️ LATE UPTREND — sắp kiệt
+  Distribution     #EF4444  🔴 DISTRIBUTION — cẩn thận
+  Accumulation     #3B82F6  🔵 ACCUMULATION — tích lũy
+  WeakDowntrend    #F97316  📉 WEAK DOWNTREND
+  StrongDowntrend  #DC2626  💥 STRONG DOWNTREND
+  Transition       #6B7280  ⚪ TRANSITION — chờ rõ xu hướng
+
+
+6. RANH GIỚI MODULE (ĐANG TUÂN THỦ)
+--------------------------------------------------------------------------------
+
+  services/v41/ KHÔNG import:
+    - scorerV3.ts / scorerV4.ts
+    - signalBoardScan.ts
+    - useTradeStore.ts
+
+  scanV41 chỉ import:
+    - rawMarketFetcher, marketIntelligenceLayer, visibilityManager, types
+
+  SignalBoardV41 import:
+    - services/v41/scanV41, services/v41/types
+    - services/binanceApi (giá hiển thị)
+    - KHÔNG import useTradeStore / signalBoardScan
+
+  App.tsx:
+    - Import SignalBoardV41 (tab test)
+    - SignalBoard V3/V4 + useSignalBoard giữ nguyên 100%
+    - Journal, Position Advisor, Sync không đổi
+
+
+7. UNIT TESTS (2026-07-03 22:15)
+--------------------------------------------------------------------------------
+
+  Lệnh:  npx vitest run services/v41/__tests__
+
+  Kết quả:
+    Test Files  8 passed (8)
+    Tests       152 passed (152)
+
+  Phân bổ:
+    trendStrengthEngine.test.ts         25
+    trendExhaustionEngine.test.ts       23
+    reversalProbabilityEngine.test.ts   13
+    visibilityManager.test.ts           27
+    marketConfidenceEngine.test.ts      11
+    btcContextBuilder.test.ts           10
+    marketIntelligenceLayer.test.ts      6
+    marketStateEngine.test.ts           28 (27 matrix + 1 count)
+
+  Chưa có test:
+    - rawMarketFetcher.test.ts (mock fetchKlines)
+    - scanV41.test.ts (mock fetch + engines)
+
+
+8. CẤU TRÚC services/v41/ (HIỆN TẠI)
+--------------------------------------------------------------------------------
+
+  services/v41/
+    types.ts
+    indicators.ts
+    trendStrengthEngine.ts          Engine 1
+    trendExhaustionEngine.ts          Engine 2
+    reversalProbabilityEngine.ts      Engine 3
+    marketConfidenceEngine.ts         Engine 4 (standalone + tests)
+    btcContextBuilder.ts
+    marketStateEngine.ts
+    marketIntelligenceLayer.ts      Orchestrator Bước 1
+    rawMarketFetcher.ts               Bước 0
+    visibilityManager.ts              Bước 2
+    scanV41.ts                        Entry scan Bước 0→1→2
+    __tests__/  (8 files, 152 tests)
+
+  components/dashboard/
+    SignalBoard.tsx                   Production V3/V4 (không sửa)
+    SignalBoardV41.tsx                V4.1 test UI (mới)
+
+
+9. HẠN CHẾ / NỢ KỸ THUẬT
+--------------------------------------------------------------------------------
+
+  [1] Hysteresis visibility không persist giữa các lần scan
+      → mỗi symbol luôn previousMode = INACTIVE
+
+  [2] resolveTradeModeUpgrade dùng marketConfidence thay entry_quality
+      → TRADE_MODE có thể bật sớm hơn spec (cần Bước 3)
+
+  [3] POSITION_MODE không đọc vị thế thật từ journal/store
+      → EMPTY_POSITION cố định trong scanV41
+
+  [4] LONG/SHORT chưa wire ConfirmTradeWizard / TradePlanModal
+
+  [5] Không persist scan V4.1 (không signalBoardPersist / GitHub sync)
+
+  [6] Hai type BTCContext:
+      - btcContextBuilder.BTCContext (btcStrengthBand lowercase)
+      - marketConfidenceEngine.BTCContext (STRONG|WEAK|SIDEWAY)
+      Orchestrator dùng buildBTCContext + matrix riêng trong
+      marketIntelligenceLayer — chưa unify
+
+  [7] BUILD_INFO vẫn ghi V4.1 tách module — sau build APK/Web
+      bundle sẽ chứa SignalBoardV41 nếu rebuild (cần cập nhật BUILD_INFO)
+
+
+10. SO SÁNH PRODUCTION vs V4.1 TAB
+--------------------------------------------------------------------------------
+
+  |                          | Tab V3/V4 (mặc định)     | Tab V4.1              |
+  |--------------------------|--------------------------|------------------------|
+  | Scan                     | signalBoardScan + V3/V4  | scanV41                |
+  | Timeframe                | 1h / 4h (user chọn)      | Cố định 4H             |
+  | Scoring                  | 10 layer + trade plan    | MI snapshot 8 field    |
+  | Vào lệnh                 | Wizard + journal         | console.log (tạm)      |
+  | Active Trades panel      | Có                       | Ẩn (chỉ V3/V4 rows)    |
+  | GitHub sync              | Có                       | Không                  |
+
+
+11. TASK TIẾP THEO (ĐỀ XUẤT)
+--------------------------------------------------------------------------------
+
+  Phase B — Hoàn thiện scan:
+    [ ] useV41Store — previous_visibility_mode per symbol
+    [ ] scanV41.test.ts + rawMarketFetcher.test.ts
+    [ ] Đọc open position từ journal → POSITION_MODE thật
+
+  Phase C — Bước 3:
+    [ ] Entry Quality Engine
+    [ ] Wire resolveTradeModeUpgrade với entry_quality thật
+
+  Phase D — Trade flow:
+    [ ] Wire LONG/SHORT → ConfirmTradeWizard (V4.1 plan)
+    [ ] Trade Setup Generator (Bước 4)
+
+  Phase E — Build:
+    [ ] Rebuild APK/Web v1.0.4 + cập nhật BUILD_INFO
+    [ ] Ghi chú tab V4.1 trong guideline.txt
+
+
+12. CÁCH KIỂM TRA THỦ CÔNG
+--------------------------------------------------------------------------------
+
+  1. npm start / Web EXE → tab "Tín hiệu"
+  2. Mặc định thấy V3/V4 (behavior cũ)
+  3. Bấm tab "V4.1" → 4 thẻ NEAR/SOL/BNB/BTC
+  4. Chờ scan (hoặc "Quét lại")
+  5. Kiểm tra badge market state, confidence màu, nút WATCH/TRADE
+  6. Bấm LONG khi TRADE_MODE → console có log trade intent
+
+  Unit test:
+    npx vitest run services/v41/__tests__
+    → expect 152 passed
+
+
+================================================================================
+  Kết thúc báo cáo — V4.1 Scan + UI Integration (2026-07-03)
+================================================================================

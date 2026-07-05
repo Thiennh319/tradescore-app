@@ -36,6 +36,8 @@ interface PositionRecommendationWidgetProps {
   onAction?: (type: RecommendationType) => void;
   onUserView?: () => void;
   isLoading?: boolean;
+  /** Ví dụ "Đã chốt 50%" sau chốt một phần */
+  partialCloseBadge?: string | null;
 }
 
 function borderColorForUrgency(urgency: PositionRecommendation['urgency']): string {
@@ -51,6 +53,7 @@ export function PositionRecommendationWidget({
   onAction,
   onUserView,
   isLoading = false,
+  partialCloseBadge = null,
 }: PositionRecommendationWidgetProps) {
   const [expanded, setExpanded] = useState(false);
   const filledDots = Math.round(rec.confidence / 20);
@@ -92,6 +95,11 @@ export function PositionRecommendationWidget({
                   <Text style={styles.graceBadgeText}>
                     Mới mở {rec.graceMinutesOpen}p — đang theo dõi
                   </Text>
+                </View>
+              ) : null}
+              {partialCloseBadge ? (
+                <View style={styles.partialBadge}>
+                  <Text style={styles.partialBadgeText}>{partialCloseBadge}</Text>
                 </View>
               ) : null}
               <View style={styles.dotsRow}>
@@ -209,6 +217,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#F0B90B',
+  },
+  partialBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: 'rgba(14, 203, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(14, 203, 129, 0.45)',
+  },
+  partialBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0ECB81',
   },
   loadingText: {
     color: '#848E9C',

@@ -25,6 +25,8 @@ import {
 } from './components/dashboard/ScoringVisibilityBar';
 import { ScoreSpectrum } from './components/dashboard/ScoreSpectrum';
 import { SignalBoard } from './components/dashboard/SignalBoard';
+import { SignalBoardV41 } from './components/dashboard/SignalBoardV41';
+import { SignalBoardUnified } from './components/dashboard/SignalBoardUnified';
 import { ActiveTradesPanel } from './components/journal/ActiveTradesPanel';
 import type { ManualTradeSetup } from './components/TradeRecommendationTable';
 import {
@@ -46,6 +48,7 @@ import {
   type AnalysisTimeframe,
   type AppTradeSymbol,
   type MarketRegime,
+  type TradeDirection,
 } from './constants/scoring';
 import { RADIUS, SPACING } from './constants/theme';
 import { formatRegimeVi, formatScoreBiasVi, vi } from './constants/vi';
@@ -54,6 +57,7 @@ import { usePriceLevelAlerts } from './hooks/usePriceLevelAlerts';
 import { usePendingOrderFill } from './hooks/usePendingOrderFill';
 import { useMarketAnalysis } from './hooks/useMarketAnalysis';
 import { useSignalBoard } from './hooks/useSignalBoard';
+import { useUnifiedAppScan } from './hooks/useUnifiedAppScan';
 import { WhaleRadarToast } from './components/WhaleRadarToast';
 import { useWhaleRadar } from './hooks/useWhaleRadar';
 import { useWebVisibilityRescan } from './hooks/useWebVisibilityRescan';
@@ -75,9 +79,13 @@ import {
 } from './hooks/useDriveSyncLifecycle';
 import { pullFromDrive, syncAll } from './services/driveSyncService';
 import type { SyncState } from './types/driveSync';
-import { buildSnapshotsFromSignalRow, buildLockedTradePlanInput } from './services/journalService';
-import { inferSkipReasonFromSignalRow } from './services/skippedSetupService';
+import { buildSnapshotsFromSignalRow, buildLockedTradePlanInput, resolveAdxRegimeForLegacyJournal, resolveStructureSlSourceForLegacyJournal, resolveVwapZoneForLegacyJournal, resolveVwapEntryQualityForLegacyJournal } from './services/journalService';
+import {
+  inferSkipReasonFromSignalRow,
+  resolveSkipPriceFromSignalRow,
+} from './services/skippedSetupService';
 import { effectiveTradeDirection } from './services/signalRowView';
+import { isLimitEntryAwaitingFill } from './utils/pendingOrderFill';
 import { tradePlanV3ToLegacyPlan } from './services/tradePlanV3';
 import { JournalScreen } from './screens/JournalScreen';
 import { InsightsScreen } from './screens/InsightsScreen';
@@ -92,6 +100,67 @@ function legacyPlanForSetup(row: SignalRow, setup?: ManualTradeSetup) {
     return tradePlanV3ToLegacyPlan(row.tradePlanV3);
   }
   return row.tradePlan;
+}
+
+async function placePendingLimitTrade(
+  row: SignalRow,
+  setup: ManualTradeSetup,
+  limitPrice: number,
+  analysisTimeframe: AnalysisTimeframe,
+): Promise<void> {
+  await useTradeStore.getState().addJournalEntry({
+    symbol: row.symbol,
+    direction: effectiveTradeDirection(row, setup.planSource),
+    entryPrice: limitPrice,
+    entryTime: Date.now(),
+    leverage: setup.leverage,
+    size: setup.marginUsdt,
+    stopLoss: setup.stopLoss,
+    takeProfit1: setup.takeProfit1,
+    takeProfit2: setup.takeProfit2,
+    takeProfit3: setup.takeProfit3,
+    analysisTimeframe,
+    status: 'PENDING',
+    strategySource: setup.strategySource,
+    adxRegime: resolveAdxRegimeForLegacyJournal(row),
+    slSource: resolveStructureSlSourceForLegacyJournal(row),
+    vwapZone: resolveVwapZoneForLegacyJournal(row),
+    vwapEntryQuality: resolveVwapEntryQualityForLegacyJournal(row),
+  });
+
+  const snapshots = buildSnapshotsFromSignalRow({
+    row,
+    entryPrice: limitPrice,
+    stopLoss: setup.stopLoss,
+    takeProfit1: setup.takeProfit1,
+    sizeActual: setup.marginUsdt,
+    settings: useTradeStore.getState().settings,
+    planSource: setup.planSource,
+    scorerVersion: useTradeStore.getState().scorerVersion,
+    strategySource: setup.strategySource,
+  });
+  await useTradeStore.getState().placePendingOrder(
+    row.symbol,
+    snapshots.market,
+    snapshots.scoring,
+    snapshots.plan,
+    limitPrice,
+    setup.strategySource,
+    snapshots.adxSnapshot,
+    snapshots.structureSLSnapshot,
+    snapshots.vwapSnapshot,
+  ).then(async (entryId) => {
+    await useTradeStore.getState().lockTradePlan(
+      buildLockedTradePlanInput({
+        pendingEntryId: entryId,
+        symbol: row.symbol,
+        scoring: snapshots.scoring,
+        plan: snapshots.plan,
+        market: snapshots.market,
+        limitOrderPrice: limitPrice,
+      }),
+    );
+  });
 }
 
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
@@ -115,6 +184,7 @@ export default function App() {
   const [showMatrix, setShowMatrix] = useState(false);
   const [showPsychology, setShowPsychology] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('signals');
+  const [signalBoardTab, setSignalBoardTab] = useState<'v4' | 'v41' | 'unified'>('unified');
   const [settingsFocusCapital, setSettingsFocusCapital] = useState(false);
   const [confirmRow, setConfirmRow] = useState<SignalRow | null>(null);
   const [confirmSetup, setConfirmSetup] = useState<ManualTradeSetup | null>(null);
@@ -169,7 +239,11 @@ export default function App() {
     scoringPsychology,
     scoringContext,
   );
-  const signalBoard = useSignalBoard(analysisTimeframe);
+  const signalBoard = useSignalBoard(analysisTimeframe, { pauseAutoScan: true });
+  const { runUnifiedScan, v41Rows, v41Loading, v41LastScannedAt } = useUnifiedAppScan(
+    signalBoard.scan,
+    ['NEARUSDT', 'SOLUSDT', 'BNBUSDT', 'BTCUSDT'],
+  );
   const lockedPlanMonitor = useLockedPlanMonitor({
     rows: signalBoard.rows,
     timeframe: analysisTimeframe,
@@ -177,7 +251,7 @@ export default function App() {
     btcChange24h: market.btcChange24h,
   });
   const whaleRadar = useWhaleRadar();
-  useWebVisibilityRescan(signalBoard.scan, signalBoard.lastScannedAt);
+  useWebVisibilityRescan(() => void runUnifiedScan(true), signalBoard.lastScannedAt);
   const s = settingsForPsy;
   const riskPct = ((s.maxLossPerTrade / s.accountSize) * 100).toFixed(1);
 
@@ -187,13 +261,13 @@ export default function App() {
   };
 
   const handleCapitalUpdated = () => {
-    void signalBoard.scan();
+    void runUnifiedScan(true);
     void fetchAndAnalyze();
   };
 
   const handleMilestoneConfirm = () => {
     void confirmMilestoneUpgrade().then(() => {
-      void signalBoard.scan();
+      void runUnifiedScan(true);
       void fetchAndAnalyze();
     });
   };
@@ -236,7 +310,7 @@ export default function App() {
 
   const handleQuickAnalyze = () => {
     setShowPsychology(false);
-    void signalBoard.scan();
+    void runUnifiedScan(true);
   };
 
   const handleRequestConfirmTrade = (
@@ -257,6 +331,24 @@ export default function App() {
       marginUsdt: values.sizeActual,
     };
 
+    const direction = effectiveTradeDirection(row, setup.planSource);
+    const markPrice = row.price;
+    if (
+      markPrice != null &&
+      Number.isFinite(markPrice) &&
+      isLimitEntryAwaitingFill(direction, markPrice, setup.entryPrice)
+    ) {
+      await placePendingLimitTrade(row, setup, setup.entryPrice, analysisTimeframe);
+      setJournalToast(
+        `Đã lưu lệnh chờ ${row.symbol.replace('USDT', '')} ${direction} tại ${setup.entryPrice}`,
+      );
+      setConfirmRow(null);
+      setConfirmSetup(null);
+      setActiveTab('signals');
+      setTimeout(() => setJournalToast(null), 4000);
+      return;
+    }
+
     await useTradeStore.getState().addJournalEntry({
       symbol: row.symbol,
       direction: effectiveTradeDirection(row, setup.planSource),
@@ -270,6 +362,10 @@ export default function App() {
       takeProfit3: setup.takeProfit3,
       analysisTimeframe,
       strategySource: setup.strategySource,
+      adxRegime: resolveAdxRegimeForLegacyJournal(row),
+      slSource: resolveStructureSlSourceForLegacyJournal(row),
+      vwapZone: resolveVwapZoneForLegacyJournal(row),
+      vwapEntryQuality: resolveVwapEntryQualityForLegacyJournal(row),
     });
 
     const snapshots = buildSnapshotsFromSignalRow({
@@ -292,6 +388,9 @@ export default function App() {
       snapshots.fundingAtEntry,
       snapshots.squeezeAtEntry,
       setup.strategySource,
+      snapshots.adxSnapshot,
+      snapshots.structureSLSnapshot,
+      snapshots.vwapSnapshot,
     );
 
     setJournalToast(
@@ -313,6 +412,35 @@ export default function App() {
     if (!entryPrice) return;
     if (!manual && !plan && !setup) return;
     const strategySource = manual ? 'MANUAL' : setup!.strategySource!;
+    const direction = effectiveTradeDirection(row, setup?.planSource);
+    const markPrice = row.price;
+
+    if (
+      markPrice != null &&
+      Number.isFinite(markPrice) &&
+      isLimitEntryAwaitingFill(direction, markPrice, entryPrice)
+    ) {
+      const pendingSetup: ManualTradeSetup = setup ?? {
+        entryPrice,
+        stopLoss: plan?.stopLoss ?? 0,
+        takeProfit1: plan?.takeProfit1 ?? 0,
+        takeProfit2: plan?.takeProfit2 ?? 0,
+        takeProfit3: plan?.takeProfit3 ?? 0,
+        marginUsdt: s.sizePerTrade,
+        leverage: s.leverage,
+        planSource:
+          useTradeStore.getState().scorerVersion === 'v3' ? 'v3' : 'v4',
+        strategySource,
+      };
+      await placePendingLimitTrade(row, pendingSetup, entryPrice, analysisTimeframe);
+      setJournalToast(
+        `Đã lưu lệnh chờ ${row.symbol.replace('USDT', '')} ${direction} tại ${entryPrice}`,
+      );
+      setActiveTab('signals');
+      setTimeout(() => setJournalToast(null), 4000);
+      return;
+    }
+
     await useTradeStore.getState().addJournalEntry({
       symbol: row.symbol,
       direction: effectiveTradeDirection(row, setup?.planSource),
@@ -326,6 +454,10 @@ export default function App() {
       takeProfit3: setup?.takeProfit3 ?? plan?.takeProfit3,
       analysisTimeframe,
       strategySource,
+      adxRegime: resolveAdxRegimeForLegacyJournal(row),
+      slSource: resolveStructureSlSourceForLegacyJournal(row),
+      vwapZone: resolveVwapZoneForLegacyJournal(row),
+      vwapEntryQuality: resolveVwapEntryQualityForLegacyJournal(row),
     });
 
     const snapshots = buildSnapshotsFromSignalRow({
@@ -348,6 +480,9 @@ export default function App() {
       snapshots.fundingAtEntry,
       snapshots.squeezeAtEntry,
       strategySource,
+      snapshots.adxSnapshot,
+      snapshots.structureSLSnapshot,
+      snapshots.vwapSnapshot,
     );
     setActiveTab('signals');
   };
@@ -368,52 +503,7 @@ export default function App() {
       entryPrice: limitPrice,
     };
 
-    await useTradeStore.getState().addJournalEntry({
-      symbol: row.symbol,
-      direction: effectiveTradeDirection(row, setup.planSource),
-      entryPrice: limitPrice,
-      entryTime: Date.now(),
-      leverage: setup.leverage,
-      size: setup.marginUsdt,
-      stopLoss: setup.stopLoss,
-      takeProfit1: setup.takeProfit1,
-      takeProfit2: setup.takeProfit2,
-      takeProfit3: setup.takeProfit3,
-      analysisTimeframe,
-      status: 'PENDING',
-      strategySource: setup.strategySource,
-    });
-
-    const snapshots = buildSnapshotsFromSignalRow({
-      row,
-      entryPrice: limitPrice,
-      stopLoss: setup.stopLoss,
-      takeProfit1: setup.takeProfit1,
-      sizeActual: setup.marginUsdt,
-      settings: useTradeStore.getState().settings,
-      planSource: setup.planSource,
-      scorerVersion: useTradeStore.getState().scorerVersion,
-      strategySource: setup.strategySource,
-    });
-    await useTradeStore.getState().placePendingOrder(
-      row.symbol,
-      snapshots.market,
-      snapshots.scoring,
-      snapshots.plan,
-      limitPrice,
-      setup.strategySource,
-    ).then(async (entryId) => {
-      await useTradeStore.getState().lockTradePlan(
-        buildLockedTradePlanInput({
-          pendingEntryId: entryId,
-          symbol: row.symbol,
-          scoring: snapshots.scoring,
-          plan: snapshots.plan,
-          market: snapshots.market,
-          limitOrderPrice: limitPrice,
-        }),
-      );
-    });
+    await placePendingLimitTrade(row, setup, limitPrice, analysisTimeframe);
 
     setJournalToast(
       `Đã lưu lệnh chờ ${row.symbol.replace('USDT', '')} ${row.direction} tại ${limitPrice}`,
@@ -424,18 +514,34 @@ export default function App() {
     setTimeout(() => setJournalToast(null), 4000);
   };
 
-  const handleRecordSkippedSetup = (row: SignalRow) => {
-    if (row.price == null || !Number.isFinite(row.price)) return;
+  const handleRecordSkippedSetup = (
+    row: SignalRow,
+    setupDirection?: TradeDirection,
+  ) => {
+    const direction = setupDirection ?? row.direction;
+    const skipPrice = resolveSkipPriceFromSignalRow(row, direction);
+    if (skipPrice == null) {
+      setJournalToast('Không ghi nhận được — thiếu giá thị trường');
+      setTimeout(() => setJournalToast(null), 4000);
+      return;
+    }
+    const totalScore =
+      setupDirection === 'LONG'
+        ? row.longScore
+        : setupDirection === 'SHORT'
+          ? row.shortScore
+          : row.score;
     const { skipReason, skipReasonDetail } = inferSkipReasonFromSignalRow(row);
     void useTradeStore.getState().addSkippedSetup(
       row.symbol,
-      row.direction,
-      row.score,
+      direction,
+      totalScore,
       skipReason,
       skipReasonDetail,
-      row.price,
+      skipPrice,
     );
-    setJournalToast(vi.signalBoard.skipRecorded);
+    const symbolLabel = row.symbol.replace('USDT', '');
+    setJournalToast(`✅ Đã ghi nhận setup ${symbolLabel}`);
     setTimeout(() => setJournalToast(null), 4000);
   };
 
@@ -680,36 +786,85 @@ export default function App() {
           </View>
 
           <View style={styles.section}>
-            <SignalBoard
-              rows={signalBoard.rows}
-              loading={signalBoard.loading}
-              lastScannedAt={signalBoard.lastScannedAt}
-              autoTriggeredAt={signalBoard.autoTriggeredAt}
-              onScan={signalBoard.scan}
-              tierName={capitalManagement.currentTier.tierName}
-              onTierPress={goToCapitalSettings}
-              onOpenPosition={handleOpenPosition}
-              onRequestConfirmTrade={handleRequestConfirmTrade}
-              onRequestPendingOrder={handleRequestPendingOrder}
-              onPendingOrder={handlePendingOrder}
-              onRecordSkippedSetup={handleRecordSkippedSetup}
-              lockedPlanOverlay={
-                lockedPlan && lockedPlan.status === 'WAITING'
-                  ? {
-                      symbol: lockedPlan.symbol,
-                      direction: lockedPlan.lockedDirection,
-                      lockedScore: lockedPlan.lockedScore,
-                      decisionLabel: lockedPlan.lockedScoringSnapshot.decision,
-                    }
-                  : null
-              }
-              lockedPlanMonitor={lockedPlanMonitor}
-            />
+            <View style={styles.signalBoardTabRow}>
+              {(
+                [
+                  { id: 'unified' as const, label: '⭐ Tổng hợp' },
+                  { id: 'v4' as const, label: 'V3/V4' },
+                  { id: 'v41' as const, label: 'V4.1' },
+                ] as const
+              ).map(({ id, label }) => {
+                const active = signalBoardTab === id;
+                return (
+                  <Pressable
+                    key={id}
+                    onPress={() => setSignalBoardTab(id)}
+                    style={[
+                      styles.signalBoardTabBtn,
+                      active && styles.signalBoardTabBtnActive,
+                      webPointer,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.signalBoardTabText,
+                        active && styles.signalBoardTabTextActive,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {signalBoardTab === 'unified' && (
+              <SignalBoardUnified
+                symbols={['NEARUSDT', 'SOLUSDT', 'BNBUSDT', 'BTCUSDT']}
+                onRequestScan={() => void runUnifiedScan(true)}
+              />
+            )}
+            {signalBoardTab === 'v4' ? (
+              <SignalBoard
+                rows={signalBoard.rows}
+                loading={signalBoard.loading}
+                lastScannedAt={signalBoard.lastScannedAt}
+                autoTriggeredAt={signalBoard.autoTriggeredAt}
+                onScan={() => void runUnifiedScan(true)}
+                tierName={capitalManagement.currentTier.tierName}
+                onTierPress={goToCapitalSettings}
+                onOpenPosition={handleOpenPosition}
+                onRequestConfirmTrade={handleRequestConfirmTrade}
+                onRequestPendingOrder={handleRequestPendingOrder}
+                onPendingOrder={handlePendingOrder}
+                onRecordSkippedSetup={handleRecordSkippedSetup}
+                lockedPlanOverlay={
+                  lockedPlan && lockedPlan.status === 'WAITING'
+                    ? {
+                        symbol: lockedPlan.symbol,
+                        direction: lockedPlan.lockedDirection,
+                        lockedScore: lockedPlan.lockedScore,
+                        decisionLabel: lockedPlan.lockedScoringSnapshot.decision,
+                      }
+                    : null
+                }
+                lockedPlanMonitor={lockedPlanMonitor}
+              />
+            ) : signalBoardTab === 'v41' ? (
+              <SignalBoardV41
+                rows={v41Rows}
+                loading={v41Loading}
+                lastScannedAt={v41LastScannedAt}
+                onRequestScan={() => void runUnifiedScan(true)}
+              />
+            ) : null}
           </View>
 
-          <View style={styles.section}>
-            <ActiveTradesPanel signalRows={signalBoard.rows} />
-          </View>
+          {signalBoardTab === 'v4' ? (
+            <View style={styles.section}>
+              <ActiveTradesPanel signalRows={signalBoard.rows} />
+            </View>
+          ) : null}
 
           {SHOW_ADVANCED_UI ? (
           <>
@@ -1013,6 +1168,31 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: SPACING.xl + 4,
+  },
+  signalBoardTabRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  signalBoardTabBtn: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  signalBoardTabBtnActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: '#F0B90B18',
+  },
+  signalBoardTabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  signalBoardTabTextActive: {
+    color: COLORS.accent,
   },
   dashBar: {
     flexDirection: 'row',

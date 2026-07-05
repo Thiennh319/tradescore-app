@@ -1735,7 +1735,7 @@ function ruleOppositeDirectionStrong(input: RuleContext): RuleResult {
   const { position, oppositeDirectionScore, lastRecommendationType } = input;
 
   const isCurrentlyActive = lastRecommendationType === 'CLOSE_REVERSE';
-  const threshold = isCurrentlyActive ? 10.5 : 11.0;
+  const threshold = isCurrentlyActive ? 10.0 : 11.0;
 
   if (
     oppositeDirectionScore.totalScore < threshold ||
@@ -2068,6 +2068,28 @@ const ALL_RULES: Array<(input: RuleContext) => RuleResult> = [
   ruleFallback,
 ];
 
+export type PositionAdvisorRuleReplacements = Partial<{
+  holdStrong: (input: RuleContext) => RuleResult;
+  moveSlBe: (input: RuleContext) => RuleResult;
+}>;
+
+function resolveAdvisorRules(
+  ruleReplacements?: PositionAdvisorRuleReplacements,
+): Array<(input: RuleContext) => RuleResult> {
+  if (!ruleReplacements?.holdStrong && !ruleReplacements?.moveSlBe) {
+    return ALL_RULES;
+  }
+  return ALL_RULES.map((rule) => {
+    if (rule === ruleHoldStrong && ruleReplacements.holdStrong) {
+      return ruleReplacements.holdStrong;
+    }
+    if (rule === ruleMoveSLBreakeven && ruleReplacements.moveSlBe) {
+      return ruleReplacements.moveSlBe;
+    }
+    return rule;
+  });
+}
+
 export function buildPositionAdvisorContext(
   input: EvaluatePositionInput,
 ): RuleContext {
@@ -2098,13 +2120,15 @@ export function runPositionAdvisorRules(
 export function collectPositionAdvisorRuleResults(
   ctx: RuleContext,
   extraRules: Array<(input: RuleContext) => RuleResult> = [],
+  ruleReplacements?: PositionAdvisorRuleReplacements,
 ): {
   matchedRules: MatchedRuleResult[];
   shouldSetCVDFlag: boolean;
   shouldSetFundingReversalPending: boolean;
   shouldClearFundingReversalPending: boolean;
 } {
-  const allResults = [...ALL_RULES, ...extraRules].map((rule) => rule(ctx));
+  const coreRules = resolveAdvisorRules(ruleReplacements);
+  const allResults = [...coreRules, ...extraRules].map((rule) => rule(ctx));
   const matchedRules = allResults.filter((r): r is MatchedRuleResult => r.matched);
   matchedRules.sort((a, b) => b.priority - a.priority);
   return {

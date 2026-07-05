@@ -1,0 +1,419 @@
+================================================================================
+  TRADESCORE V4.1 — BÁO CÁO TRẠNG THÁI HỆ THỐNG
+================================================================================
+  Ngày cập nhật : 2026-07-03
+  App version   : 1.0.3
+  Spec          : docs/V4.1_ARCHITECTURE.md, docs/V4.1_FORMULAS.md
+  Module code   : services/v41/  (TÁCH BIỆT — chưa trong APK/Web build)
+  Tests V4.1    : 109/109 pass (6 files)
+================================================================================
+
+
+MỤC LỤC
+--------
+  0. Phân biệt V4.1 vs V4 Production (QUAN TRỌNG)
+  1. Tổng quan tiến độ
+  2. Cấu trúc kiến trúc V4.1 (8 bước scan)
+  3. Đã hoàn thành — chi tiết code
+  4. Chưa hoàn thành — theo từng bước
+  5. Production hiện tại (V3+V4) — đã chạy trên app
+  6. Hạng mục production cần hoàn thiện (liên quan V4.1)
+  7. Thứ tự ưu tiên hoàn thiện V4.1
+  8. Quy tắc module & ràng buộc kỹ thuật
+  9. Tài liệu tham chiếu
+
+
+================================================================================
+0. PHÂN BIỆT V4.1 vs V4 PRODUCTION
+================================================================================
+
+  ┌─────────────────────┬──────────────────────────┬──────────────────────────┐
+  │                     │ V4 PRODUCTION (đang chạy)│ V4.1 MODULE (đang xây)   │
+  ├─────────────────────┼──────────────────────────┼──────────────────────────┤
+  │ Thang điểm          │ 15 điểm (L1–L10 + nhóm)  │ 0–100 per engine         │
+  │ File chính          │ services/scorerV4.ts     │ services/v41/*.ts        │
+  │ Scan pipeline       │ signalBoardScan.ts       │ Chưa có scanV41          │
+  │ UI                  │ Signal Board V3/V4       │ Chưa tab V4.1            │
+  │ APK/Web bundle      │ CÓ                       │ KHÔNG (grep 0 import)    │
+  │ L11                 │ Squeeze Risk (wired)     │ Khác — Protection layer  │
+  │ Position advisor    │ positionAdvisorV4.ts     │ Bước 5 — chưa code       │
+  │ Derivatives API     │ Module riêng, chưa wire  │ Không dùng CoinGlass     │
+  └─────────────────────┴──────────────────────────┴──────────────────────────┘
+
+  V4.1 KHÔNG thay thế V4 ngay — module độc lập, test riêng, tích hợp sau.
+
+
+================================================================================
+1. TỔNG QUAN TIẾN ĐỘ
+================================================================================
+
+  Pipeline V4.1 (Bước 0 → 7)     : ~32% hoàn thành
+  Engine lõi (Bước 1)          : ~80% (E1–E4 + BTC context ✅; thiếu Market State + orchestrator)
+  Visibility logic (Bước 2)    : 100% logic, 0% nối scan thật
+  Bước 3–7                     : 0%
+  Tích hợp App                 : 0%
+  Unit tests module v41        : 109 tests, 100% pass
+
+  Bảng nhanh Bước 0–7:
+
+  Bước  Layer                    Trạng thái
+  ────  ───────────────────────  ─────────────────────────────────────
+  0     Raw Market Data          ❌ Chưa (fetch + KlineV41 adapter)
+  1     Market Intelligence      🟡 ~80% (E1–E4 + BTC context ✅, Market State ❌)
+  2     Visibility Manager       ✅ Logic | ❌ Nối app
+  3     Opportunity Detection    ❌ Entry Quality Engine
+  4     Risk → Profit → Setup    ❌ Smart SL/TP, TradeSetupV41
+  5     Position Management      ❌ Advisor V4.1
+  6     Protection Layer         ❌ Stop hunt, Volatility risk
+  7     Support System           ❌ Journal async sau ENTER/CLOSE
+
+
+================================================================================
+2. CẤU TRÚC KIẾN TRÚC V4.1
+================================================================================
+
+  Luồng scan thực tế (mỗi lần quét — tính LẠI hoàn toàn):
+
+  Bước 0  Raw Market Data
+            Binance klines 4H (symbol + BTCUSDT), limit 250, closed only
+            Output: RawMarketSnapshot (OHLCV + takerBuyVolume)
+                │
+                ▼
+  Bước 1  Market Intelligence Layer  ★ chạy TRƯỚC mọi quyết định UI
+            Engine 1 → TrendStrength (0–100), trend_direction
+            Engine 2 → TrendExhaustion, Volume_Divergence_pts
+            Engine 3 → ReversalProbability, RSI/CVD divergence scores
+            Engine 4 → MarketConfidence, BTCAlignmentFactor
+            Market State Engine → 8 category (StrongUptrend … Transition)
+            Output: MarketIntelligenceSnapshot
+                │
+        ┌───────┴───────┐
+        ▼               ▼
+  Bước 6          Bước 2  Visibility Manager
+  Protection      INACTIVE | WATCH_MODE | TRADE_MODE | POSITION_MODE
+  (song song)           │
+                        ▼ (nếu WATCH/TRADE/POSITION)
+  Bước 3          Opportunity Detection
+                  Entry Quality ≥ 70 → tiếp
+                        │
+                        ▼
+  Bước 4          Risk Engine (Smart SL)
+                  → Profit Engine (Smart TP)
+                  → Trade Setup Generator
+                        │
+  Open position? ───────┴──► Bước 5 Position Management
+                              (đọc LẠI MI snapshot scan hiện tại)
+                        │
+  Bước 7          Support System (ASYNC sau ENTER/CLOSE)
+
+
+  Visibility modes:
+    INACTIVE       — ẩn / không trade
+    WATCH_MODE     — giám sát, chưa đủ entry quality
+    TRADE_MODE     — có thể mở setup mới
+    POSITION_MODE  — đang có lệnh mở, ưu tiên quản lý vị thế
+
+
+================================================================================
+3. ĐÃ HOÀN THÀNH — CHI TIẾT CODE
+================================================================================
+
+  Thư mục: services/v41/
+
+  ┌─────────────────────────────────────┬──────────┬────────┐
+  │ File                                │ Vai trò  │ Tests  │
+  ├─────────────────────────────────────┼──────────┼────────┤
+  │ types.ts                            │ Contract │ —      │
+  │ indicators.ts                       │ EMA,ADX, │ —      │
+  │                                     │ RSI,ATR  │        │
+  │ trendStrengthEngine.ts              │ Engine 1 │ 25     │
+  │ trendExhaustionEngine.ts            │ Engine 2 │ 23     │
+  │ reversalProbabilityEngine.ts        │ Engine 3 │ 13     │
+  │ marketConfidenceEngine.ts           │ Engine 4 │ 11     │
+  │ btcContextBuilder.ts                │ BTC ctx  │ 10     │
+  │ visibilityManager.ts                │ Bước 2   │ 27     │
+  └─────────────────────────────────────┴──────────┴────────┘
+
+  Engine 1 — Trend Strength (trendStrengthEngine.ts)
+    • EMA alignment BULL/BEAR/NEUTRAL
+    • ADX(14) 4H, EMA50 slope
+    • Output: TrendStrength 0–100, trend_direction
+
+  Engine 2 — Trend Exhaustion (trendExhaustionEngine.ts)
+    • RSI, volume vs MA20, new high/low, candle streak
+    • Volume divergence (+20 pts)
+    • Output: TrendExhaustion 0–100
+
+  Engine 3 — Reversal Probability (reversalProbabilityEngine.ts)
+    • findSwingPoints, getLastTwoSwings
+    • calculateRSIDivergenceScore
+    • calculateCVDV41, calculateCVDDivergenceScore
+    • calculateReversalProbability
+
+  Engine 4 — Market Confidence (marketConfidenceEngine.ts)
+    • resolveBTCAlignmentFactor (0.5–1.0)
+    • calculateMarketConfidence
+    • Công thức: TrendStrength × (1 − Exhaustion/100) × BTCAlignment
+
+  BTC Context Builder (btcContextBuilder.ts) — mới 2026-07-03
+    • buildBTCContext(btcKlines4H) → BTCContext
+    • resolveBtcStrengthBand (strong/moderate/weak/none)
+    • Tái dùng Engine 1 scoring qua calculateTrendStrength
+    • Fallback khi < 220 nến
+    • Chi tiết: docs/V4.1_BTC_CONTEXT_BUILDER_REPORT.txt
+
+  Bước 2 — Visibility Manager (visibilityManager.ts)
+    • calculatePreliminaryScores (buy/sell score sơ bộ)
+    • resolveVisibilityHysteresis (HIỆN/ẨN, chống nhấp nháy)
+    • resolveTradeModeUpgrade (WATCH → TRADE khi entry_quality ≥ 70)
+    • DEFAULT_VISIBILITY_CONFIG trong types.ts
+
+  Types đã khai báo (types.ts) — sẵn cho layer chưa code:
+    MarketState (8 enum)
+    MarketIntelligenceSnapshot
+    VisibilityMode, VisibilityResult, VisibilityConfig
+    PositionState, OpenDirection
+
+  Tài liệu đã có:
+    docs/V4.1_ARCHITECTURE.md       — spec luồng + data contract
+    docs/V4.1_FORMULAS.md           — công thức engine 1–4, market state
+    docs/V4.1_PROGRESS_REPORT.md      — tracker tiến độ (markdown)
+    docs/V4.1_TAKERBUYVOLUME_VERIFICATION_REPORT.md
+    docs/SCORING_ENTRY_LOGIC_REPORT.txt — logic V4 production (tham khảo)
+
+
+================================================================================
+4. CHƯA HOÀN THÀNH — THEO TỪNG BƯỚC
+================================================================================
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 0 — Raw Market Data
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] fetchRawMarket() — Binance 4H, symbol + BTCUSDT, limit 250
+    [ ] Adapter OHLCV → KlineV41 (có takerBuyBaseVolume — đã verify spec)
+    [ ] RawMarketSnapshot type + mark_price
+  Blocker: Mọi engine cần input thật từ Binance
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 1 — Market Intelligence (phần còn lại)
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [x] btcContextBuilder.ts — BTCUSDT 4H → BTCContext (2026-07-03)
+    [ ] marketStateEngine.ts — waterfall 15 rules → 8 MarketState
+    [ ] runMarketIntelligenceLayer() — orchestrator gom E1→E2→E3→E4→State
+    [ ] Unit tests cho Market State + orchestrator
+  Blocker chain:
+    visibilityManager.calculatePreliminaryScores() CẦN marketState thật
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 2 — Visibility (tích hợp)
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] useV41Store — persist previous_visibility_mode (hysteresis)
+    [ ] Nối orchestrator Bước 1 → visibilityManager
+    [ ] scanV41 / scanAllSymbolsV41 entry point
+  Đã có logic thuần — chỉ thiếu wiring
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 3 — Opportunity Detection
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] entryQualityEngine.ts
+    [ ] Ngưỡng Entry Quality ≥ 70 (FORMULAS + ARCHITECTURE)
+    [ ] Output: entry_quality long/short, opportunity signals
+  Blocker: WATCH → TRADE cần entry_quality thật (hiện chỉ có resolveTradeModeUpgrade)
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 4 — Risk → Profit → Trade Setup
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] riskEngine.ts — Smart SL (structure, ATR, protection input)
+    [ ] profitEngine.ts — Smart TP (multi-level, market state aware)
+    [ ] tradeSetupGenerator.ts — TradeSetupV41 object
+    [ ] Types: TradeSetupV41, RiskProfile, TP levels
+  Phụ thuộc: Bước 3 + Bước 6 (protection signals)
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 5 — Position Management V4.1
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] positionManagementV41.ts — advisor cho lệnh ĐANG MỞ
+    [ ] Đọc MarketIntelligenceSnapshot MỚI NHẤT mỗi scan (không snapshot lúc vào)
+    [ ] Break even, trailing stop, partial close theo spec V4.1
+    [ ] Tích hợp journal partial close hiện có (production)
+  Lưu ý: positionAdvisorV4.ts (production) ≠ V4.1 Bước 5
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 6 — Protection Layer
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] stopHuntDetector.ts
+    [ ] volatilityRiskEngine.ts
+    [ ] Feed vào Bước 4 (setup mới) và Bước 5 (lệnh mở)
+  Chạy song song mỗi scan — không phải bước cuối pipeline
+
+──────────────────────────────────────────────────────────────────────────────
+BƯỚC 7 — Support System
+──────────────────────────────────────────────────────────────────────────────
+  Cần làm:
+    [ ] Event hooks sau ENTER / CLOSE position
+    [ ] Journal analytics async (không block scan)
+    [ ] Cooldown tracking V4.1
+  Có thể tái sử dụng: journal production, drive sync
+
+──────────────────────────────────────────────────────────────────────────────
+TÍCH HỢP APP
+──────────────────────────────────────────────────────────────────────────────
+  [ ] Import services/v41 từ App.tsx hoặc hook riêng
+  [ ] Tab UI "V4.1" (flag dev / SHOW_ADVANCED_UI)
+  [ ] GitHub Gist mirror cho snapshot V4.1 (nếu cần sync)
+  [ ] Cập nhật guideline.txt + BUILD_INFO khi bundle V4.1
+  [ ] APK/Web build include services/v41
+
+
+================================================================================
+5. PRODUCTION HIỆN TẠI (V3+V4) — ĐÃ CHẠY TRÊN APP v1.0.3
+================================================================================
+
+  Các tính năng ĐÃ wire vào APK/Web (không thuộc module v41):
+
+  SCORING & SCAN
+    • scorerV4.ts — L1–L10, nhóm A/B/C, 15 điểm
+    • scorerV3.ts — engine thay thế trên UI
+    • signalBoardScan.ts — quét 4 cặp, V3+V4 song song
+    • canEnterV4, finalEntryStatus, direction ambiguity
+
+  BỔ SUNG SAU SCORER (production pipeline)
+    • adxGate.ts — CHOPPY block; RANGING/TRENDING scale TP/SL
+    • vwapService.ts + vwapBonus.ts — L5 bonus, entry zone
+    • structureSL.ts — SL theo swing 4H + buffer
+    • squeezeRiskEngine.ts — L11 squeeze (0–10, không trong 15đ)
+    • tradePlanV4.ts — kế hoạch lệnh V4
+
+  POSITION & JOURNAL
+    • positionAdvisorV4.ts — HOLD/CLOSE/TP khi lệnh mở
+    • partialClose.ts — chốt 50%/30%/20%
+    • Journal AI, skipped setups, drive sync (GitHub Gist)
+
+  UI
+    • SignalBoard, TradePlanModal, ScorerV4DetailSection
+    • L11SqueezeExpandV4, L6FundingExpandV4
+    • ActiveTradesPanel, InsightsScreen
+
+  DATA
+    • Binance Futures REST — nguồn chính
+    • derivativesDataService.ts — CoinGlass/Coinalyze — TỒN TẠI nhưng
+      KHÔNG import vào scoreAnalysisV4 (mock khi không có API key)
+
+
+================================================================================
+6. HẠNG MỤC PRODUCTION CẦN HOÀN THIỆN (liên quan hệ thống)
+================================================================================
+
+  Không thuộc module v41 nhưng ảnh hưởng "hoàn thiện hệ thống":
+
+  ┌────────────────────────────────────────┬──────────┬─────────────────────────┐
+  │ Hạng mục                               │ Trạng thái│ Ghi chú                │
+  ├────────────────────────────────────────┼──────────┼─────────────────────────┤
+  │ L10 loss-streak hard block             │ TẮT      │ TODO BẬT LẠI PRODUCTION │
+  │ L10 daily loss ≥ 3 USDT block          │ TẮT      │ scorerV3/V4, lockedPlan │
+  │ Derivatives L11–L13 (CoinGlass)        │ Chưa wire│ derivativesDataService  │
+  │ TP_PROBABILITY_FILTER                  │ Tắt      │ featureFlags.ts         │
+  │ Whale anti-spoof validation            │ Chưa gọi │ whaleRadarValidation    │
+  │ CVDX module                            │ Riêng    │ Không production        │
+  │ Drive sync e2e tests                   │ Một số   │ Không chặn V4.1         │
+  │   fail                                 │ fail     │                         │
+  └────────────────────────────────────────┴──────────┴─────────────────────────┘
+
+  File TODO "BẬT LẠI KHI PRODUCTION":
+    services/scorerV4.ts      (scoreL10V4)
+    services/scorerV3.ts      (scoreL10V3)
+    services/scorer.ts        (legacy L10)
+    services/lockedPlanScoring.ts
+
+
+================================================================================
+7. THỨ TỰ ƯU TIÊN HOÀN THIỆN V4.1
+================================================================================
+
+  Phase A — Đóng vòng Market Intelligence (unblock scan thật)
+    1. ~~btcContextBuilder.ts + tests~~ ✅ (2026-07-03)
+    2. marketStateEngine.ts + tests (15 rules → 8 states)
+    3. runMarketIntelligenceLayer() orchestrator + tests
+    4. Bước 0: fetchRawMarket + KlineV41 adapter
+
+  Phase B — Scan end-to-end (chưa UI)
+    5. Nối Bước 0 → 1 → 2 (visibility với snapshot thật)
+    6. useV41Store (previous_visibility_mode)
+    7. scanV41() — chạy được 1 symbol, log console
+
+  Phase C — Opportunity + Setup
+    8. entryQualityEngine.ts (Bước 3)
+    9. protectionLayer.ts cơ bản (Bước 6 — tối thiểu cho risk)
+   10. riskEngine + profitEngine + tradeSetupGenerator (Bước 4)
+
+  Phase D — Position + App
+   11. positionManagementV41.ts (Bước 5)
+   12. Tab UI V4.1 + hook tích hợp App
+   13. Support async journal (Bước 7)
+   14. BUILD_INFO / guideline / optional Gist sync
+
+  Ước lượng: Phase A+B ≈ 40% còn lại của lõi; Phase C+D ≈ 30% mỗi phase.
+
+
+================================================================================
+8. QUY TẮC MODULE & RÀNG BUỘC KỸ THUẬT
+================================================================================
+
+  ĐANG TUÂN THỦ:
+    • services/v41/ KHÔNG import scorerV3, scorerV4, useTradeStore, signalBoardScan
+    • Production app vẫn chạy V3+V4 — không đổi khi phát triển v41
+    • Mỗi scan V4.1: tính LẠI hoàn toàn (không cache cross-scan)
+    • Trong cùng 1 scan: layer sau tái dùng snapshot layer trước
+    • Position Management: đọc MI snapshot scan HIỆN TẠI, không snapshot lúc vào lệnh
+
+  KIỂM TRA:
+    npx vitest run services/v41/__tests__     → 109/109 pass
+    grep "services/v41" App.tsx signalBoard   → 0 import
+    scripts/write-build-info.mjs              → "V4.1 KHONG trong app build"
+
+
+================================================================================
+9. TÀI LIỆU THAM CHIẾU TRONG REPO
+================================================================================
+
+  V4.1 spec & tiến độ:
+    docs/V4.1_ARCHITECTURE.md
+    docs/V4.1_FORMULAS.md
+    docs/V4.1_PROGRESS_REPORT.md
+    docs/V4.1_SYSTEM_STATUS_REPORT.txt          ← file này
+    docs/V4.1_BTC_CONTEXT_BUILDER_REPORT.txt  ← btcContextBuilder task
+    docs/V4.1_TAKERBUYVOLUME_VERIFICATION_REPORT.md
+
+  Production V4 (đang chạy):
+    docs/SCORER_DATA_REPORT.md
+    docs/SCORING_ENTRY_LOGIC_REPORT.txt
+    docs/ADX_GATE_FEATURE_REPORT.md (trong STRUCTURE/VWAP reports)
+    docs/VWAP_FEATURE_REPORT.md
+    docs/STRUCTURE_SL_FEATURE_REPORT.md
+    docs/POSITION_ADVISOR_V4_REPORT.md
+
+  Module code:
+    services/v41/
+    services/scorerV4.ts          (production — không phải v41)
+    services/signalBoardScan.ts
+
+
+================================================================================
+  TÓM TẮT 1 DÒNG
+================================================================================
+
+  V4.1: Engine 1–4 + BTC context + Visibility ĐÃ CODE & TEST (109 tests), CHƯA VÀO APP;
+  cần Market State + orchestrator + Bước 0 fetch → rồi Bước 3–7 + UI
+  để hoàn thiện pipeline. Production v1.0.3 chạy V3+V4 đầy đủ; L10 block
+  và derivatives API vẫn tắt/chưa wire.
+
+================================================================================
+  HẾT BÁO CÁO
+================================================================================

@@ -1,5 +1,6 @@
 import { FundingState } from '../constants/scoring';
 import type { SqueezeDirection, SqueezeLevel, SqueezeRiskResult } from '../types/squeezeRisk';
+import type { ADXAnalysis } from './indicators';
 import {
   applyPositionAdvisorRuleSideEffects,
   buildPositionAdvisorContext,
@@ -14,10 +15,13 @@ import {
   NO_RULE_MATCH,
   recommendFromMatchedRules,
   resolveTradeThesisSnapshot,
-  runPositionAdvisorRules,
   type EvaluatePositionInput,
   type MatchedRuleResult,
+  type OwnDirectionScore,
+  type PositionAdvisorRuleReplacements,
   type PositionRecommendation,
+  type PositionWithPrice,
+  type RecommendationType,
   type RuleContext,
   type RuleResult,
 } from './positionAdvisorV3';
@@ -91,11 +95,156 @@ export type EvaluatePositionV4Input = EvaluatePositionInput & {
   currentFundingState?: FundingState;
   /** L11 Squeeze Risk từ scoring V4 lần scan hiện tại */
   currentSqueezeRisk?: SqueezeRiskResult;
+  /** ADX 1H+4H — điều chỉnh nhẹ HOLD_STRONG / MOVE_SL_BE */
+  adxData?: ADXAnalysis;
 };
+
+export type PositionAdvisorContext = RuleContextV4;
 
 type RuleContextV4 = RuleContext & {
   currentFundingState?: FundingState;
   currentSqueezeRisk?: SqueezeRiskResult;
+  adxData?: ADXAnalysis;
+};
+
+const COLOR_BULL_V4 = '#0ECB81';
+
+function safeRatio(numerator: number, denominator: number): number {
+  if (denominator === 0) return 0;
+  return numerator / denominator;
+}
+
+function getLayer(
+  layers: OwnDirectionScore['layers'],
+  layerNumber: number,
+): number | null {
+  const layer = layers.find((l) => l.layerNumber === layerNumber);
+  return layer != null ? layer.score : null;
+}
+
+function calcDistToTP1Pct(position: PositionWithPrice): number {
+  const { direction, entryPrice, tp1, currentPrice } = position;
+  if (direction === 'LONG') {
+    return safeRatio(currentPrice - entryPrice, tp1 - entryPrice) * 100;
+  }
+  return safeRatio(entryPrice - currentPrice, entryPrice - tp1) * 100;
+}
+
+function isBeyondOnePointFiveR(position: PositionWithPrice): boolean {
+  const slDistance = Math.abs(position.entryPrice - position.sl);
+  if (slDistance <= 0) return false;
+  if (position.direction === 'LONG') {
+    return position.currentPrice >= position.entryPrice + slDistance * 1.5;
+  }
+  return position.currentPrice <= position.entryPrice - slDistance * 1.5;
+}
+
+function isAdxTrendingStrong(adxData?: ADXAnalysis): boolean {
+  return adxData?.regime === 'TRENDING' && adxData.regimeStrength === 'STRONG';
+}
+
+function isAdxChoppy(adxData?: ADXAnalysis): boolean {
+  return adxData?.regime === 'CHOPPY';
+}
+
+function resolveHoldStrongThreshold(
+  lastRecommendationType: RecommendationType | undefined,
+  adxData?: ADXAnalysis,
+): number {
+  const isCurrentlyHoldStrong = lastRecommendationType === 'HOLD';
+  let threshold = isCurrentlyHoldStrong ? 8.5 : 9.0;
+  if (isAdxTrendingStrong(adxData) && !isCurrentlyHoldStrong) {
+    threshold = 8.5;
+  }
+  if (isAdxChoppy(adxData)) {
+    threshold = 9.5;
+  }
+  return threshold;
+}
+
+function ruleHoldStrongV4(input: RuleContextV4): RuleResult {
+  const { ownDirectionScore, marketMode, lastRecommendationType, adxData } = input;
+  const threshold = resolveHoldStrongThreshold(lastRecommendationType, adxData);
+
+  if (
+    ownDirectionScore.totalScore < threshold ||
+    ownDirectionScore.hardBlocks.length > 0 ||
+    ownDirectionScore.groupBlocks.length > 0
+  ) {
+    return NO_RULE_MATCH;
+  }
+
+  const l5 = getLayer(ownDirectionScore.layers, 5) ?? 0;
+  const reasons: string[] = [];
+
+  if (ownDirectionScore.totalScore >= 11) {
+    reasons.push(`Score V3 mạnh: ${ownDirectionScore.totalScore.toFixed(1)}/15`);
+    if (l5 >= 1.5) reasons.push('CVD/Dòng tiền đang ủng hộ hướng lệnh');
+    if (marketMode === 'TRENDING') reasons.push('Thị trường đang trending rõ');
+    return {
+      matched: true,
+      priority: 20,
+      ruleName: 'HOLD_STRONG',
+      type: 'HOLD',
+      label: 'Tiếp tục giữ',
+      color: COLOR_BULL_V4,
+      confidence: 85,
+      reasons,
+      urgency: 'LOW',
+    };
+  }
+
+  reasons.push(`Score V3: ${ownDirectionScore.totalScore.toFixed(1)}/15 — ổn định`);
+  return {
+    matched: true,
+    priority: 20,
+    ruleName: 'HOLD_STRONG',
+    type: 'HOLD',
+    label: 'Tiếp tục giữ',
+    color: COLOR_BULL_V4,
+    confidence: 72,
+    reasons,
+    urgency: 'LOW',
+  };
+}
+
+function ruleMoveSLBreakevenV4(input: RuleContextV4): RuleResult {
+  const { position, marketMode, adxData } = input;
+  const distToTP1Pct = calcDistToTP1Pct(position);
+  const minDistToTP1Pct = isAdxTrendingStrong(adxData) ? 50 : 60;
+
+  if (
+    distToTP1Pct < minDistToTP1Pct ||
+    position.currentPnlUSDT <= 0 ||
+    !isBeyondOnePointFiveR(position)
+  ) {
+    return NO_RULE_MATCH;
+  }
+
+  const reasons = [
+    `Đang lời tốt (+${position.currentPnlUSDT.toFixed(2)} USDT)`,
+    'Dời SL về breakeven để bảo vệ vốn',
+  ];
+  if (marketMode === 'TRENDING') {
+    reasons.push('Thị trường trending — giữ phần còn lại chạy tiếp');
+  }
+
+  return {
+    matched: true,
+    priority: 40,
+    ruleName: 'MOVE_SL_BE',
+    type: 'HOLD_MOVE_SL',
+    label: 'Dời SL về entry',
+    color: COLOR_BULL_V4,
+    confidence: 85,
+    reasons,
+    urgency: 'MEDIUM',
+  };
+}
+
+const V4_ADX_RULE_REPLACEMENTS: PositionAdvisorRuleReplacements = {
+  holdStrong: ruleHoldStrongV4 as (input: RuleContext) => RuleResult,
+  moveSlBe: ruleMoveSLBreakevenV4 as (input: RuleContext) => RuleResult,
 };
 
 /** Lỗ tối đa nếu chạm SL — dùng cho ngưỡng 50% trong FUNDING_REVERSAL. */
@@ -298,7 +447,14 @@ const V4_EXTRA_RULES: Array<(input: RuleContext) => RuleResult> = [
 ];
 
 export function runPositionAdvisorRulesV4(ctx: RuleContextV4): MatchedRuleResult[] {
-  return runPositionAdvisorRules(ctx, V4_EXTRA_RULES);
+  return collectPositionAdvisorRuleResultsV4(ctx, V4_EXTRA_RULES).matchedRules;
+}
+
+function collectPositionAdvisorRuleResultsV4(
+  ctx: RuleContextV4,
+  extraRules: Array<(input: RuleContext) => RuleResult> = [],
+) {
+  return collectPositionAdvisorRuleResults(ctx, extraRules, V4_ADX_RULE_REPLACEMENTS);
 }
 
 /** Position Advisor V4 — rule matrix mở rộng + grace period chung V3. */
@@ -318,8 +474,12 @@ export function evaluatePositionV4(input: EvaluatePositionV4Input): PositionReco
     ...buildPositionAdvisorContext(enrichedInput),
     currentFundingState: enrichedInput.currentFundingState,
     currentSqueezeRisk: enrichedInput.currentSqueezeRisk,
+    adxData: enrichedInput.adxData,
   };
-  const { matchedRules, ...sideEffects } = collectPositionAdvisorRuleResults(ctx, V4_EXTRA_RULES);
+  const { matchedRules, ...sideEffects } = collectPositionAdvisorRuleResultsV4(
+    ctx,
+    V4_EXTRA_RULES,
+  );
   const recommendation = recommendWithGracePeriod(matchedRules, ctx, {
     position: enrichedInput.position,
     currentPrice: enrichedInput.currentPrice,

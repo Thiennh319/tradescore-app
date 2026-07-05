@@ -5,11 +5,18 @@ import type { L6DetailV4 } from './scorerV4';
 import type { SqueezeDirection, SqueezeLevel, SqueezeRiskResult } from '../types/squeezeRisk';
 import type { CancelReason } from '../services/lockedPlanScoring';
 import { vi } from '../constants/vi';
-import type { EntryZoneType } from './indicators';
+import type { EntryZoneType, ADXAnalysis } from './indicators';
 import { exitReasonToCloseReason } from './tradeHistorySync';
 import { SCORER_LAYER_NAMES, type ScorerLayerId } from '../constants/scoring';
 import type { SignalRow } from '../services/signalBoardScan';
+import type { StructureSLResult } from './structureSL';
 import { resolveJournalAdvisorSnapshot } from './journalAdvisorSnapshot';
+import {
+  sumRealizedPartialPnl,
+  resolveOriginalSizeUsdt,
+  sumPartialClosePercent,
+  partialCloseBadgeLabel,
+} from './partialClose';
 import { tradePlanV3ToLegacyPlan } from './tradePlanV3';
 import {
   AI_JOURNAL_APP_VERSION,
@@ -19,6 +26,9 @@ import {
   STALE_PENDING_ORDER_MS,
   type AccountHistoryPoint,
   type AiTradeJournalEntry,
+  type AdxJournalSnapshot,
+  type StructureSLSnapshot,
+  type VWAPSnapshot,
   type StrategySource,
   type LockedTradePlan,
   type MarketSnapshot,
@@ -225,6 +235,8 @@ export function formatJournalCloseReason(
 
 /** Hiển thị closeReason — fallback từ exitReason cho entry cũ. */
 export function resolveJournalCloseReasonDisplay(entry: AiTradeJournalEntry): string | null {
+  const partialExit = formatPartialCloseExitReason(entry);
+  if (partialExit) return partialExit;
   const stored = entry.outcome.closeReason?.trim();
   if (stored) return stored;
   if (entry.outcome.status === 'CANCELLED' || CANCEL_EXIT_REASONS.has(entry.outcome.exitReason!)) {
@@ -234,6 +246,137 @@ export function resolveJournalCloseReasonDisplay(entry: AiTradeJournalEntry): st
     return formatJournalCloseReason(entry.outcome.exitReason, entry.outcome.notes) ?? null;
   }
   return null;
+}
+
+export interface JournalPnlBreakdown {
+  hasPartial: boolean;
+  closedPercent: number;
+  remainingPercent: number;
+  realizedPnl: number;
+  unrealizedPnl: number | null;
+  totalPnl: number | null;
+}
+
+/** PnL tách realized / unrealized cho lệnh OPEN có chốt một phần. */
+export function buildJournalOpenPnlBreakdown(
+  entry: AiTradeJournalEntry,
+  markPrice: number | null | undefined,
+  leverage: number = CAPITAL_RATIOS.leverage,
+): JournalPnlBreakdown {
+  const partials = entry.partialCloses ?? [];
+  const closedPercent = sumPartialClosePercent(partials);
+  const hasPartial = closedPercent > 0;
+  const realizedPnl = sumRealizedPartialPnl(partials);
+  const lev = leverage > 0 ? leverage : CAPITAL_RATIOS.leverage;
+
+  let unrealizedPnl: number | null = null;
+  if (markPrice != null && Number.isFinite(markPrice) && entry.plan.sizeActual > 0) {
+    const snap = computePositionPnl(
+      {
+        direction: entry.scoring.direction,
+        entryPrice: entry.market.entryPrice,
+        leverage: lev,
+        size: entry.plan.sizeActual,
+      },
+      markPrice,
+    );
+    unrealizedPnl = snap.pnlUsdt;
+  }
+
+  const totalPnl = unrealizedPnl != null ? realizedPnl + unrealizedPnl : null;
+
+  return {
+    hasPartial,
+    closedPercent,
+    remainingPercent: Math.max(0, 100 - closedPercent),
+    realizedPnl,
+    unrealizedPnl,
+    totalPnl,
+  };
+}
+
+/** Nhãn close reason khi đóng hết sau đã chốt một phần. */
+export function formatPartialCloseExitReason(
+  entry: AiTradeJournalEntry,
+  exitPrice?: number | null,
+): string | null {
+  const partials = entry.partialCloses ?? [];
+  if (partials.length === 0) return null;
+
+  const isClosed =
+    entry.outcome.status !== 'OPEN' && entry.outcome.status !== 'PENDING';
+  const finalExit =
+    exitPrice ??
+    entry.outcome.exitPrice ??
+    null;
+  if (!isClosed && finalExit == null) return null;
+  if (finalExit == null || !Number.isFinite(finalExit)) return null;
+
+  const sym = entry.symbol;
+  const segments = partials.map(
+    (p) =>
+      `Chốt ${p.partialClosePercent}% tại ${formatJournalPartialPrice(sym, p.partialClosePrice)}`,
+  );
+  const remaining = Math.max(0, 100 - sumPartialClosePercent(partials));
+  segments.push(
+    `Đóng ${remaining}% còn lại tại ${formatJournalPartialPrice(sym, finalExit)}`,
+  );
+  return segments.join(' → ');
+}
+
+function formatJournalPartialPrice(symbol: string, price: number): string {
+  if (!Number.isFinite(price)) return '—';
+  const abs = Math.abs(price);
+  const digits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
+  return `${price.toFixed(digits)}`;
+}
+
+export interface JournalPartialStats {
+  partialTradeCount: number;
+  totalRealizedPnl: number;
+}
+
+export function computeJournalPartialStats(
+  entries: readonly AiTradeJournalEntry[],
+): JournalPartialStats {
+  let partialTradeCount = 0;
+  let totalRealizedPnl = 0;
+  for (const entry of entries) {
+    const partials = entry.partialCloses ?? [];
+    if (partials.length === 0) continue;
+    partialTradeCount += 1;
+    totalRealizedPnl += sumRealizedPartialPnl(partials);
+  }
+  return {
+    partialTradeCount,
+    totalRealizedPnl: Math.round(totalRealizedPnl * 100) / 100,
+  };
+}
+
+/** STATUS — OPEN + partial → RUNNING • PARTIAL X% */
+export function resolveJournalStatusLabel(entry: AiTradeJournalEntry): string {
+  const base = resolveJournalDisplayStatus(entry.outcome.status);
+  const closedPct = sumPartialClosePercent(entry.partialCloses ?? []);
+  if (entry.outcome.status === 'OPEN' && closedPct > 0) {
+    return `${base} • PARTIAL ${closedPct}%`;
+  }
+  return base;
+}
+
+export function hasJournalPartialClose(entry: AiTradeJournalEntry): boolean {
+  return sumPartialClosePercent(entry.partialCloses ?? []) > 0;
+}
+
+/** Gắn nhãn partial vào khuyến nghị live (OPEN). */
+export function enrichAdvisorLabelWithPartial(
+  entry: AiTradeJournalEntry,
+  advisorLabel: string,
+): string {
+  const badge = partialCloseBadgeLabel(entry.partialCloses ?? []);
+  if (!badge || entry.outcome.status !== 'OPEN') return advisorLabel;
+  const trimmed = advisorLabel.trim();
+  if (!trimmed || trimmed === '—') return badge;
+  return `${badge} · ${trimmed}`;
 }
 
 /** Nhãn trạng thái journal — OPEN hiển thị RUNNING. */
@@ -423,6 +566,93 @@ export function applyCloseWithFundingPatch(
   return { ...entry, outcome, ...fundingPatch };
 }
 
+/** SignalRow có thể mang adxData khi scan gán (optional). */
+export type SignalRowWithAdxData = SignalRow & { adxData?: ADXAnalysis };
+
+/** ADX Gate snapshot cho journal — cần cả adxGate và adxData trên row. */
+export function buildAdxJournalSnapshot(
+  row: SignalRowWithAdxData,
+): AdxJournalSnapshot | undefined {
+  const adxGate = row.adxGate;
+  const adxData = row.adxData;
+  if (adxGate == null || adxData == null) {
+    return undefined;
+  }
+
+  return {
+    adx1H: adxData.adx1H,
+    adx4H: adxData.adx4H,
+    adxAvg: adxData.adxAvg,
+    regime: adxData.regime,
+    regimeStrength:
+      adxData.regime === 'TRENDING' ? adxData.regimeStrength : undefined,
+    bothChoppy: adxData.bothChoppy,
+    gateResult: adxGate.severity,
+    tpMultiplier: adxGate.tpMultiplier,
+    slMultiplier: adxGate.slMultiplier,
+  };
+}
+
+/** Regime string cho legacy StoredTradeJournalEntry. */
+export function resolveAdxRegimeForLegacyJournal(
+  row: SignalRowWithAdxData,
+): string | undefined {
+  return buildAdxJournalSnapshot(row)?.regime ?? row.adxGate?.regime;
+}
+
+/** Structure SL snapshot cho journal — map từ SignalRow.structureSL */
+export function buildStructureSLSnapshot(
+  structureSL: StructureSLResult | undefined,
+): StructureSLSnapshot | undefined {
+  if (structureSL == null) return undefined;
+  return {
+    swingPrice: structureSL.swingPrice,
+    swingTime: structureSL.swingTime,
+    slPrice: structureSL.slPrice,
+    slSource: structureSL.slSource,
+    bufferPct: structureSL.bufferPct,
+    distanceFromEntry: structureSL.distanceFromEntry,
+    candlesBack: structureSL.candlesBack,
+  };
+}
+
+/** slSource cho legacy StoredTradeJournalEntry */
+export function resolveStructureSlSourceForLegacyJournal(
+  row: SignalRow,
+): string | undefined {
+  return row.structureSL?.slSource;
+}
+
+/** VWAP snapshot cho journal — map từ SignalRow */
+export function buildVWAPSnapshot(row: SignalRow): VWAPSnapshot | undefined {
+  if (row.vwapData == null) return undefined;
+  return {
+    vwap: row.vwapData.vwap,
+    upperBand1: row.vwapData.upperBand1,
+    upperBand2: row.vwapData.upperBand2,
+    lowerBand1: row.vwapData.lowerBand1,
+    lowerBand2: row.vwapData.lowerBand2,
+    priceVsVwap: row.vwapData.priceVsVwap,
+    zone: row.vwapData.zone,
+    isNearVwap: row.vwapData.isNearVwap,
+    entryQuality: row.vwapSignal?.quality ?? 'NEUTRAL',
+    bonusApplied: row.vwapBonus?.applied ?? false,
+    bonusRaw: row.vwapBonus?.bonusRaw ?? 0,
+  };
+}
+
+/** Zone VWAP cho legacy StoredTradeJournalEntry */
+export function resolveVwapZoneForLegacyJournal(row: SignalRow): string | undefined {
+  return row.vwapData?.zone;
+}
+
+/** Entry quality VWAP cho legacy StoredTradeJournalEntry */
+export function resolveVwapEntryQualityForLegacyJournal(
+  row: SignalRow,
+): string | undefined {
+  return row.vwapSignal?.quality;
+}
+
 export function newAiJournalEntry(input: {
   symbol: string;
   accountSizeAtEntry: number;
@@ -440,6 +670,9 @@ export function newAiJournalEntry(input: {
   squeezeRiskLevelAtEntry?: SqueezeLevel | null;
   squeezeRiskDirectionAtEntry?: SqueezeDirection | null;
   strategySource?: StrategySource;
+  adxSnapshot?: AdxJournalSnapshot;
+  structureSLSnapshot?: StructureSLSnapshot;
+  vwapSnapshot?: VWAPSnapshot;
 }): AiTradeJournalEntry {
   return {
     id: input.id ?? `aj_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -465,6 +698,9 @@ export function newAiJournalEntry(input: {
     squeezeRiskScoreAtExit: null,
     squeezeRiskLevelAtExit: null,
     squeezeRiskDirectionAtExit: null,
+    adxSnapshot: input.adxSnapshot,
+    structureSLSnapshot: input.structureSLSnapshot,
+    vwapSnapshot: input.vwapSnapshot,
   };
 }
 
@@ -494,6 +730,9 @@ export function newAiJournalPendingEntry(input: {
   timestamp?: number;
   abTestRecordId?: string;
   strategySource?: StrategySource;
+  adxSnapshot?: AdxJournalSnapshot;
+  structureSLSnapshot?: StructureSLSnapshot;
+  vwapSnapshot?: VWAPSnapshot;
 }): AiTradeJournalEntry {
   const placedAt = input.timestamp ?? Date.now();
   const base = newAiJournalEntry({
@@ -920,7 +1159,7 @@ export function calculateDailyStats(
   };
 }
 
-/** PnL trên margin — cùng công thức với `computePositionPnl` (ROE = % giá × leverage). */
+/** PnL trên margin — cộng phần đã chốt một phần + phần còn lại tại exit. */
 export function computeTradePnl(
   entry: AiTradeJournalEntry,
   exitPrice: number,
@@ -928,21 +1167,30 @@ export function computeTradePnl(
 ): { pnlUSDT: number; pnlPct: number } {
   const { entryPrice } = entry.market;
   const size = entry.plan.sizeActual;
-  if (entryPrice <= 0 || size <= 0 || !Number.isFinite(exitPrice)) {
+  if (entryPrice <= 0 || !Number.isFinite(exitPrice)) {
     return { pnlUSDT: 0, pnlPct: 0 };
   }
   const lev = leverage > 0 ? leverage : CAPITAL_RATIOS.leverage;
-  const snap = computePositionPnl(
-    {
-      direction: entry.scoring.direction,
-      entryPrice,
-      leverage: lev,
-      size,
-    },
-    exitPrice,
-  );
-  const pnlUSDT = snap.pnlUsdt ?? 0;
-  const pnlPct = snap.pnlPercent ?? 0;
+  const partialRealized = sumRealizedPartialPnl(entry.partialCloses ?? []);
+  const sizeOriginal = resolveOriginalSizeUsdt(entry);
+
+  let remainingPnlUSDT = 0;
+  if (size > 0) {
+    const snap = computePositionPnl(
+      {
+        direction: entry.scoring.direction,
+        entryPrice,
+        leverage: lev,
+        size,
+      },
+      exitPrice,
+    );
+    remainingPnlUSDT = snap.pnlUsdt ?? 0;
+  }
+
+  const pnlUSDT = partialRealized + remainingPnlUSDT;
+  const pnlPct =
+    sizeOriginal > 0 ? (pnlUSDT / sizeOriginal) * 100 : 0;
   return {
     pnlUSDT: Math.round(pnlUSDT * 100) / 100,
     pnlPct: Math.round(pnlPct * 100) / 100,
@@ -1588,6 +1836,9 @@ export function buildSnapshotsFromSignalRow(input: {
   plan: TradePlanSnapshot;
   fundingAtEntry: FundingAtEntrySnapshot;
   squeezeAtEntry: SqueezeAtEntrySnapshot;
+  adxSnapshot?: AdxJournalSnapshot;
+  structureSLSnapshot?: StructureSLSnapshot;
+  vwapSnapshot?: VWAPSnapshot;
 } {
   const { row, entryPrice, planSource } = input;
   const resolvedVersion: ScorerVersion | undefined =
@@ -1676,6 +1927,9 @@ export function buildSnapshotsFromSignalRow(input: {
     }),
     fundingAtEntry,
     squeezeAtEntry,
+    adxSnapshot: buildAdxJournalSnapshot(input.row),
+    structureSLSnapshot: buildStructureSLSnapshot(input.row.structureSL),
+    vwapSnapshot: buildVWAPSnapshot(input.row),
   };
 }
 

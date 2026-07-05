@@ -15,7 +15,7 @@ import type { TradingBias } from '../utils/tradingBias';
 export const vi = {
   app: {
     footer: (layers: number) =>
-      `TradeCoin v1.0.3 · AI Scorer · Backtest · ${layers} lớp tín hiệu`,
+      `TradeCoin v1.0.4 · AI Scorer · Backtest · ${layers} lớp tín hiệu`,
     errorTitle: 'Đã xảy ra lỗi',
     loadingPersistTitle: 'Đang tải dữ liệu đã lưu…',
     loadingPersistHint:
@@ -144,11 +144,11 @@ export const vi = {
   },
   journal: {
     title: 'Trade Journal',
-    versionLabel: 'TradeCoin v1.0.3',
+    versionLabel: 'TradeCoin v1.0.4',
     subtitle: (count: number) => `${count} lệnh · V3 · V4 · CVDX`,
     empty:
       'Chưa có lệnh. Từ Trade Plan bấm ✅ XÁC NHẬN VÀO LỆNH hoặc ⏳ ĐẶT LỆNH CHỜ để lưu snapshot.',
-    releaseTitle: 'v1.0.3',
+    releaseTitle: 'v1.0.4',
     releaseNotes: [
       'Simplified dashboard',
       'Unified Trade Journal',
@@ -174,6 +174,11 @@ export const vi = {
     prevPage: '< Trước',
     nextPage: 'Sau >',
     pageLabel: (page: number, total: number) => `Trang ${page} / ${total}`,
+    pnlRealizedLine: (pnl: string, pct: number) => `Realized: ${pnl} (${pct}%)`,
+    pnlUnrealizedLine: (pnl: string, pct: number) => `Unrealized: ${pnl} (${pct}%)`,
+    pnlTotalLine: (pnl: string) => `Tổng: ${pnl}`,
+    partialStatsCount: (count: number) => `Đã chốt một phần: ${count} lệnh`,
+    partialStatsRealized: (pnl: string) => `Tổng realized từ chốt một phần: ${pnl}`,
   },
   psychology: {
     open: 'Phân tích nhanh',
@@ -284,6 +289,11 @@ export const vi = {
     skipRecorded: 'Đã ghi nhận — setup sẽ được theo dõi',
     runningPosition: 'Lệnh đang chạy',
     unrealizedPnl: 'PnL chưa chốt',
+    realizedPnl: 'PnL đã chốt',
+    totalPnl: 'Tổng PnL',
+    partialCloseTitle: 'Chốt một phần',
+    partialCloseConfirm: 'Xác nhận',
+    partialCloseCancel: 'Huỷ',
     roe: 'ROE',
     markPrice: 'Giá Mark',
     margin: 'Margin (Cost)',
@@ -296,6 +306,170 @@ export const vi = {
       `Coin chưa đủ điểm vào lệnh. Vẫn mở ${dir} theo giá hiện tại? Rủi ro cao hơn khuyến nghị.`,
     manualConfirm: 'Xác nhận mở',
     cancel: 'Huỷ',
+    adx: {
+      sectionTitle: '📊 ADX — Độ mạnh xu hướng',
+      hint:
+        'ADX đo độ mạnh xu hướng (0-100). Không phân biệt tăng hay giảm — chỉ đo xu hướng có rõ không. Nguồn: Binance klines 1H + 4H',
+      metricsHeader: 'Chỉ số',
+      colMetric: 'Chỉ số',
+      colValue: 'Giá trị',
+      colMeaning: 'Ý nghĩa',
+      adx1h: 'ADX 1H',
+      adx4h: 'ADX 4H',
+      adxAvg: 'ADX TB',
+      meaning1h: 'Độ mạnh xu hướng khung 1 giờ',
+      meaning4h: 'Độ mạnh xu hướng khung 4 giờ',
+      meaningAvg: 'Trung bình 2 khung',
+      regimeHeader: 'Đánh giá regime',
+      planAdjustTitle: 'Kế hoạch đã được điều chỉnh theo độ mạnh xu hướng:',
+      weakTpLine: (mult: string) => `📉 TP gần hơn bình thường (×${mult})`,
+      weakSlLine: (mult: string) => `📈 SL rộng hơn bình thường (×${mult})`,
+      weakReason:
+        'Lý do: Xu hướng yếu, tránh kỳ vọng quá cao trong thị trường tích lũy',
+      strongTpLine: (mult: string) => `📈 TP xa hơn bình thường (×${mult})`,
+      strongSlLine: (mult: string) => `📉 SL chặt hơn bình thường (×${mult})`,
+      strongReason: 'Lý do: Xu hướng mạnh, giá có thể tiếp tục đi xa theo momentum',
+      regimes: {
+        CHOPPY: {
+          badge: '🔴 CHOPPY (ADX < 15)',
+          description:
+            'Thị trường đang lình xình, không có xu hướng rõ ràng. Tỷ lệ bị stop out do nhiễu rất cao.',
+          action: '→ Hệ thống đã CHẶN entry.',
+        },
+        RANGING: {
+          badge: '🟡 RANGING (ADX 15-25)',
+          description:
+            'Xu hướng yếu, thị trường đang tích lũy trong biên độ hẹp. Không kỳ vọng giá đi xa.',
+          action: '→ TP thu hẹp ×0.85, SL nới ×1.1',
+        },
+        TRENDING_WEAK: {
+          badge: '🟢 TRENDING WEAK (ADX 25-35)',
+          description: 'Xu hướng đang hình thành, momentum đang tăng dần.',
+          action: '→ TP/SL giữ nguyên',
+        },
+        TRENDING_STRONG: {
+          badge: '💚 TRENDING STRONG (ADX > 35)',
+          description:
+            'Xu hướng mạnh và rõ ràng, momentum cao. Giá có thể đi xa hơn dự kiến theo xu hướng hiện tại.',
+          action: '→ TP mở rộng ×1.2, SL siết ×0.9',
+        },
+      },
+    },
+    structureSL: {
+      title: '🏗️ SL theo cấu trúc giá 4H',
+      tooltip:
+        'SL đặt sau swing high/low gần nhất trên 4H thay vì chỉ ATR. Tránh bị stop out do nhiễu.',
+      metricsHeader: 'Chỉ số',
+      colMetric: 'Chỉ số',
+      colValue: 'Giá trị',
+      swingPoint: 'Swing point',
+      candlesBack: 'nến 4H trước',
+      buffer: 'Buffer',
+      structureSLPrice: 'SL cấu trúc',
+      atrSLPrice: 'SL ATR gốc',
+      atrUnavailable: '—',
+      appliedSL: 'SL áp dụng',
+      distance: 'Khoảng cách',
+      statusLabel: 'Trạng thái',
+      sourceFallback: 'Không tìm được swing hợp lệ',
+      fallbackNote: 'Dùng ATR×N như cũ',
+      atrTag: 'ATR',
+      badgeWider: '⚠️ SL rộng hơn ATR',
+      badgeTighter: '✅ SL chặt hơn ATR',
+      badgeFallback: 'ℹ️ Dùng ATR mặc định',
+      badges: {
+        wider: {
+          description:
+            'Swing xa — SL phải rộng hơn để đúng cấu trúc. R:R giảm nhẹ.',
+        },
+        tighter: {
+          description:
+            'Swing gần — SL chặt hơn bình thường. R:R cải thiện.',
+        },
+        fallback: {
+          description:
+            'Không tìm được swing 4H hợp lệ trong 20 nến gần nhất.',
+        },
+      },
+    },
+    vwap: {
+      title: 'VWAP — Giá trung bình theo khối lượng',
+      tooltip:
+        'VWAP là mức giá công bằng mà phần lớn volume đã giao dịch trong ngày. Tổ chức thường mua/bán tại vùng này.',
+      metricsHeader: 'Chỉ số',
+      colMetric: 'Chỉ số',
+      colValue: 'Giá trị',
+      vwapPrice: 'VWAP ngày',
+      upperBand2: 'Band trên +2σ',
+      upperBand1: 'Band trên +1σ',
+      currentPrice: 'Giá hiện tại',
+      lowerBand1: 'Band dưới -1σ',
+      lowerBand2: 'Band dưới -2σ',
+      priceVsVwap: '% so VWAP',
+      zone: 'Vùng giá',
+      entrySignal: 'Tín hiệu entry VWAP',
+      bonusLabel: '+0.5đ L5 Volume — giá tại VWAP',
+      zones: {
+        ABOVE_BAND2: 'Quá mua — trên +2σ',
+        ABOVE_BAND1: 'Trên +1σ',
+        NEAR_VWAP: 'Tại VWAP — vùng lý tưởng',
+        BELOW_BAND1: 'Dưới -1σ',
+        BELOW_BAND2: 'Quá bán — dưới -2σ',
+        BETWEEN: 'Trung tính',
+      },
+      zoneDetails: {
+        ABOVE_BAND2: {
+          badge: '⚠️ Quá mua — trên +2σ',
+          description:
+            'Giá quá cao so VWAP, rủi ro Long cao. Thuận Short.',
+        },
+        ABOVE_BAND1: {
+          badge: '↑ Trên +1σ',
+          description: 'Giá đang mạnh hơn VWAP. Long cẩn thận, Short có cơ hội.',
+        },
+        NEAR_VWAP: {
+          badge: '✅ Tại VWAP — vùng lý tưởng',
+          description:
+            'Giá tại vùng công bằng. Entry Long hoặc Short đều có xác suất tốt.',
+        },
+        BELOW_BAND1: {
+          badge: '↓ Dưới -1σ',
+          description: 'Giá đang yếu hơn VWAP. Short cẩn thận, Long có cơ hội.',
+        },
+        BELOW_BAND2: {
+          badge: '⚠️ Quá bán — dưới -2σ',
+          description: 'Giá quá thấp so VWAP, rủi ro Short cao. Thuận Long.',
+        },
+        BETWEEN: {
+          badge: '↔ Trung tính',
+          description: 'Giá nằm trong band bình thường.',
+        },
+      },
+      quality: {
+        IDEAL: 'Entry VWAP lý tưởng',
+        GOOD: 'Đang pullback về VWAP',
+        POOR: 'Không đề xuất entry VWAP',
+        NEUTRAL: '',
+      },
+      qualityDetails: {
+        IDEAL: {
+          badge: '🎯 Entry VWAP lý tưởng',
+          description:
+            'Giá đang tại VWAP ± 0.5%. Đây là vùng entry tốt nhất.',
+          suggestedLabel: (price: string) => `Mức đề xuất: ${price}`,
+        },
+        GOOD: {
+          badge: '📍 Đang pullback về VWAP',
+          description: 'Giá đang tiến về VWAP.',
+          suggestedLabel: (price: string) => `Có thể đặt limit tại: ${price}`,
+        },
+        POOR: {
+          badge: '📵 Không đề xuất entry VWAP',
+          description: 'Giá quá xa VWAP. Chờ pullback về vùng hợp lý.',
+          suggestedLabel: () => '',
+        },
+      },
+    },
   },
   pendingOrder: {
     title: 'Lệnh chờ limit',

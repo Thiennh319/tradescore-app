@@ -3,7 +3,7 @@
 import type { FundingState } from './scoring';
 import type { SqueezeDirection, SqueezeLevel } from '../types/squeezeRisk';
 
-export const AI_JOURNAL_APP_VERSION = '1.0.3';
+export const AI_JOURNAL_APP_VERSION = '1.0.4';
 
 export const AI_JOURNAL_SCHEMA_VERSION = '2.0.0';
 
@@ -133,6 +133,22 @@ export type ManualExitReason =
   | 'PLAN_CHANGED'
   | 'OTHER';
 
+/** Lý do chốt một phần — Position Advisor */
+export type PartialCloseReason = 'PARTIAL_TP1' | 'PARTIAL_TP2' | 'PARTIAL_CLOSE_30';
+
+/** Một lần chốt một phần trong lệnh OPEN */
+export interface PartialCloseRecord {
+  partialClosePercent: number;
+  partialClosePrice: number;
+  partialCloseTime: number;
+  partialCloseReason: PartialCloseReason;
+  /** PnL đã thực hiện trên phần margin vừa chốt */
+  realizedPnlUSDT: number;
+  realizedPnlPct: number;
+  /** Margin (USDT) đã chốt trong lần này */
+  closedSizeUsdt: number;
+}
+
 export interface LayerScoreMap {
   l1: number;
   l2: number;
@@ -198,6 +214,8 @@ export interface TradePlanSnapshot {
   rrProposed: number;
   sizeProposed: number;
   sizeActual: number;
+  /** Margin gốc lúc mở — cố định sau lần chốt một phần đầu */
+  sizeOriginal?: number;
   isSafeSL: boolean;
   /** Lý do vào lệnh — entryZone.reasoning từ trade plan lúc mở */
   openReason?: string;
@@ -283,6 +301,53 @@ export interface AiTradeJournalEntry {
   manualExitReason?: ManualExitReason | null;
   /** Ghi chú khi chọn OTHER */
   manualExitNote?: string | null;
+  /** Lịch sử chốt một phần khi lệnh còn OPEN */
+  partialCloses?: PartialCloseRecord[];
+  /** ADX Gate snapshot lúc vào lệnh — optional, không break entry cũ */
+  adxSnapshot?: AdxJournalSnapshot;
+  /** Structure SL snapshot lúc vào lệnh — optional */
+  structureSLSnapshot?: StructureSLSnapshot;
+  /** VWAP snapshot lúc vào lệnh — optional */
+  vwapSnapshot?: VWAPSnapshot;
+}
+
+/** VWAP tại thời điểm ghi journal — từ SignalRow.vwapData + vwapSignal + vwapBonus */
+export interface VWAPSnapshot {
+  vwap: number;
+  upperBand1: number;
+  upperBand2: number;
+  lowerBand1: number;
+  lowerBand2: number;
+  priceVsVwap: number;
+  zone: string;
+  isNearVwap: boolean;
+  entryQuality: string;
+  bonusApplied: boolean;
+  bonusRaw: number;
+}
+
+/** Structure SL tại thời điểm ghi journal — từ SignalRow.structureSL */
+export interface StructureSLSnapshot {
+  swingPrice: number;
+  swingTime: number;
+  slPrice: number;
+  slSource: 'STRUCTURE' | 'ATR_FALLBACK';
+  bufferPct: number;
+  distanceFromEntry: number;
+  candlesBack: number;
+}
+
+/** ADX Gate tại thời điểm ghi journal — từ SignalRow.adxGate + adxData */
+export interface AdxJournalSnapshot {
+  adx1H: number;
+  adx4H: number;
+  adxAvg: number;
+  regime: string;
+  regimeStrength?: string;
+  bothChoppy: boolean;
+  gateResult: string;
+  tpMultiplier: number;
+  slMultiplier: number;
 }
 
 export interface SessionBreakdownSlice {

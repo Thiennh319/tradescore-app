@@ -1,8 +1,9 @@
 import type { PsychologyChecklistV2 } from '../constants/scoring';
 import type { AllMarketData, Kline } from './binanceApi';
-import { buildCVDPointsFromKlines } from './indicators';
-import type { CVDPoint } from './indicators';
+import { buildCVDPointsFromKlines, getADXAnalysis } from './indicators';
+import type { ADXAnalysis, CVDPoint } from './indicators';
 import { computeAtr1hFromKlines } from './atr1h';
+import { calculateVWAP, type VWAPResult } from './vwapService';
 
 export interface AnalysisInput {
   symbol: string;
@@ -23,6 +24,10 @@ export interface AnalysisInput {
   priceChangePct1h: number;
   /** ATR(14) tuyệt đối trên khung 1H — dùng Trade Plan, Grace Period */
   atr1h: number;
+  /** ADX 1H + 4H — optional để không break caller cũ */
+  adxData?: ADXAnalysis;
+  /** VWAP session — optional */
+  vwapData?: VWAPResult;
 }
 
 function priceChangePct(klines: Kline[], bars = 1): number {
@@ -56,6 +61,24 @@ export function buildAnalysisInputFromMarket(params: {
   const lsHistory = params.market.longShortRatio?.history ?? [];
   const topLongShortRatios = lsHistory.map((p) => p.longShortRatio);
 
+  let adxData: ADXAnalysis | undefined;
+  try {
+    adxData = getADXAnalysis(klines1h, klines4h);
+  } catch {
+    adxData = undefined;
+  }
+
+  const klines15m = params.market.klines['15m']?.klines;
+  const klinesForVwap =
+    klines15m != null && klines15m.length > 0 ? klines15m : klines1h;
+
+  let vwapData: VWAPResult | undefined;
+  try {
+    vwapData = calculateVWAP(klinesForVwap, params.currentPrice) ?? undefined;
+  } catch {
+    vwapData = undefined;
+  }
+
   return {
     symbol: params.symbol,
     currentPrice: params.currentPrice,
@@ -71,5 +94,7 @@ export function buildAnalysisInputFromMarket(params: {
     psychologyChecklist: params.psychologyChecklist,
     priceChangePct1h: priceChangePct(klines1h, 1),
     atr1h: computeAtr1hFromKlines(klines1h, params.currentPrice),
+    adxData,
+    vwapData,
   };
 }

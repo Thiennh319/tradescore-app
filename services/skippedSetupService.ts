@@ -93,6 +93,24 @@ export function inferSkipReasonFromSignalRow(row: SignalRow): {
   };
 }
 
+/** Giá tại thời điểm bỏ qua — row.price hoặc entry từ trade plan theo hướng. */
+export function resolveSkipPriceFromSignalRow(
+  row: SignalRow,
+  direction?: TradeDirection,
+): number | null {
+  if (row.price != null && Number.isFinite(row.price)) return row.price;
+  const dir = direction ?? row.direction;
+  const v4 = row.tradePlansByScorer?.v4;
+  const v3 = row.tradePlansByScorer?.v3;
+  const plan =
+    (v4?.direction === dir ? v4 : null) ??
+    (v3?.direction === dir ? v3 : null) ??
+    (row.tradePlanV3?.direction === dir ? row.tradePlanV3 : null);
+  const entry = plan?.recommendedEntry;
+  if (entry != null && Number.isFinite(entry)) return entry;
+  return null;
+}
+
 export function newSkippedSetupEntry(input: {
   symbol: string;
   direction: TradeDirection;

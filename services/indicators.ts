@@ -1999,3 +1999,99 @@ export function estimateWinProbability(
 
   return Math.max(0.4, Math.min(0.9, prob));
 }
+
+// ─────────────────────────────────────────
+// ADX — Average Directional Index (Wilder)
+// ─────────────────────────────────────────
+
+export interface ADXAnalysis {
+  adx1H: number;
+  adx4H: number;
+  adxAvg: number;
+  regime: 'CHOPPY' | 'RANGING' | 'TRENDING';
+  /** Chỉ mang ý nghĩa khi `regime === 'TRENDING'` — mặc định WEAK nếu không. */
+  regimeStrength: 'WEAK' | 'STRONG';
+  isChoppy1H: boolean;
+  isChoppy4H: boolean;
+  /** Cả 1H và 4H ADX < 15 — tín hiệu hard block cho caller. */
+  bothChoppy: boolean;
+}
+
+const ADX_PERIOD = 14;
+const ADX_CHOPPY_THRESHOLD = 15;
+const ADX_RANGING_THRESHOLD = 25;
+const ADX_TRENDING_WEAK_THRESHOLD = 35;
+
+function wilderAdxFromKlines(klines: Kline[], period = ADX_PERIOD): number {
+  if (klines.length < period + 2) return 0;
+
+  const { high, low, close } = klinesToOHLCV(klines);
+  const n = close.length;
+  const dmLen = n - 1;
+  const plusDm = new Float32Array(dmLen);
+  const minusDm = new Float32Array(dmLen);
+  const tr = new Float32Array(dmLen);
+
+  for (let i = 1; i < n; i++) {
+    const idx = i - 1;
+    const upMove = high[i] - high[i - 1];
+    const downMove = low[i - 1] - low[i];
+    plusDm[idx] = upMove > downMove && upMove > 0 ? upMove : 0;
+    minusDm[idx] = downMove > upMove && downMove > 0 ? downMove : 0;
+    const hl = high[i] - low[i];
+    const hc = Math.abs(high[i] - close[i - 1]);
+    const lc = Math.abs(low[i] - close[i - 1]);
+    tr[idx] = Math.max(hl, hc, lc);
+  }
+
+  const smoothTr = calculateWilderEMA(tr, period);
+  const smoothPlusDm = calculateWilderEMA(plusDm, period);
+  const smoothMinusDm = calculateWilderEMA(minusDm, period);
+
+  const dx = new Float32Array(dmLen);
+  for (let i = period - 1; i < dmLen; i++) {
+    const atr = smoothTr[i];
+    if (!Number.isFinite(atr) || atr <= 0) continue;
+    const plusDi = (100 * smoothPlusDm[i]) / atr;
+    const minusDi = (100 * smoothMinusDm[i]) / atr;
+    const diSum = plusDi + minusDi;
+    dx[i] = diSum > 0 ? (100 * Math.abs(plusDi - minusDi)) / diSum : 0;
+  }
+
+  const smoothDx = calculateWilderEMA(dx, period);
+  const adx = lastValid(smoothDx);
+  return adx != null && Number.isFinite(adx) ? adx : 0;
+}
+
+function resolveAdxRegime(adxAvg: number): Pick<ADXAnalysis, 'regime' | 'regimeStrength'> {
+  if (adxAvg < ADX_CHOPPY_THRESHOLD) {
+    return { regime: 'CHOPPY', regimeStrength: 'WEAK' };
+  }
+  if (adxAvg < ADX_RANGING_THRESHOLD) {
+    return { regime: 'RANGING', regimeStrength: 'WEAK' };
+  }
+  if (adxAvg < ADX_TRENDING_WEAK_THRESHOLD) {
+    return { regime: 'TRENDING', regimeStrength: 'WEAK' };
+  }
+  return { regime: 'TRENDING', regimeStrength: 'STRONG' };
+}
+
+export function getADXAnalysis(klines1H: Kline[], klines4H: Kline[]): ADXAnalysis {
+  const adx1H = wilderAdxFromKlines(klines1H, ADX_PERIOD);
+  const adx4H = wilderAdxFromKlines(klines4H, ADX_PERIOD);
+  const adxAvg = (adx1H + adx4H) / 2;
+  const { regime, regimeStrength } = resolveAdxRegime(adxAvg);
+  const isChoppy1H = adx1H < ADX_CHOPPY_THRESHOLD;
+  const isChoppy4H = adx4H < ADX_CHOPPY_THRESHOLD;
+
+  return {
+    adx1H,
+    adx4H,
+    adxAvg,
+    regime,
+    regimeStrength,
+    isChoppy1H,
+    isChoppy4H,
+    bothChoppy: isChoppy1H && isChoppy4H,
+  };
+}

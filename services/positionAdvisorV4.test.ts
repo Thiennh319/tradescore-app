@@ -539,6 +539,211 @@ describe('evaluatePositionV4 SQUEEZE_RISK_ALERT', () => {
   });
 });
 
+const trendingStrongAdx = {
+  adx1H: 40,
+  adx4H: 38,
+  adxAvg: 39,
+  regime: 'TRENDING' as const,
+  regimeStrength: 'STRONG' as const,
+  isChoppy1H: false,
+  isChoppy4H: false,
+  bothChoppy: false,
+};
+
+const choppyAdx = {
+  adx1H: 10,
+  adx4H: 12,
+  adxAvg: 11,
+  regime: 'CHOPPY' as const,
+  regimeStrength: 'WEAK' as const,
+  isChoppy1H: true,
+  isChoppy4H: true,
+  bothChoppy: true,
+};
+
+const holdStrongBorderScore: OwnDirectionScore = {
+  totalScore: 8.8,
+  direction: 'LONG',
+  groupScores: { A: 3, B: 3, C: 2.8 },
+  decision: 'CO_THE_VAO',
+  hardBlocks: [],
+  groupBlocks: [],
+  warnings: [],
+  layers: [
+    { layerNumber: 1, score: 1.5 },
+    { layerNumber: 5, score: 1.5 },
+  ],
+};
+
+describe('evaluatePositionV4 ADX regime adjustments', () => {
+  it('HOLD_STRONG: TRENDING STRONG hạ ngưỡng 9 → 8.5', () => {
+    const withoutAdx = evaluatePositionV4(
+      v4Input({ ownDirectionScore: holdStrongBorderScore }),
+    );
+    expect(withoutAdx.triggeredBy).not.toBe('HOLD_STRONG');
+
+    const withAdx = evaluatePositionV4(
+      v4Input({
+        ownDirectionScore: holdStrongBorderScore,
+      }),
+    );
+    const withTrendingAdx = evaluatePositionV4({
+      ...v4Input({ ownDirectionScore: holdStrongBorderScore }),
+      adxData: trendingStrongAdx,
+    });
+    expect(withTrendingAdx.triggeredBy).toBe('HOLD_STRONG');
+    expect(withAdx.triggeredBy).not.toBe('HOLD_STRONG');
+  });
+
+  it('HOLD_STRONG: CHOPPY nâng ngưỡng lên 9.5', () => {
+    const borderline = evaluatePositionV4(
+      v4Input({
+        ownDirectionScore: { ...holdStrongBorderScore, totalScore: 9.2 },
+      }),
+    );
+    expect(borderline.triggeredBy).toBe('HOLD_STRONG');
+
+    const choppyBlocked = evaluatePositionV4({
+      ...v4Input({
+        ownDirectionScore: { ...holdStrongBorderScore, totalScore: 9.2 },
+      }),
+      adxData: choppyAdx,
+    });
+    expect(choppyBlocked.triggeredBy).not.toBe('HOLD_STRONG');
+  });
+
+  it('MOVE_SL_BE: TRENDING STRONG kích hoạt ở 50% đến TP1', () => {
+    const moveSlPosition = basePosition({
+      entryPrice: 100,
+      sl: 80,
+      tp1: 160,
+      currentPnlUSDT: 5,
+    });
+    const moveSlScore: OwnDirectionScore = {
+      totalScore: 8.5,
+      direction: 'LONG',
+      groupScores: { A: 3, B: 3, C: 2.5 },
+      decision: 'CO_THE_VAO',
+      hardBlocks: [],
+      groupBlocks: [],
+      warnings: [],
+      layers: [{ layerNumber: 1, score: 1.5 }],
+    };
+
+    const withoutAdx = evaluatePositionV4(
+      v4Input({
+        position: moveSlPosition,
+        currentPrice: 133,
+        ownDirectionScore: moveSlScore,
+        now: NOW + 60 * 60_000,
+      }),
+    );
+    expect(withoutAdx.triggeredBy).not.toBe('MOVE_SL_BE');
+
+    const withAdx = evaluatePositionV4({
+      ...v4Input({
+        position: moveSlPosition,
+        currentPrice: 133,
+        ownDirectionScore: moveSlScore,
+        now: NOW + 60 * 60_000,
+      }),
+      adxData: trendingStrongAdx,
+    });
+    expect(withAdx.triggeredBy).toBe('MOVE_SL_BE');
+  });
+});
+
+describe('ADX regime ngưỡng rõ ràng', () => {
+  it('HOLD_STRONG: TRENDING STRONG — ngưỡng 8.5đ (8.6 pass, 8.4 fail)', () => {
+    const pass = evaluatePositionV4({
+      ...v4Input({
+        ownDirectionScore: {
+          ...holdStrongBorderScore,
+          totalScore: 8.6,
+          groupScores: { A: 3, B: 3, C: 2.6 },
+        },
+      }),
+      adxData: trendingStrongAdx,
+    });
+    const fail = evaluatePositionV4({
+      ...v4Input({
+        ownDirectionScore: {
+          ...holdStrongBorderScore,
+          totalScore: 8.4,
+          groupScores: { A: 3, B: 3, C: 2.4 },
+        },
+      }),
+      adxData: trendingStrongAdx,
+    });
+    expect(pass.triggeredBy).toBe('HOLD_STRONG');
+    expect(fail.triggeredBy).not.toBe('HOLD_STRONG');
+  });
+
+  it('HOLD_STRONG: CHOPPY — ngưỡng 9.5đ (9.6 pass, 9.4 fail)', () => {
+    const pass = evaluatePositionV4({
+      ...v4Input({
+        ownDirectionScore: {
+          ...holdStrongBorderScore,
+          totalScore: 9.6,
+          groupScores: { A: 3, B: 3, C: 3.6 },
+        },
+      }),
+      adxData: choppyAdx,
+    });
+    const fail = evaluatePositionV4({
+      ...v4Input({
+        ownDirectionScore: {
+          ...holdStrongBorderScore,
+          totalScore: 9.4,
+          groupScores: { A: 3, B: 3, C: 3.4 },
+        },
+      }),
+      adxData: choppyAdx,
+    });
+    expect(pass.triggeredBy).toBe('HOLD_STRONG');
+    expect(fail.triggeredBy).not.toBe('HOLD_STRONG');
+  });
+
+  it('MOVE_SL_BE: TRENDING STRONG — kích hoạt đúng 50% đến TP1', () => {
+    const moveSlPosition = basePosition({
+      entryPrice: 100,
+      sl: 80,
+      tp1: 160,
+      currentPnlUSDT: 5,
+    });
+    const moveSlScore: OwnDirectionScore = {
+      totalScore: 8.5,
+      direction: 'LONG',
+      groupScores: { A: 3, B: 3, C: 2.5 },
+      decision: 'CO_THE_VAO',
+      hardBlocks: [],
+      groupBlocks: [],
+      warnings: [],
+      layers: [{ layerNumber: 1, score: 1.5 }],
+    };
+    const at49 = evaluatePositionV4({
+      ...v4Input({
+        position: moveSlPosition,
+        currentPrice: 129,
+        ownDirectionScore: moveSlScore,
+        now: NOW + 60 * 60_000,
+      }),
+      adxData: trendingStrongAdx,
+    });
+    const at50 = evaluatePositionV4({
+      ...v4Input({
+        position: moveSlPosition,
+        currentPrice: 130,
+        ownDirectionScore: moveSlScore,
+        now: NOW + 60 * 60_000,
+      }),
+      adxData: trendingStrongAdx,
+    });
+    expect(at49.triggeredBy).not.toBe('MOVE_SL_BE');
+    expect(at50.triggeredBy).toBe('MOVE_SL_BE');
+  });
+});
+
 describe('V3 và V4 nhất quán trong grace period', () => {
   it('lệnh 2 phút, CVD divergence → V2 và V4 cùng HOLD (không CLOSE)', () => {
     const input = v4Input();

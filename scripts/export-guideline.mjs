@@ -18,7 +18,7 @@ const header = `================================================================
 GUIDELINE EXPORT — TradeScore v${version}
 Generated: ${date}
 Source: dist/guideline.txt
-Tests: 567 vitest | Runtime: V3+V4 only (V4.1 excluded)
+Tests: 755 vitest | Runtime: V3+V4 (V4.1 excluded)
 ================================================================================
 
 `;

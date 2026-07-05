@@ -9,6 +9,7 @@ import {
   type JournalStatusFilter,
 } from '../components/journal/JournalFilterBar';
 import { JournalTradeTable } from '../components/journal/JournalTradeTable';
+import { JournalPartialStats } from '../components/journal/JournalPartialStats';
 import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../constants/scoring';
 import { PANEL, SPACING } from '../constants/theme';
@@ -61,7 +62,7 @@ export function JournalScreen({ signalRows }: JournalScreenProps) {
     return list.sort((a, b) => b.timestamp - a.timestamp);
   }, [allVisible, symbolFilter, statusFilter]);
 
-  const { markBySymbol, unrealizedById, advisorLabelById } = useJournalMarketSync({
+  const { markBySymbol, unrealizedById, pnlBreakdownById, advisorLabelById } = useJournalMarketSync({
     entries,
     signalRows,
     leverage,
@@ -125,6 +126,7 @@ export function JournalScreen({ signalRows }: JournalScreenProps) {
           pageResetKey={`${symbolFilter}|${statusFilter}`}
           markBySymbol={markBySymbol}
           unrealizedById={unrealizedById}
+          pnlBreakdownById={pnlBreakdownById}
           advisorLabelById={advisorLabelById}
           onDetail={setDetailEntry}
           onStopTrade={handleStopTrade}
@@ -132,6 +134,8 @@ export function JournalScreen({ signalRows }: JournalScreenProps) {
           onCancelPending={handleCancelPending}
         />
       )}
+
+      <JournalPartialStats entries={allVisible} />
 
       <JournalEntryDetail
         entry={detailEntry}

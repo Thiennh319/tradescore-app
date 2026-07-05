@@ -67,7 +67,11 @@ function applyPersistedBoard(
  * APK: upload snapshot lên Gist sau mỗi lần quét.
  * Web: mirror snapshot từ APK khi còn mới.
  */
-export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult {
+export function useSignalBoard(
+  timeframe: AnalysisTimeframe,
+  options?: { pauseAutoScan?: boolean },
+): SignalBoardResult {
+  const pauseAutoScan = options?.pauseAutoScan ?? false;
   const [rows, setRows] = useState<SignalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastScannedAt, setLastScannedAt] = useState<number | null>(null);
@@ -169,6 +173,7 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
     void (async () => {
       const hydrated = await hydrateFromCache();
       if (cancelled) return;
+      if (pauseAutoScan) return;
       if (!hydrated) {
         await scan();
         return;
@@ -181,7 +186,9 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
       }
     })();
 
-    const scanInterval = setInterval(() => void scan(), SCAN_INTERVAL_MS);
+    const scanInterval = pauseAutoScan
+      ? null
+      : setInterval(() => void scan(), SCAN_INTERVAL_MS);
     const cachePoll =
       Platform.OS === 'web'
         ? null
@@ -195,6 +202,7 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
         : AppState.addEventListener('change', (state) => {
             if (state !== 'active') return;
             void hydrateFromCache();
+            if (pauseAutoScan) return;
             const stale =
               lastScannedAtRef.current == null ||
               Date.now() - lastScannedAtRef.current > STALE_SCAN_MS;
@@ -234,13 +242,13 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
 
     return () => {
       cancelled = true;
-      clearInterval(scanInterval);
+      if (scanInterval) clearInterval(scanInterval);
       if (cachePoll) clearInterval(cachePoll);
       appStateSub?.remove();
       unsubMirror();
       unsubPull();
     };
-  }, [hydrateFromCache, scan, timeframe, isWeb]);
+  }, [hydrateFromCache, scan, timeframe, isWeb, pauseAutoScan]);
 
   useEffect(() => {
     const tick = () => {
@@ -264,6 +272,6 @@ export function useSignalBoard(timeframe: AnalysisTimeframe): SignalBoardResult 
     loading,
     lastScannedAt,
     autoTriggeredAt,
-    scan: () => void scan(),
+    scan,
   };
 }

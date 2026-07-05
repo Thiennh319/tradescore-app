@@ -1,9 +1,18 @@
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   COLORS,
+  HARD_BLOCK_RULES_V4,
   TRADE_PLAN_V3_CONFIG,
   type AppTradeSymbol,
+  type LayerResult,
   type MarketTrend,
   type ScorerVersion,
   type TradeDecisionLabel,
@@ -14,7 +23,6 @@ import { PANEL, RADIUS, SPACING } from '../../constants/theme';
 import type { StrategySource } from '../../constants/aiJournal';
 import { symbolLabelVi, vi } from '../../constants/vi';
 import type { SignalRow } from '../../hooks/useSignalBoard';
-import { formatUsdPrice } from '../../utils/formatPrice';
 import {
   resolveFinalEntryStatus,
   resolveSignalRow,
@@ -29,6 +37,9 @@ import { FinalEntryStatus } from '../../types/scoring';
 import { calculateFinalEntryStatus, resolveFinalEntryDisplay } from '../../services/finalEntryStatus';
 import { FinalEntryBadge } from '../FinalEntryBadge';
 import { GroupScoreBar } from '../GroupScoreBar';
+import { AdxMarketRegimeSection } from './AdxMarketRegimeSection';
+import { StructureSLSection } from './StructureSLSection';
+import { VWAPSection } from './VWAPSection';
 import { LayerCard } from '../LayerCard';
 import { ScoreRing } from '../ScoreRing';
 import { TradeRecommendationTable, type ManualTradeSetup } from '../TradeRecommendationTable';
@@ -37,8 +48,38 @@ import { useTradeStore } from '../../store/useTradeStore';
 import type { useLockedPlanMonitor } from '../../hooks/useLockedPlanMonitor';
 import type { LockedTradePlan } from '../../constants/aiJournal';
 import { GRACE_ATR_MULTIPLIER, resolveGraceAtr } from '../../services/gracePeriod';
+import {
+  explainBlocks,
+  explainEntry,
+  explainSL,
+  explainTP,
+} from '../../services/tradePlanExplainer';
+import { TradePlanModal } from './TradePlanModal';
+import { formatUsdPrice } from '../../utils/formatPrice';
+
+const CARD_DANGER = '#EF4444';
+const CARD_SUCCESS = '#22C55E';
+const CARD_WARNING = '#F59E0B';
+const CARD_MUTED = '#6B7280';
 
 type LockedPlanMonitorState = ReturnType<typeof useLockedPlanMonitor>;
+
+type SignalRowWithDirSnapshots = SignalRow & {
+  longSnapshot?: { canEnter?: boolean };
+  shortSnapshot?: { canEnter?: boolean };
+};
+
+function resolvePlanForDirection(
+  row: SignalRow,
+  direction: TradeDirection,
+): TradePlanV3 | null {
+  const v4 = row.tradePlansByScorer?.v4;
+  if (v4?.direction === direction) return v4;
+  const v3 = row.tradePlansByScorer?.v3;
+  if (v3?.direction === direction) return v3;
+  if (row.tradePlanV3?.direction === direction) return row.tradePlanV3;
+  return null;
+}
 
 interface SignalBoardProps {
   rows: SignalRow[];
@@ -52,7 +93,7 @@ interface SignalBoardProps {
   onRequestConfirmTrade?: (row: SignalRow, setup: ManualTradeSetup) => void;
   onRequestPendingOrder?: (row: SignalRow, setup: ManualTradeSetup) => void;
   onPendingOrder?: (row: SignalRow, setup: ManualTradeSetup) => void;
-  onRecordSkippedSetup?: (row: SignalRow) => void;
+  onRecordSkippedSetup?: (row: SignalRow, setupDirection?: TradeDirection) => void;
   lockedPlanOverlay?: {
     symbol: string;
     direction: TradeDirection;
@@ -82,6 +123,423 @@ const MAX_SCORE = 15;
 const AMBIGUOUS_BORDER_COLOR = '#D97706';
 const BIAS_NEUTRAL_COLOR = '#9CA3AF';
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
+
+type CardBadgeKind =
+  | 'HARD_BLOCK'
+  | 'PARTIAL_BLOCK'
+  | 'UNCLEAR'
+  | 'BAD_SESSION'
+  | 'READY'
+  | 'WATCH';
+
+type CardBadgeDisplay = {
+  kind: CardBadgeKind;
+  text: string;
+  backgroundColor: string;
+};
+
+function layer9Score(layers: LayerResult[]): number | null {
+  const l9 = layers.find((l) => l.layer === 9);
+  return l9 != null ? l9.score : null;
+}
+
+function sessionLabelFromL9(l9Score: number | null): string {
+  if (l9Score == null) return '—';
+  if (l9Score === 0) return 'Xấu';
+  if (l9Score === 1) return 'Bình thường';
+  if (l9Score >= 2) return 'London';
+  if (Math.abs(l9Score - 1.5) < 0.01) return 'NY';
+  return 'Bình thường';
+}
+
+const SCORE_TOTAL_GREEN = '#22C55E';
+const SCORE_TOTAL_GREEN_LIGHT = '#86EFAC';
+const SCORE_TOTAL_YELLOW = '#FCD34D';
+const SCORE_TOTAL_ORANGE = '#F97316';
+const SCORE_TOTAL_RED = '#EF4444';
+const SCORE_DIR_LONG_ACTIVE = '#22C55E';
+const SCORE_DIR_SHORT_ACTIVE = '#EF4444';
+
+function totalScoreDisplayColor(score: number): string {
+  if (score >= 11.5) return SCORE_TOTAL_GREEN;
+  if (score >= 10) return SCORE_TOTAL_GREEN_LIGHT;
+  if (score >= 9) return SCORE_TOTAL_YELLOW;
+  if (score >= 8) return SCORE_TOTAL_ORANGE;
+  return SCORE_TOTAL_RED;
+}
+
+function btcTier2Color(btcChange: number): string {
+  if (Math.abs(btcChange) < 0.5) return COLORS.textMuted;
+  if (btcChange > 0) return SCORE_DIR_LONG_ACTIVE;
+  return SCORE_DIR_SHORT_ACTIVE;
+}
+
+function shortenBlockReason(reason: string): string {
+  return reason.replace(/^❌\s*/, '').replace(/^⛔\s*/, '').trim();
+}
+
+function formatBtcChangePct(btcChange24h: number): string {
+  return `${btcChange24h >= 0 ? '+' : ''}${btcChange24h.toFixed(1)}%`;
+}
+
+function sideHardBlocks(
+  direction: TradeDirection,
+  snap: ReturnType<typeof resolveSignalRow>,
+): string[] {
+  return direction === 'LONG'
+    ? (snap.longHardBlocks ?? [])
+    : (snap.shortHardBlocks ?? []);
+}
+
+function isSideHardBlockedForBadge(
+  direction: TradeDirection,
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  btcChange24h: number,
+): boolean {
+  if (sideHardBlocks(direction, snap).length > 0) return true;
+  if (row.adxGate?.block) return true;
+  if (Math.abs(btcChange24h) > HARD_BLOCK_RULES_V4.BTC_EXTREME_PCT) return true;
+  if (
+    direction === 'LONG' &&
+    btcChange24h <= HARD_BLOCK_RULES_V4.BTC_LONG_BLOCK_PCT
+  ) {
+    return true;
+  }
+  if (
+    direction === 'SHORT' &&
+    btcChange24h >= HARD_BLOCK_RULES_V4.BTC_SHORT_BLOCK_PCT
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function resolveDirectionCanEnter(
+  row: SignalRow,
+  direction: TradeDirection,
+  snap: ReturnType<typeof resolveSignalRow>,
+  btcChange24h: number,
+): boolean {
+  const snaps = row as SignalRowWithDirSnapshots;
+  const snapshot =
+    direction === 'LONG' ? snaps.longSnapshot : snaps.shortSnapshot;
+  if (snapshot?.canEnter != null) return snapshot.canEnter;
+
+  const score = direction === 'LONG' ? snap.longScore : snap.shortScore;
+  if (score < 9) return false;
+  return !isSideHardBlockedForBadge(direction, row, snap, btcChange24h);
+}
+
+function primaryBlockReasonForDirection(
+  direction: TradeDirection,
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  blockReasons: string[],
+  btcChange24h: number,
+): string {
+  const sideBlocks = sideHardBlocks(direction, snap);
+  if (sideBlocks.length > 0) {
+    return shortenBlockReason(sideBlocks[0]);
+  }
+
+  if (row.adxGate?.block) {
+    return shortenBlockReason(
+      row.adxGate.message || row.adxBlockReason || 'Thị trường CHOPPY',
+    );
+  }
+
+  if (Math.abs(btcChange24h) > HARD_BLOCK_RULES_V4.BTC_EXTREME_PCT) {
+    return `BTC ${formatBtcChangePct(btcChange24h)}`;
+  }
+  if (
+    direction === 'SHORT' &&
+    btcChange24h >= HARD_BLOCK_RULES_V4.BTC_SHORT_BLOCK_PCT
+  ) {
+    return 'BTC tăng mạnh';
+  }
+  if (
+    direction === 'LONG' &&
+    btcChange24h <= HARD_BLOCK_RULES_V4.BTC_LONG_BLOCK_PCT
+  ) {
+    return 'BTC giảm mạnh';
+  }
+
+  const lines = [
+    ...blockReasons,
+    ...(snap.longHardBlocks ?? []),
+    ...(snap.shortHardBlocks ?? []),
+    ...(snap.mandatoryViolations ?? []),
+  ];
+
+  const fundingDir = resolveFundingBlockDirection(lines);
+  if (fundingDir === direction) return 'Funding cực đoan';
+  if (hasCvdHardBlock(lines)) return 'CVD phân kỳ ngược chiều';
+  if (hasMacdHardBlock(lines)) return 'MACD vi phạm';
+
+  const btcReason = blockReasons.find((r) => /BTC/i.test(r));
+  if (btcReason) return shortenBlockReason(btcReason);
+
+  return shortenBlockReason(lines[0] ?? 'Điều kiện chặn vào lệnh');
+}
+
+function resolveFundingBlockDirection(lines: string[]): TradeDirection | null {
+  const isFunding = (r: string) => /Funding/i.test(r);
+  const blocksLong = lines.some(
+    (r) => isFunding(r) && (/chặn Long/i.test(r) || /LONG SQUEEZE/i.test(r)),
+  );
+  const blocksShort = lines.some(
+    (r) => isFunding(r) && (/chặn Short/i.test(r) || /SHORT SQUEEZE/i.test(r)),
+  );
+  if (blocksLong) return 'LONG';
+  if (blocksShort) return 'SHORT';
+  return null;
+}
+
+function hasCvdHardBlock(lines: string[]): boolean {
+  return lines.some(
+    (r) =>
+      /CVD/i.test(r) &&
+      (/HARD BLOCK/i.test(r) || /chặn/i.test(r) || /phân kỳ/i.test(r)),
+  );
+}
+
+function hasMacdHardBlock(lines: string[]): boolean {
+  return lines.some(
+    (r) => r.startsWith('L3 MACD vi phạm') || /MACD vi phạm/i.test(r),
+  );
+}
+
+function formatBothBlockedBadgeText(
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  blockReasons: string[],
+  btcChange24h: number,
+  longCanEnter: boolean,
+  shortCanEnter: boolean,
+): string {
+  if (row.adxGate?.block) {
+    return '🔴 BLOCK CẢ HAI — Thị trường CHOPPY';
+  }
+
+  if (Math.abs(btcChange24h) > HARD_BLOCK_RULES_V4.BTC_EXTREME_PCT) {
+    return `🔴 BLOCK CẢ HAI — BTC ${formatBtcChangePct(btcChange24h)}`;
+  }
+
+  const lines = [
+    ...blockReasons,
+    ...(snap.longHardBlocks ?? []),
+    ...(snap.shortHardBlocks ?? []),
+    ...(snap.mandatoryViolations ?? []),
+  ];
+  if (hasCvdHardBlock(lines)) {
+    return '🔴 BLOCK CẢ HAI — CVD phân kỳ ngược chiều';
+  }
+  if (hasMacdHardBlock(lines)) {
+    return '🔴 BLOCK CẢ HAI — MACD vi phạm';
+  }
+
+  if (!longCanEnter && shortCanEnter) {
+    const reason = primaryBlockReasonForDirection(
+      'LONG',
+      row,
+      snap,
+      blockReasons,
+      btcChange24h,
+    );
+    return `🔴 BLOCK LONG — ${reason}`;
+  }
+  if (!shortCanEnter && longCanEnter) {
+    const reason = primaryBlockReasonForDirection(
+      'SHORT',
+      row,
+      snap,
+      blockReasons,
+      btcChange24h,
+    );
+    return `🔴 BLOCK SHORT — ${reason}`;
+  }
+
+  const mainReason = primaryBlockReasonForDirection(
+    snap.direction,
+    row,
+    snap,
+    blockReasons,
+    btcChange24h,
+  );
+  return `🔴 BLOCK CẢ HAI — ${mainReason}`;
+}
+
+function formatPartialBlockBadgeText(
+  blockedDirection: TradeDirection,
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  blockReasons: string[],
+  btcChange24h: number,
+): string {
+  if (
+    blockedDirection === 'SHORT' &&
+    btcChange24h >= HARD_BLOCK_RULES_V4.BTC_SHORT_BLOCK_PCT
+  ) {
+    return '🟡 BLOCK SHORT — BTC tăng mạnh';
+  }
+  if (
+    blockedDirection === 'LONG' &&
+    btcChange24h <= HARD_BLOCK_RULES_V4.BTC_LONG_BLOCK_PCT
+  ) {
+    return '🟡 BLOCK LONG — BTC giảm mạnh';
+  }
+
+  const reason = primaryBlockReasonForDirection(
+    blockedDirection,
+    row,
+    snap,
+    blockReasons,
+    btcChange24h,
+  );
+  return `🟡 BLOCK ${blockedDirection} — ${reason}`;
+}
+
+function hasAnyHardBlock(
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  blockReasons: string[],
+): boolean {
+  return (
+    row.adxGate?.block === true ||
+    snap.hardBlocked === true ||
+    blockReasons.length > 0
+  );
+}
+
+function resolveCardBadge(
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  totalScore: number,
+  blockReasons: string[],
+  btcChange24h: number,
+): CardBadgeDisplay {
+  const longCanEnter = resolveDirectionCanEnter(row, 'LONG', snap, btcChange24h);
+  const shortCanEnter = resolveDirectionCanEnter(row, 'SHORT', snap, btcChange24h);
+  const longHard = isSideHardBlockedForBadge('LONG', row, snap, btcChange24h);
+  const shortHard = isSideHardBlockedForBadge('SHORT', row, snap, btcChange24h);
+
+  // [1] Đỏ — cả 2 chiều bị block
+  if (
+    (longHard && shortHard) ||
+    (!longCanEnter && !shortCanEnter && (longHard || shortHard))
+  ) {
+    return {
+      kind: 'HARD_BLOCK',
+      text: formatBothBlockedBadgeText(
+        row,
+        snap,
+        blockReasons,
+        btcChange24h,
+        longCanEnter,
+        shortCanEnter,
+      ),
+      backgroundColor: CARD_DANGER,
+    };
+  }
+
+  // [2] Vàng — chỉ 1 chiều bị block, chiều kia ok
+  if (longHard && !shortHard && shortCanEnter) {
+    return {
+      kind: 'PARTIAL_BLOCK',
+      text: formatPartialBlockBadgeText(
+        'LONG',
+        row,
+        snap,
+        blockReasons,
+        btcChange24h,
+      ),
+      backgroundColor: CARD_WARNING,
+    };
+  }
+  if (shortHard && !longHard && longCanEnter) {
+    return {
+      kind: 'PARTIAL_BLOCK',
+      text: formatPartialBlockBadgeText(
+        'SHORT',
+        row,
+        snap,
+        blockReasons,
+        btcChange24h,
+      ),
+      backgroundColor: CARD_WARNING,
+    };
+  }
+
+  // [3] Vàng — ADX CHOPPY
+  if (row.adxData?.regime === 'CHOPPY') {
+    return {
+      kind: 'UNCLEAR',
+      text: '🟡 THỊ TRƯỜNG CHOPPY — chờ xu hướng rõ',
+      backgroundColor: CARD_WARNING,
+    };
+  }
+
+  // [4] Vàng — phiên xấu
+  const l9 = layer9Score(snap.layers);
+  if (l9 === 0) {
+    return {
+      kind: 'BAD_SESSION',
+      text: '🟡 PHIÊN XẤU — chờ 08:00 AM',
+      backgroundColor: CARD_WARNING,
+    };
+  }
+
+  // [5] Xanh — score ≥ 9, không block
+  if (longCanEnter || shortCanEnter || totalScore >= 9) {
+    return {
+      kind: 'READY',
+      text: '🟢 SẴN SÀNG',
+      backgroundColor: CARD_SUCCESS,
+    };
+  }
+
+  // [6] Xám — còn lại
+  return {
+    kind: 'WATCH',
+    text: '⚪ THEO DÕI THÊM',
+    backgroundColor: CARD_MUTED,
+  };
+}
+
+function btcSummaryDisplay(btcChange: number): { color: string; icon: string } {
+  if (Math.abs(btcChange) < 0.5) {
+    return { color: COLORS.textSecondary, icon: '⚠️' };
+  }
+  if (btcChange > 0) {
+    return { color: COLORS.success, icon: '✅' };
+  }
+  return { color: COLORS.danger, icon: '❌' };
+}
+
+function isDirectionBlocked(
+  direction: TradeDirection,
+  row: SignalRow,
+  snap: ReturnType<typeof resolveSignalRow>,
+  blockReasons: string[],
+): boolean {
+  if (hasAnyHardBlock(row, snap, blockReasons)) return true;
+  const sideBlocks =
+    direction === 'LONG'
+      ? (snap.longHardBlocks ?? [])
+      : (snap.shortHardBlocks ?? []);
+  return sideBlocks.length > 0;
+}
+
+function isDirectionReady(
+  direction: TradeDirection,
+  snap: ReturnType<typeof resolveSignalRow>,
+  row: SignalRow,
+  blockReasons: string[],
+): boolean {
+  const score = direction === 'LONG' ? snap.longScore : snap.shortScore;
+  return score >= 9 && !isDirectionBlocked(direction, row, snap, blockReasons);
+}
 
 function manualSetupFromTradePlanV3(
   plan: TradePlanV3,
@@ -262,6 +720,9 @@ export function SignalBoard({
                 <SignalCard
                   key={row.symbol}
                   row={row}
+                  btcChange24h={
+                    rows.find((r) => r.symbol === 'BTCUSDT')?.change24h ?? 0
+                  }
                   scorerVersion={scorerVersion}
                   boardStrategySource={boardStrategySource}
                   lockedPlanOverlay={lockedPlanOverlay}
@@ -292,6 +753,7 @@ function SkeletonCard() {
 
 function SignalCard({
   row,
+  btcChange24h,
   scorerVersion,
   boardStrategySource,
   lockedPlanOverlay = null,
@@ -306,6 +768,7 @@ function SignalCard({
   lockedPlanMonitor,
 }: {
   row: SignalRow;
+  btcChange24h: number;
   scorerVersion: ScorerVersion;
   boardStrategySource: StrategySource;
   lockedPlanOverlay?: SignalBoardProps['lockedPlanOverlay'];
@@ -317,11 +780,14 @@ function SignalCard({
   onRequestConfirmTrade?: (row: SignalRow, setup: ManualTradeSetup) => void;
   onRequestPendingOrder?: (row: SignalRow, setup: ManualTradeSetup) => void;
   onPendingOrder?: (row: SignalRow, setup: ManualTradeSetup) => void;
-  onRecordSkippedSetup?: (row: SignalRow) => void;
+  onRecordSkippedSetup?: (row: SignalRow, setupDirection?: TradeDirection) => void;
 }) {
   const [showLayers, setShowLayers] = useState(false);
   const [confirmManual, setConfirmManual] = useState(false);
   const [manualSetup, setManualSetup] = useState<ManualTradeSetup | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalDir, setModalDir] = useState<TradeDirection>('LONG');
+
   const settings = useTradeStore((st) => st.settings);
   const snap = resolveSignalRow(row, scorerVersion);
   const base = symbolLabelVi(row.symbol);
@@ -381,7 +847,8 @@ function SignalCard({
     !hardBlockReasons.some((reason) => reason.startsWith('L3 MACD vi phạm'));
   const rawFinalEntryStatus =
     resolveFinalEntryStatus(row, scorerVersion) ?? FinalEntryStatus.SCORE_BLOCKED;
-  const displayFinalEntryStatus =
+  const adxBlocked = row.adxGate?.block === true;
+  let displayFinalEntryStatus =
     rawFinalEntryStatus === FinalEntryStatus.HARD_BLOCKED &&
     macdSuppressed &&
     hardBlockReasons.length === 0
@@ -392,6 +859,9 @@ function SignalCard({
           (snap.groupBlocks?.length ?? 0) > 0,
         )
       : rawFinalEntryStatus;
+  if (adxBlocked) {
+    displayFinalEntryStatus = FinalEntryStatus.HARD_BLOCKED;
+  }
   const showMacdSuppressedHint =
     macdSuppressed && displayFinalEntryStatus !== FinalEntryStatus.HARD_BLOCKED;
   const entryDisplay = resolveFinalEntryDisplay({
@@ -400,7 +870,9 @@ function SignalCard({
     score: displayScore,
     plan: activePlanV3,
     symbol: row.symbol,
-    hardBlockReasons,
+    hardBlockReasons: adxBlocked
+      ? [row.adxGate?.message ?? row.adxBlockReason ?? 'ADX_CHOPPY', ...hardBlockReasons]
+      : hardBlockReasons,
     groupBlockReasons: snap.groupBlocks ?? [],
   });
   const isAmbiguous = snap.isAmbiguousDirection === true;
@@ -413,14 +885,37 @@ function SignalCard({
   const canShowPlan = hasPlan || snap.canEnter;
   const effectiveHardBlocked =
     displayFinalEntryStatus === FinalEntryStatus.HARD_BLOCKED;
-  const finalDecision = resolveFinalEntryDecision({
-    decisionLabel: displayDecisionLabel,
-    hardBlocked: effectiveHardBlocked,
-    awaitingRescore: snap.awaitingRescore,
-  });
+  const finalDecision = adxBlocked
+    ? ('HARD_BLOCK' as const)
+    : resolveFinalEntryDecision({
+        decisionLabel: displayDecisionLabel,
+        hardBlocked: effectiveHardBlocked,
+        awaitingRescore: snap.awaitingRescore,
+      });
+  const adxGate = row.adxGate;
+  const planBlockReasons = activePlanV3?.blockReasons ?? [];
+  const blockReasons = [...new Set([...hardBlockReasons, ...planBlockReasons])];
+  const totalScore = displayScore ?? snap.score ?? 0;
+  const cardBadge = resolveCardBadge(row, snap, totalScore, blockReasons, btcChange24h);
+  const sessionLabel = sessionLabelFromL9(layer9Score(snap.layers));
+  const btcPctLabel = `${btcChange24h >= 0 ? '+' : ''}${btcChange24h.toFixed(1)}%`;
+  const btcDisplay = btcSummaryDisplay(btcChange24h);
+  const longReady = isDirectionReady('LONG', snap, row, blockReasons);
+  const shortReady = isDirectionReady('SHORT', snap, row, blockReasons);
+
+  const rowWithSnapshots = row as SignalRowWithDirSnapshots;
+  const longScoreActive =
+    snap.longScore >= 9 && rowWithSnapshots.longSnapshot?.canEnter === true;
+  const shortScoreActive =
+    snap.shortScore >= 9 && rowWithSnapshots.shortSnapshot?.canEnter === true;
+  const totalScoreValue = displayScore ?? snap.score;
+  const totalScoreColor =
+    totalScoreValue != null
+      ? totalScoreDisplayColor(totalScoreValue)
+      : COLORS.textMuted;
 
   return (
-    <View style={[styles.card, { borderColor: cardBorderColor }]}>
+    <View style={[styles.card, { borderColor: COLORS.border }]}>
       <View style={styles.cardTop}>
         <View style={styles.pairRow}>
           <View style={[styles.icon, { backgroundColor: iconColor }]}>
@@ -451,6 +946,154 @@ function SignalCard({
         <Text style={styles.error}>{row.error}</Text>
       ) : (
         <>
+          <View
+            style={[styles.statusBadgeBox, { backgroundColor: cardBadge.backgroundColor }]}
+          >
+            <Text style={styles.statusBadgeTitle}>{cardBadge.text}</Text>
+          </View>
+
+          <View style={styles.scoreTier1Row}>
+            <View style={styles.scoreTotalCol}>
+              <Text style={[styles.scoreTotalValue, { color: totalScoreColor }]}>
+                {totalScoreValue != null ? totalScoreValue.toFixed(1) : '—'}
+              </Text>
+              <Text style={styles.scoreTotalDenom}>/15</Text>
+            </View>
+
+            <View style={styles.scoreDirCol}>
+              <Text style={styles.scoreDirLabel}>LONG</Text>
+              <Text
+                style={[
+                  styles.scoreDirValue,
+                  {
+                    color: longScoreActive
+                      ? SCORE_DIR_LONG_ACTIVE
+                      : COLORS.textMuted,
+                  },
+                ]}
+              >
+                {snap.longScore.toFixed(1)}
+              </Text>
+            </View>
+
+            <View style={styles.scoreDirCol}>
+              <Text style={styles.scoreDirLabel}>SHORT</Text>
+              <Text
+                style={[
+                  styles.scoreDirValue,
+                  {
+                    color: shortScoreActive
+                      ? SCORE_DIR_SHORT_ACTIVE
+                      : COLORS.textMuted,
+                  },
+                ]}
+              >
+                {snap.shortScore.toFixed(1)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.scoreTier2Row}>
+            <Text style={styles.scoreTier2Text}>Phiên: {sessionLabel}</Text>
+            <Text
+              style={[
+                styles.scoreTier2Text,
+                { color: btcTier2Color(btcChange24h) },
+              ]}
+            >
+              BTC: {btcPctLabel} {btcDisplay.icon}
+            </Text>
+          </View>
+
+          <View style={styles.directionBtnRow}>
+            <Pressable
+              onPress={() => {
+                setModalDir('LONG');
+                setModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.directionBtn,
+                longReady ? styles.directionBtnLongReady : styles.directionBtnIdle,
+                pressed && styles.scanBtnPressed,
+                webPointer,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.directionBtnText,
+                  longReady ? styles.directionBtnTextReady : styles.directionBtnTextIdle,
+                ]}
+              >
+                LONG  {snap.longScore.toFixed(1)}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setModalDir('SHORT');
+                setModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.directionBtn,
+                shortReady ? styles.directionBtnShortReady : styles.directionBtnIdle,
+                pressed && styles.scanBtnPressed,
+                webPointer,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.directionBtnText,
+                  shortReady ? styles.directionBtnTextReady : styles.directionBtnTextIdle,
+                ]}
+              >
+                SHORT  {snap.shortScore.toFixed(1)}
+              </Text>
+            </Pressable>
+          </View>
+
+          <TradePlanModal
+            visible={modalVisible}
+            direction={modalDir}
+            symbol={row.symbol}
+            row={row}
+            onClose={() => setModalVisible(false)}
+            onConfirm={() => {
+              setModalVisible(false);
+              const plan = resolvePlanForDirection(row, modalDir);
+              if (!plan) return;
+              const setup = manualSetupFromTradePlanV3(
+                plan,
+                scorerVersion,
+                boardStrategySource,
+              );
+              if (onRequestConfirmTrade) {
+                onRequestConfirmTrade(row, setup);
+              } else if (onOpenPosition) {
+                onOpenPosition(row, false, setup);
+              }
+              onHidePlan?.();
+            }}
+            onRecordSkippedSetup={onRecordSkippedSetup}
+            onSkip={() => {
+              setModalVisible(false);
+              onHidePlan?.();
+            }}
+            entryExplain={explainEntry(row, modalDir)}
+            slExplain={explainSL(row, modalDir)}
+            tp1Explain={explainTP(row, 1, modalDir)}
+            tp2Explain={explainTP(row, 2, modalDir)}
+            tp3Explain={explainTP(row, 3, modalDir)}
+            blockInfo={explainBlocks(row, modalDir)}
+            canEnter={
+              modalDir === 'LONG'
+                ? rowWithSnapshots.longSnapshot?.canEnter ??
+                  isDirectionReady('LONG', snap, row, blockReasons)
+                : rowWithSnapshots.shortSnapshot?.canEnter ??
+                  isDirectionReady('SHORT', snap, row, blockReasons)
+            }
+          />
+
+          {false && (
+            <>
           <View style={styles.scoreRow}>
             {displayScore != null ? (
               <ScoreRing
@@ -469,12 +1112,29 @@ function SignalCard({
               {lockedMatch ? (
                 <Text style={styles.lockedBadge}>🔒 Score đóng băng</Text>
               ) : null}
-              <FinalEntryBadge
-                display={entryDisplay}
-                score={entryDisplay.subtitle ? undefined : displayScore ?? undefined}
-                size="md"
-                isAmbiguousDirection={isAmbiguous}
-              />
+              <View style={styles.entryBadgeRow}>
+                <FinalEntryBadge
+                  display={entryDisplay}
+                  score={entryDisplay.subtitle ? undefined : displayScore ?? undefined}
+                  size="md"
+                  isAmbiguousDirection={isAmbiguous}
+                />
+                {adxGate?.severity === 'BLOCK' ? (
+                  <View style={styles.adxBadgeBlock}>
+                    <Text style={styles.adxBadgeBlockText}>⛔ CHOPPY</Text>
+                  </View>
+                ) : adxGate?.severity === 'WARNING' ? (
+                  <View style={styles.adxBadgeWarning}>
+                    <Text style={styles.adxBadgeWarningText} numberOfLines={2}>
+                      {adxGate.message}
+                    </Text>
+                  </View>
+                ) : adxGate?.severity === 'BONUS' ? (
+                  <View style={styles.adxBadgeBonus}>
+                    <Text style={styles.adxBadgeBonusText}>✅ TRENDING STRONG</Text>
+                  </View>
+                ) : null}
+              </View>
               {showMacdSuppressedHint ? (
                 <Text style={styles.macdSuppressedHint}>
                   ℹ️ MACD đang nhiễu tại vùng entry — theo dõi Plan Health
@@ -505,7 +1165,70 @@ function SignalCard({
             <Text style={styles.ambiguousMessage}>⚠️ {snap.ambiguousMessage}</Text>
           ) : null}
 
-          {canShowPlan && !isAmbiguous ? (
+          {snap.layers.length > 0 ? (
+            <>
+              <Pressable
+                onPress={() => setShowLayers((v) => !v)}
+                style={[styles.detailToggle, webPointer]}
+              >
+                <Text style={styles.detailToggleText}>
+                  {showLayers ? vi.signalBoard.hideDetail : vi.signalBoard.showDetail}
+                </Text>
+                <Text style={styles.detailChevron}>{showLayers ? '▲' : '▼'}</Text>
+              </Pressable>
+              {showLayers ? (
+                <>
+                  {snap.groupScores && snap.groupBlocks ? (
+                    <GroupScoreBar
+                      groupScores={snap.groupScores}
+                      groupBlocks={snap.groupBlocks}
+                    />
+                  ) : null}
+                  <LayerCard
+                    layers={snap.layers}
+                    l6ExpandV4={
+                      scorerVersion === 'v4' && row.l6Detail
+                        ? {
+                            detail: row.l6Detail,
+                            longScore:
+                              row.v4?.longLayers?.find((l) => l.layer === 6)?.score ?? 0,
+                            shortScore:
+                              row.v4?.shortLayers?.find((l) => l.layer === 6)?.score ?? 0,
+                            activeDirection: snap.direction,
+                          }
+                        : undefined
+                    }
+                    l11ExpandV4={
+                      scorerVersion === 'v4' && row.squeezeRisk
+                        ? { squeezeRisk: row.squeezeRisk }
+                        : undefined
+                    }
+                  />
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          {row.adxData != null ? (
+            <AdxMarketRegimeSection adxData={row.adxData} adxGate={row.adxGate} />
+          ) : null}
+
+          {row.structureSL != null ? (
+            <StructureSLSection structureSL={row.structureSL} />
+          ) : null}
+
+          {row.vwapData != null && row.price != null ? (
+            <VWAPSection
+              vwapData={row.vwapData}
+              currentPrice={row.price}
+              vwapSignal={row.vwapSignal}
+              vwapBonus={row.vwapBonus}
+            />
+          ) : null}
+            </>
+          )}
+
+          {showPlan && canShowPlan && !isAmbiguous ? (
             <View style={styles.planWrap}>
               {showPlan ? (
                 <>
@@ -662,7 +1385,8 @@ function SignalCard({
                     </>
                   ) : null}
                 </>
-              ) : onOpenPosition || onRequestPendingOrder || onPendingOrder ? (
+              ) : false &&
+                (onOpenPosition || onRequestPendingOrder || onPendingOrder) ? (
                 <Pressable
                   onPress={() => {
                     setManualSetup(null);
@@ -683,7 +1407,7 @@ function SignalCard({
                 </Pressable>
               ) : null}
             </View>
-          ) : (
+          ) : false ? (
             <View style={styles.noEntryBox}>
               <Text style={styles.noEntryText}>{vi.signalBoard.noEntry}</Text>
               {onRecordSkippedSetup && row.price != null ? (
@@ -730,50 +1454,6 @@ function SignalCard({
                 )
               ) : null}
             </View>
-          )}
-
-          {snap.layers.length > 0 ? (
-            <>
-              <Pressable
-                onPress={() => setShowLayers((v) => !v)}
-                style={[styles.detailToggle, webPointer]}
-              >
-                <Text style={styles.detailToggleText}>
-                  {showLayers ? vi.signalBoard.hideDetail : vi.signalBoard.showDetail}
-                </Text>
-                <Text style={styles.detailChevron}>{showLayers ? '▲' : '▼'}</Text>
-              </Pressable>
-              {showLayers ? (
-                <>
-                  {snap.groupScores && snap.groupBlocks ? (
-                    <GroupScoreBar
-                      groupScores={snap.groupScores}
-                      groupBlocks={snap.groupBlocks}
-                    />
-                  ) : null}
-                  <LayerCard
-                    layers={snap.layers}
-                    l6ExpandV4={
-                      scorerVersion === 'v4' && row.l6Detail
-                        ? {
-                            detail: row.l6Detail,
-                            longScore:
-                              row.v4?.longLayers?.find((l) => l.layer === 6)?.score ?? 0,
-                            shortScore:
-                              row.v4?.shortLayers?.find((l) => l.layer === 6)?.score ?? 0,
-                            activeDirection: snap.direction,
-                          }
-                        : undefined
-                    }
-                    l11ExpandV4={
-                      scorerVersion === 'v4' && row.squeezeRisk
-                        ? { squeezeRisk: row.squeezeRisk }
-                        : undefined
-                    }
-                  />
-                </>
-              ) : null}
-            </>
           ) : null}
         </>
       )}
@@ -1000,6 +1680,155 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  statusBadgeBox: {
+    borderRadius: RADIUS.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: SPACING.xs,
+    gap: 4,
+    width: '100%',
+  },
+  statusBadgeTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  statusBadgeSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  scoreTier1Row: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: SPACING.xs,
+  },
+  scoreTotalCol: {
+    alignItems: 'flex-start',
+  },
+  scoreTotalValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    lineHeight: 36,
+  },
+  scoreTotalDenom: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  scoreDirCol: {
+    alignItems: 'center',
+    minWidth: 56,
+  },
+  scoreDirLabel: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    fontWeight: '600',
+    letterSpacing: 0.6,
+  },
+  scoreDirValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  scoreTier2Row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
+  },
+  scoreTier2Text: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  directionBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: SPACING.sm,
+  },
+  directionBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  directionBtnIdle: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  directionBtnLongReady: {
+    backgroundColor: '#22C55E',
+    borderWidth: 0,
+  },
+  directionBtnShortReady: {
+    backgroundColor: '#EF4444',
+    borderWidth: 0,
+  },
+  directionBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    fontVariant: ['tabular-nums'],
+  },
+  directionBtnTextReady: {
+    color: '#FFFFFF',
+  },
+  directionBtnTextIdle: {
+    color: COLORS.textMuted,
+  },
+  directionModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  directionModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: COLORS.surfaceElevated,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  directionModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  directionModalHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  directionModalClose: {
+    marginTop: SPACING.sm,
+    alignSelf: 'flex-end',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  directionModalCloseText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
   pairRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1076,6 +1905,53 @@ const styles = StyleSheet.create({
   scoreCol: {
     flex: 1,
     gap: 4,
+  },
+  entryBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  adxBadgeBlock: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: COLORS.bearish,
+  },
+  adxBadgeBlockText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.bearish,
+  },
+  adxBadgeWarning: {
+    flex: 1,
+    minWidth: 120,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(240, 185, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: COLORS.warning,
+  },
+  adxBadgeWarningText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.warning,
+  },
+  adxBadgeBonus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(14, 203, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: COLORS.bullish,
+  },
+  adxBadgeBonusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.bullish,
   },
   scoreHint: {
     fontSize: 11,

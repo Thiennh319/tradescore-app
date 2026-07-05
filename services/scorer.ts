@@ -965,29 +965,34 @@ export function scoreLayer10_Psychology(
   let score = 1.5;
   const parts: string[] = [];
 
-  if (indicators.psychology.lossStreakLocked) {
-    score -= 0.75;
-    const minsLeft =
-      indicators.psychology.lossStreakLockUntil != null
-        ? Math.max(1, Math.ceil((indicators.psychology.lossStreakLockUntil - Date.now()) / 60_000))
-        : HARD_BLOCK_RULES.LOSS_STREAK_LOCK_MINUTES;
-    parts.push(
-      `${indicators.psychology.consecutiveLossesIn24h} thua liên tiếp trong 24h — cooldown còn ${minsLeft} phút`,
-    );
-  } else if (consecutiveLosses >= 2) {
+  // TODO: BẬT LẠI KHI PRODUCTION
+  // if (indicators.psychology.lossStreakLocked) {
+  //   score -= 0.75;
+  //   const minsLeft =
+  //     indicators.psychology.lossStreakLockUntil != null
+  //       ? Math.max(1, Math.ceil((indicators.psychology.lossStreakLockUntil - Date.now()) / 60_000))
+  //       : HARD_BLOCK_RULES.LOSS_STREAK_LOCK_MINUTES;
+  //   parts.push(
+  //     `${indicators.psychology.consecutiveLossesIn24h} thua liên tiếp trong 24h — cooldown còn ${minsLeft} phút`,
+  //   );
+  // } else if (consecutiveLosses >= 2) {
+  if (consecutiveLosses >= 2) {
     score -= 0.35;
     parts.push(`${consecutiveLosses} lệnh thua liên tiếp`);
   }
 
-  if (dailyLossPercent >= maxDailyLossPercent) {
-    score = 0;
-    parts.push('chạm trần lỗ ngày');
-  } else if (dailyLossPercent >= maxDailyLossPercent * 0.7) {
+  // TODO: BẬT LẠI KHI PRODUCTION
+  // if (dailyLossPercent >= maxDailyLossPercent) {
+  //   score = 0;
+  //   parts.push('chạm trần lỗ ngày');
+  // } else if (dailyLossPercent >= maxDailyLossPercent * 0.7) {
+  if (dailyLossPercent >= maxDailyLossPercent * 0.7) {
     score -= 0.5;
     parts.push(`lỗ ngày ${dailyLossPercent.toFixed(1)}%`);
   }
 
-  const violation = dailyLossPercent >= maxDailyLossPercent;
+  // const violation = dailyLossPercent >= maxDailyLossPercent;
+  const violation = false;
   return layerResult(10, score, {
     passed: score >= 0.5,
     isMandatory: true,

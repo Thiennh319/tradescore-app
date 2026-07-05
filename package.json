@@ -1,6 +1,6 @@
 {
   "name": "tradescore",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -38,6 +38,7 @@
     "prebuild:android": "expo prebuild --platform android --clean",
     "build:apk": "cd android && gradlew.bat assembleRelease && cd .. && node -e \"const fs=require('fs'),cp=require('child_process'),p=require('./package.json');const d='dist/TradeScore-v'+p.version+'.apk';fs.mkdirSync('dist',{recursive:true});fs.copyFileSync('android/app/build/outputs/apk/release/app-release.apk',d);if(fs.existsSync('dist/guideline.txt')){console.log('guideline.txt OK');}console.log('APK:',d);cp.execSync('node scripts/write-build-info.mjs apk dist/BUILD_INFO_APK_v'+p.version+'.txt',{stdio:'inherit'});\"",
     "build:apk:debug": "cd android && gradlew.bat assembleDebug",
+    "build:web": "powershell -ExecutionPolicy Bypass -File scripts/build-web-exe.ps1",
     "build:web-exe": "powershell -ExecutionPolicy Bypass -File scripts/build-web-exe.ps1",
     "android:setup-cmdline": "powershell -ExecutionPolicy Bypass -File scripts/install-android-cmdline.ps1",
     "android:setup-avd": "powershell -ExecutionPolicy Bypass -File scripts/setup-android-avd.ps1",

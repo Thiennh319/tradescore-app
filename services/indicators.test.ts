@@ -33,6 +33,7 @@ import {
   isWallProtectingSL,
   klinesToOHLCV,
   analyzeOrderFlow,
+  getADXAnalysis,
 } from './indicators';
 
 function makeKlines(closes: number[]): Kline[] {
@@ -472,5 +473,112 @@ describe('v2 indicator helpers', () => {
     expect(walls).toHaveLength(1);
     expect(isWallProtectingSL(98, 99, 'LONG')).toBe(true);
     expect(isWallProtectingSL(100, 99, 'LONG')).toBe(false);
+  });
+});
+
+function makeTrendKlines(count: number, start = 100, step = 2.5): Kline[] {
+  return Array.from({ length: count }, (_, i) => {
+    const close = start + i * step;
+    return {
+      openTime: i * 3_600_000,
+      open: close - step * 0.2,
+      high: close + step * 0.6,
+      low: close - step * 0.4,
+      close,
+      volume: 1_000 + i * 10,
+      closeTime: i * 3_600_000 + 3_599_999,
+      quoteVolume: close * 1_000,
+      trades: 50,
+    };
+  });
+}
+
+function makeRangeKlines(count: number, base = 100, amplitude = 3): Kline[] {
+  return Array.from({ length: count }, (_, i) => {
+    const close = base + amplitude * Math.sin(i * 0.45);
+    const spread = 0.4;
+    return {
+      openTime: i * 3_600_000,
+      open: close - spread * 0.3,
+      high: close + spread,
+      low: close - spread,
+      close,
+      volume: 800,
+      closeTime: i * 3_600_000 + 3_599_999,
+      quoteVolume: close * 800,
+      trades: 30,
+    };
+  });
+}
+
+function makeFlatKlines(count: number, base = 100): Kline[] {
+  return Array.from({ length: count }, (_, i) => {
+    const wobble = (i % 2 === 0 ? 0.05 : -0.05);
+    const close = base + wobble;
+    return {
+      openTime: i * 3_600_000,
+      open: close,
+      high: close + 0.1,
+      low: close - 0.1,
+      close,
+      volume: 500,
+      closeTime: i * 3_600_000 + 3_599_999,
+      quoteVolume: close * 500,
+      trades: 20,
+    };
+  });
+}
+
+describe('getADXAnalysis', () => {
+  it('returns CHOPPY when both timeframes have low ADX', () => {
+    const flat1H = makeFlatKlines(60);
+    const flat4H = makeFlatKlines(60);
+    const result = getADXAnalysis(flat1H, flat4H);
+
+    expect(result.adx1H).toBeLessThan(15);
+    expect(result.adx4H).toBeLessThan(15);
+    expect(result.adxAvg).toBeCloseTo((result.adx1H + result.adx4H) / 2, 5);
+    expect(result.regime).toBe('CHOPPY');
+    expect(result.isChoppy1H).toBe(true);
+    expect(result.isChoppy4H).toBe(true);
+    expect(result.bothChoppy).toBe(true);
+  });
+
+  it('returns TRENDING STRONG on sustained uptrend', () => {
+    const trend1H = makeTrendKlines(80, 100, 3);
+    const trend4H = makeTrendKlines(80, 100, 4);
+    const result = getADXAnalysis(trend1H, trend4H);
+
+    expect(result.adx1H).toBeGreaterThan(25);
+    expect(result.adx4H).toBeGreaterThan(25);
+    expect(result.adxAvg).toBeGreaterThanOrEqual(25);
+    expect(result.regime).toBe('TRENDING');
+    expect(result.bothChoppy).toBe(false);
+    if (result.adxAvg >= 35) {
+      expect(result.regimeStrength).toBe('STRONG');
+    } else {
+      expect(result.regimeStrength).toBe('WEAK');
+    }
+  });
+
+  it('does not set bothChoppy when only one timeframe is choppy', () => {
+    const flat1H = makeFlatKlines(60);
+    const trend4H = makeTrendKlines(80, 100, 3);
+    const result = getADXAnalysis(flat1H, trend4H);
+
+    expect(result.isChoppy1H).toBe(true);
+    expect(result.isChoppy4H).toBe(false);
+    expect(result.bothChoppy).toBe(false);
+  });
+
+  it('classifies RANGING when adxAvg is between 15 and 25', () => {
+    const range1H = makeRangeKlines(80);
+    const range4H = makeRangeKlines(80);
+    const result = getADXAnalysis(range1H, range4H);
+
+    expect(result.adxAvg).toBeGreaterThanOrEqual(15);
+    expect(result.adxAvg).toBeLessThan(25);
+    expect(result.regime).toBe('RANGING');
+    expect(result.bothChoppy).toBe(false);
   });
 });

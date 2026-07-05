@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isPendingEntryFilled, pendingEntryDistancePercent } from './pendingOrderFill';
+import {
+  isLimitEntryAwaitingFill,
+  isPendingEntryFilled,
+  pendingEntryDistancePercent,
+} from './pendingOrderFill';
 
 describe('isPendingEntryFilled', () => {
   it('LONG fills when price drops to entry', () => {
@@ -22,6 +26,18 @@ describe('isPendingEntryFilled', () => {
     expect(isPendingEntryFilled('SHORT', 2.021, 2.02)).toBe(true);
     expect(isPendingEntryFilled('SHORT', 2.02, 2.02)).toBe(true);
     expect(isPendingEntryFilled('SHORT', 2.019, 2.02)).toBe(false);
+  });
+});
+
+describe('isLimitEntryAwaitingFill', () => {
+  it('LONG limit below market stays pending', () => {
+    expect(isLimitEntryAwaitingFill('LONG', 61_999, 61_559)).toBe(true);
+    expect(isLimitEntryAwaitingFill('LONG', 61_559, 61_559)).toBe(false);
+  });
+
+  it('SHORT limit above market stays pending', () => {
+    expect(isLimitEntryAwaitingFill('SHORT', 61_559, 61_999)).toBe(true);
+    expect(isLimitEntryAwaitingFill('SHORT', 61_999, 61_999)).toBe(false);
   });
 });
 

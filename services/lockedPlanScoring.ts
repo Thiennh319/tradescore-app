@@ -107,14 +107,15 @@ function checkHardBlocks(
   if (direction === 'SHORT' && fr < HARD_BLOCK_RULES.FUNDING_SHORT_SQUEEZE_PCT) {
     reasons.push(`Funding ${fr.toFixed(4)}% — rủi ro short squeeze`);
   }
-  if (!psych.noLossStreak) {
-    reasons.push(
-      `Thua ${HARD_BLOCK_RULES.MAX_CONSECUTIVE_LOSSES} lệnh liên tiếp trong 24h — cooldown ${HARD_BLOCK_RULES.LOSS_STREAK_LOCK_MINUTES} phút`,
-    );
-  }
-  if (!psych.dailyLossOk) {
-    reasons.push(`Lỗ ngày ≥ ${HARD_BLOCK_RULES.MAX_DAILY_LOSS_USDT} USDT`);
-  }
+  // TODO: BẬT LẠI KHI PRODUCTION
+  // if (!psych.noLossStreak) {
+  //   reasons.push(
+  //     `Thua ${HARD_BLOCK_RULES.MAX_CONSECUTIVE_LOSSES} lệnh liên tiếp trong 24h — cooldown ${HARD_BLOCK_RULES.LOSS_STREAK_LOCK_MINUTES} phút`,
+  //   );
+  // }
+  // if (!psych.dailyLossOk) {
+  //   reasons.push(`Lỗ ngày ≥ ${HARD_BLOCK_RULES.MAX_DAILY_LOSS_USDT} USDT`);
+  // }
 
   return reasons;
 }
@@ -405,12 +406,13 @@ export function scoreLayer9_TradingSession(_direction: Direction): ScoringLayerR
 export function scoreLayer10_Psychology(
   checklist: PsychologyChecklistV2,
 ): ScoringLayerResult {
-  if (!checklist.noLossStreak || !checklist.dailyLossOk) {
-    const parts: string[] = [];
-    if (!checklist.noLossStreak) parts.push('chuỗi thua');
-    if (!checklist.dailyLossOk) parts.push('vượt trần lỗ ngày');
-    return wrapLayer(10, 0, parts.join(' · ') || 'Tâm lý không đạt');
-  }
+  // TODO: BẬT LẠI KHI PRODUCTION
+  // if (!checklist.noLossStreak || !checklist.dailyLossOk) {
+  //   const parts: string[] = [];
+  //   if (!checklist.noLossStreak) parts.push('chuỗi thua');
+  //   if (!checklist.dailyLossOk) parts.push('vượt trần lỗ ngày');
+  //   return wrapLayer(10, 0, parts.join(' · ') || 'Tâm lý không đạt');
+  // }
 
   const keys = Object.keys(checklist) as (keyof PsychologyChecklistV2)[];
   const passed = keys.filter((k) => checklist[k]).length;

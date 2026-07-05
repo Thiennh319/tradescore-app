@@ -8,6 +8,14 @@ export interface PositionPnlSnapshot {
   notionalUsdt: number | null;
 }
 
+export interface SplitPositionPnlSnapshot extends PositionPnlSnapshot {
+  realizedPnlUsdt: number;
+  unrealizedPnlUsdt: number | null;
+  unrealizedPnlPercent: number | null;
+  totalPnlUsdt: number | null;
+  totalPnlPercent: number | null;
+}
+
 type PositionLike = Pick<
   StoredTradeJournalEntry,
   'direction' | 'entryPrice' | 'leverage' | 'size'
@@ -48,6 +56,35 @@ export function computePositionPnl(
   }
 
   return { markPrice: null, pnlUsdt: null, pnlPercent: null, notionalUsdt };
+}
+
+/** PnL tách realized (đã chốt một phần) + unrealized (phần còn lại). */
+export function computeSplitPositionPnl(
+  entry: PositionLike,
+  markPrice: number | null | undefined,
+  realizedPnlUsdt: number = 0,
+  fallbackPnlPercent?: number | null,
+): SplitPositionPnlSnapshot {
+  const unrealized = computePositionPnl(entry, markPrice, fallbackPnlPercent);
+  const unrealizedPnlUsdt = unrealized.pnlUsdt;
+  const unrealizedPnlPercent = unrealized.pnlPercent;
+  const totalPnlUsdt =
+    unrealizedPnlUsdt != null ? realizedPnlUsdt + unrealizedPnlUsdt : null;
+  const totalPnlPercent =
+    entry.size > 0 && totalPnlUsdt != null
+      ? (totalPnlUsdt / entry.size) * 100
+      : unrealizedPnlPercent;
+
+  return {
+    ...unrealized,
+    realizedPnlUsdt,
+    unrealizedPnlUsdt,
+    unrealizedPnlPercent,
+    totalPnlUsdt,
+    totalPnlPercent,
+    pnlUsdt: totalPnlUsdt,
+    pnlPercent: totalPnlPercent,
+  };
 }
 
 export function formatSignedUsdt(value: number | null | undefined, digits = 2): string {

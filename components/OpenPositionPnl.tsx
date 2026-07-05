@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { PartialCloseReason } from '../constants/aiJournal';
 import { COLORS, type AppTradeSymbol, type TradePlan } from '../constants/scoring';
 import { RADIUS, SPACING } from '../constants/theme';
 import { vi } from '../constants/vi';
@@ -16,10 +17,16 @@ import { useTradeStore } from '../store/useTradeStore';
 import { formatUsdPrice, formatUsdt } from '../utils/formatPrice';
 import { isPriceLevelHit } from '../utils/priceLevelHit';
 import {
-  computePositionPnl,
+  partialCloseBadgeLabel,
+  recommendationTypeToPartialReason,
+  sumRealizedPartialPnl,
+} from '../services/partialClose';
+import {
+  computeSplitPositionPnl,
   formatSignedPercent,
   formatSignedUsdt,
 } from '../utils/positionPnl';
+import { PartialCloseConfirmModal } from './PartialCloseConfirmModal';
 import { PositionRecommendationWidget } from './PositionRecommendation';
 import { TradeRecommendationTable, type ManualTradeSetup } from './TradeRecommendationTable';
 import { TradeOptimizeHint } from './TradeOptimizeHint';
@@ -71,7 +78,9 @@ export function OpenPositionPnl({
 }: OpenPositionPnlProps) {
   const [editingLevels, setEditingLevels] = useState(false);
   const [editSetup, setEditSetup] = useState<ManualTradeSetup | null>(null);
+  const [pendingPartialReason, setPendingPartialReason] = useState<PartialCloseReason | null>(null);
   const updateJournalEntry = useTradeStore((s) => s.updateJournalEntry);
+  const applyPartialClose = useTradeStore((s) => s.applyPartialClose);
   const logPositionRecommendation = useTradeStore((s) => s.logPositionRecommendation);
   const markGracePeriodTriggered = useTradeStore((s) => s.markGracePeriodTriggered);
   const updatePositionLastFundingState = useTradeStore((s) => s.updatePositionLastFundingState);
@@ -105,7 +114,11 @@ export function OpenPositionPnl({
   const symbol = entry.symbol as AppTradeSymbol;
   const isLong = entry.direction === 'LONG';
   const dirColor = isLong ? COLORS.bullish : COLORS.bearish;
-  const snapshot = computePositionPnl(entry, markPrice);
+  const partialCloses = aiOpenTrade?.partialCloses ?? entry.partialCloses ?? [];
+  const realizedPartialPnl = sumRealizedPartialPnl(partialCloses);
+  const partialCloseBadge = partialCloseBadgeLabel(partialCloses);
+  const splitPnl = computeSplitPositionPnl(entry, markPrice, realizedPartialPnl);
+  const snapshot = splitPnl;
   const liveMark = snapshot.markPrice ?? markPrice ?? null;
   const currentPrice = liveMark;
 
@@ -312,16 +325,23 @@ export function OpenPositionPnl({
   };
 
   const openPartialCloseModal = (type: RecommendationType) => {
-    const label =
-      type === 'PARTIAL_CLOSE_30'
-        ? 'Chốt 30%'
-        : type === 'PARTIAL_TP2'
-          ? 'Chốt thêm 30%'
-          : 'Chốt 50%';
-    Alert.alert(
-      label,
-      'Chốt một phần sẽ được hỗ trợ đầy đủ trong bản cập nhật tiếp theo.',
-    );
+    const reason = recommendationTypeToPartialReason(type);
+    if (!reason) return;
+    setPendingPartialReason(reason);
+  };
+
+  const handleConfirmPartialClose = async () => {
+    if (!pendingPartialReason || !recommendationTradeId || liveMark == null) return;
+    const result = await applyPartialClose({
+      aiEntryId: recommendationTradeId,
+      legacyEntryId: entry.id,
+      markPrice: liveMark,
+      reason: pendingPartialReason,
+    });
+    setPendingPartialReason(null);
+    if (!result.ok) {
+      console.warn('[partialClose]', result.error);
+    }
   };
 
   const handleRecommendationAction = (type: RecommendationType) => {
@@ -343,11 +363,19 @@ export function OpenPositionPnl({
     }
   };
   const pnlColor =
-    snapshot.pnlUsdt == null
+    splitPnl.totalPnlUsdt == null
       ? COLORS.textMuted
-      : snapshot.pnlUsdt >= 0
+      : splitPnl.totalPnlUsdt >= 0
         ? COLORS.bullish
         : COLORS.bearish;
+  const unrealizedColor =
+    splitPnl.unrealizedPnlUsdt == null
+      ? COLORS.textMuted
+      : splitPnl.unrealizedPnlUsdt >= 0
+        ? COLORS.bullish
+        : COLORS.bearish;
+  const realizedColor =
+    realizedPartialPnl >= 0 ? COLORS.bullish : COLORS.bearish;
 
   const levelsOptimize = compareOpenLevels(entry, scanPlan);
   const levelDetail =
@@ -381,15 +409,34 @@ export function OpenPositionPnl({
       </View>
 
       <View style={styles.pnlRow}>
+        {realizedPartialPnl !== 0 ? (
+          <View style={styles.pnlSplitCol}>
+            <Text style={styles.pnlCaption}>{vi.signalBoard.realizedPnl}</Text>
+            <Text style={[styles.pnlUsdtSm, { color: realizedColor }]}>
+              {formatSignedUsdt(realizedPartialPnl)}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.pnlMain}>
           <Text style={styles.pnlCaption}>{vi.signalBoard.unrealizedPnl}</Text>
-          <Text style={[styles.pnlUsdt, { color: pnlColor }]}>
-            {formatSignedUsdt(snapshot.pnlUsdt)}
+          <Text style={[styles.pnlUsdt, { color: unrealizedColor }]}>
+            {formatSignedUsdt(splitPnl.unrealizedPnlUsdt)}
           </Text>
-          <Text style={[styles.pnlPct, { color: pnlColor }]}>
-            {formatSignedPercent(snapshot.pnlPercent)} {vi.signalBoard.roe}
+          <Text style={[styles.pnlPct, { color: unrealizedColor }]}>
+            {formatSignedPercent(splitPnl.unrealizedPnlPercent)} {vi.signalBoard.roe}
           </Text>
         </View>
+        {realizedPartialPnl !== 0 ? (
+          <View style={styles.pnlSplitCol}>
+            <Text style={styles.pnlCaption}>{vi.signalBoard.totalPnl}</Text>
+            <Text style={[styles.pnlUsdtSm, { color: pnlColor }]}>
+              {formatSignedUsdt(splitPnl.totalPnlUsdt)}
+            </Text>
+            <Text style={[styles.pnlPctSm, { color: pnlColor }]}>
+              {formatSignedPercent(splitPnl.totalPnlPercent)} {vi.signalBoard.roe}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.metricsGrid}>
@@ -425,8 +472,20 @@ export function OpenPositionPnl({
           onAction={handleRecommendationAction}
           onUserView={logUserInteraction}
           isLoading={isRefreshing}
+          partialCloseBadge={partialCloseBadge}
         />
       ) : null}
+
+      <PartialCloseConfirmModal
+        visible={pendingPartialReason != null}
+        reason={pendingPartialReason}
+        symbol={symbol}
+        markPrice={liveMark}
+        onClose={() => setPendingPartialReason(null)}
+        onConfirm={() => {
+          void handleConfirmPartialClose();
+        }}
+      />
 
       <View style={styles.levelsWrap}>
         <Text style={styles.levelsTitle}>{vi.activePosition.levelsTitle}</Text>
@@ -620,10 +679,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   pnlRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
     paddingVertical: 2,
   },
   pnlMain: {
+    flex: 1,
     gap: 2,
+  },
+  pnlSplitCol: {
+    flex: 1,
+    gap: 2,
+    minWidth: 72,
   },
   pnlCaption: {
     fontSize: 9,
@@ -637,9 +706,19 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.3,
   },
+  pnlUsdtSm: {
+    fontSize: 15,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
   pnlPct: {
     fontSize: 13,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  pnlPctSm: {
+    fontSize: 11,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   metricsGrid: {
