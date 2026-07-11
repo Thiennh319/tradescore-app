@@ -1,0 +1,104 @@
+================================================================================
+TRADESCORE — AUDIT PACKAGE (GĐ2 - TASK 03)
+================================================================================
+Ngày: 2026-07-10
+Task:   Thêm Package Header + Metadata vào TradeScore_Audit_Package.txt
+File:   services/exportService.ts (exportTradeScoreAuditPackage)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Nâng cấp TradeScore_Audit_Package.txt có định danh Package.
+
+Đã thêm:
+  - Package Header
+  - Metadata
+
+Chưa thêm:
+  - RuleBook
+  - AI Instruction
+  - Output Template
+
+================================================================================
+2. THAY ĐỔI
+================================================================================
+
+Chỉ sửa vùng exportTradeScoreAuditPackage (Task 02 / Task 03).
+
+Thêm:
+  formatTradeScoreAuditPackageHeader(generatedTime)
+  AUDIT_PACKAGE_HEADER_TITLE_BORDER (=×58)
+  AUDIT_PACKAGE_HEADER_SECTION_BORDER (=×80)
+
+================================================================================
+3. HEADER MỚI
+================================================================================
+
+==========================================================
+TRADE SCORE AUDIT PACKAGE
+==========================================================
+
+Package Version    : 1.0
+Rule Version       : TradeScore V4
+Snapshot Version   : 1.0.0
+Evidence Version   : 1.0
+Generated Time     : <ISO8601>
+
+================================================================================
+
+Nguồn constant:
+  Package Version    → EVIDENCE_PACKAGE_VERSION
+  Rule Version       → RULE_AUDIT_RULE_VERSION
+  Snapshot Version   → RULE_AUDIT_SNAPSHOT_VERSION
+  Evidence Version   → EVIDENCE_PACKAGE_VERSION
+  Generated Time     → new Date().toISOString()
+
+================================================================================
+4. CẤU TRÚC FILE SAU EXPORT
+================================================================================
+
+[Package Header + Metadata]
+↓
+separator (=×80)
+↓
+Signal Report TXT (exportSignalData 'txt') — không đổi layout
+↓
+separator (=×80)
+↓
+Human Evidence TXT (exportRuleAuditHumanEvidenceTXT) — không đổi layout
+  - EXECUTIVE SUMMARY
+  - MARKET
+  - RULE
+  - TRADE
+  - METADATA
+
+================================================================================
+5. KHÔNG SỬA
+================================================================================
+
+RuleBook / AI Instruction / AI Output Template
+Executive Summary / Market Evidence layout
+RuleAuditSnapshot / Scoring / Decision / TradePlan
+SignalBoard.tsx / SignalBoardV41 / Unified
+
+================================================================================
+6. VERIFY
+================================================================================
+
+[PASS] Build — chỉ sửa exportService.ts
+[PASS] Export → TradeScore_Audit_Package.txt
+[PASS] Dòng đầu: TRADE SCORE AUDIT PACKAGE
+[PASS] Có Package Version / Rule Version / Snapshot Version / Evidence Version / Generated Time
+[PASS] Sau header mới tới nội dung TXT cũ
+
+================================================================================
+7. KẾT QUẢ
+================================================================================
+
+TradeScore_Audit_Package.txt có Header chuẩn.
+Task 04+ sẽ bổ sung RuleBook và AI Audit.
+
+================================================================================
+END OF REPORT
+================================================================================

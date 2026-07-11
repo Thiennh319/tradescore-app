@@ -125,6 +125,8 @@ export interface DirectionalScoreV4 {
   /** Điểm chính thức cho quyết định — null khi CHỜ TÁI CHẤM */
   officialTotalScore: number | null;
   hardBlocks: string[];
+  /** Lý do chặn điểm (không phải hard block) — vd. L5a CVD chưa đủ 1đ */
+  blockReasons: string[];
   groupBlocks: string[];
   warnings: string[];
   decision: DecisionTypeV4;
@@ -209,6 +211,9 @@ function cvdDivergenceAgainstDirection(
 // L1–L4 — giữ nguyên logic V3
 // ─────────────────────────────────────────
 
+/** Raw L1 = 4/3 → hiển thị 1đ sau quy đổi LAYER_MAX_POINTS (1.5/2). */
+const L1_MTF_CONFLICT_RAW = 2 / LAYER_MAX_POINTS;
+
 export function scoreL1V4(
   direction: Direction,
   ema1h: EMAAnalysisV3,
@@ -231,7 +236,7 @@ export function scoreL1V4(
       return layerA(1, 1, 'Đang pullback về EMA — vùng entry hợp lý');
     }
     if (both1h || both4h) {
-      return layerA(1, 1, 'Mâu thuẫn 1H vs 4H');
+      return layerA(1, L1_MTF_CONFLICT_RAW, 'Mâu thuẫn 1H vs 4H');
     }
     return layerA(1, 0, 'Giá dưới tất cả EMA cả 2 khung');
   }
@@ -247,7 +252,7 @@ export function scoreL1V4(
     return layerA(1, 1.5, 'Giá dưới EMA, slope chưa dốc rõ');
   }
   if (both1h || both4h) {
-    return layerA(1, 1, 'Mâu thuẫn 1H vs 4H');
+    return layerA(1, L1_MTF_CONFLICT_RAW, 'Mâu thuẫn 1H vs 4H');
   }
   return layerA(1, 0, 'Giá trên tất cả EMA — không vào Short');
 }
@@ -341,28 +346,32 @@ export function scoreL3V4(
     if (macd1h.isTurningUp && macd4h.isTurningUp) {
       return layerA(3, 1.5, 'Cả 2 khung đang bẻ góc lên');
     }
-    if (h1 > 0 || macd1h.isTurningUp) {
+    if (h1 > 0 || h4 > 0 || macd1h.isTurningUp || macd4h.isTurningUp) {
       return layerA(3, 1, '1 khung thuận Long');
     }
     return layerA(3, 0, 'Histogram âm cả 2 khung — VI PHẠM');
   }
 
-  if (h1 < 0 && h4 < 0) {
-    return layerA(3, 2, 'Histogram âm cả 1H & 4H');
+  if (direction === 'SHORT') {
+    if (h1 > 0 && h4 > 0) {
+      return layerA(3, 0, 'Histogram dương cả 2 khung — VI PHẠM Short');
+    }
+    if (h1 < 0 && h4 < 0) {
+      return layerA(3, 2, 'Histogram âm cả 1H & 4H');
+    }
+    if (macd1h.crossedZeroRecentlyDown || macd4h.crossedZeroRecentlyDown) {
+      return layerA(3, 1.5, 'MACD vừa cắt xuống 0 — tín hiệu mạnh');
+    }
+    if (macd1h.isTurningDown && macd4h.isTurningDown) {
+      return layerA(3, 1.5, 'Cả 2 khung đang bẻ góc xuống');
+    }
+    if (h1 < 0 || h4 < 0 || macd1h.isTurningDown || macd4h.isTurningDown) {
+      return layerA(3, 1, '1 khung thuận Short');
+    }
+    return layerA(3, 0, 'MACD không thuận Short');
   }
-  if (macd1h.crossedZeroRecentlyDown || macd4h.crossedZeroRecentlyDown) {
-    return layerA(3, 1.5, 'MACD vừa cắt xuống 0 — tín hiệu mạnh');
-  }
-  if (h1 < 0 && macd1h.isTurningDown) {
-    return layerA(3, 1.5, '1H âm & đang bẻ góc xuống');
-  }
-  if (macd1h.isTurningDown && macd4h.isTurningDown) {
-    return layerA(3, 1.5, 'Cả 2 khung đang bẻ góc xuống');
-  }
-  if (h1 < 0 || macd1h.isTurningDown) {
-    return layerA(3, 1, '1 khung thuận Short');
-  }
-  return layerA(3, 0, 'Histogram dương cả 2 khung — VI PHẠM Short');
+
+  return layerA(3, 0, 'MACD không xác định');
 }
 
 export function scoreL4V4(
@@ -396,22 +405,36 @@ export function scoreL4V4(
     return layerA(4, 0, `%B=${percentB.toFixed(0)} Không thuận Long Ranging`);
   }
 
-  if (marketMode === 'TRENDING') {
-    if (percentB >= 10 && percentB <= 40) {
-      return layerA(4, 2, `%B=${percentB.toFixed(0)} Trending nửa dưới — ride band`);
+  if (direction === 'SHORT') {
+    if (marketMode === 'TRENDING') {
+      if (percentB >= 10 && percentB <= 40) {
+        return layerA(4, 2, `%B=${percentB.toFixed(0)} Trending nửa dưới — ride band`);
+      }
+      if (percentB > 40 && percentB <= 60) {
+        return layerA(4, 1.5, `%B=${percentB.toFixed(0)} Hồi về giữa trong downtrend`);
+      }
+      if (percentB > 70) {
+        return layerA(4, 0, `%B=${percentB.toFixed(0)} Quá cao — không thuận Short Trending`);
+      }
+      return layerA(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Trending`);
     }
-    if (percentB > 40 && percentB <= 60) {
-      return layerA(4, 1.5, `%B=${percentB.toFixed(0)} Hồi về giữa trong downtrend`);
+
+    if (percentB < 30) {
+      return layerA(4, 0, `%B=${percentB.toFixed(0)} Giá đáy dải — không Short Ranging`);
     }
-    return layerA(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Trending`);
+    if (percentB > 80) {
+      return layerA(4, 0, `%B=${percentB.toFixed(0)} Overbought — không Short Ranging`);
+    }
+    if (percentB >= 45 && percentB <= 65) {
+      return layerA(4, 2, `%B=${percentB.toFixed(0)} Ranging vùng giữa — tốt nhất để sell`);
+    }
+    if ((percentB >= 30 && percentB < 45) || (percentB > 65 && percentB <= 80)) {
+      return layerA(4, 1, `%B=${percentB.toFixed(0)} Ranging nửa dải — potential short`);
+    }
+    return layerA(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Ranging`);
   }
-  if (percentB >= 45 && percentB <= 65) {
-    return layerA(4, 2, `%B=${percentB.toFixed(0)} Ranging vùng giữa — tốt nhất để sell`);
-  }
-  if (percentB > 65 && percentB <= 80) {
-    return layerA(4, 1, `%B=${percentB.toFixed(0)} Ranging nửa trên — potential short`);
-  }
-  return layerA(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Ranging`);
+
+  return layerA(4, 0, `%B=${percentB.toFixed(0)} Không xác định`);
 }
 
 // ─────────────────────────────────────────
@@ -610,12 +633,14 @@ const LONG_L6_BY_STATE: Record<FundingState, number> = {
   [FundingState.SHORT_EUPHORIA_FADING]: 1.5,
   [FundingState.NEUTRAL]: 1,
   [FundingState.LONG_EUPHORIA_FADING]: 0.5,
+  [FundingState.LONG_FUNDING_ELEVATED]: 0.5,
   [FundingState.EXTREME_LONG_EUPHORIA]: 0,
 };
 
 const SHORT_L6_BY_STATE: Record<FundingState, number> = {
   [FundingState.EXTREME_LONG_EUPHORIA]: 2,
   [FundingState.LONG_EUPHORIA_FADING]: 1.5,
+  [FundingState.LONG_FUNDING_ELEVATED]: 1.5,
   [FundingState.NEUTRAL]: 1,
   [FundingState.SHORT_EUPHORIA_FADING]: 0.5,
   [FundingState.SHORT_SQUEEZE_BUILDING]: 0,
@@ -992,9 +1017,10 @@ function wouldPassWithoutL9(
   groupBlocks: string[],
   hardBlocks: string[],
   referenceTotal: number,
+  blockReasons: string[] = [],
 ): boolean {
   const otherBlocks = hardBlocks.filter((b) => !b.startsWith('L9 Phiên xấu'));
-  if (otherBlocks.length > 0 || groupBlocks.length > 0) return false;
+  if (otherBlocks.length > 0 || groupBlocks.length > 0 || blockReasons.length > 0) return false;
   const decision = resolveDecision(referenceTotal);
   return decision !== 'KHONG_VAO' && decision !== 'CHO_THEM';
 }
@@ -1114,6 +1140,7 @@ export function scoreAnalysisV4(
   const buildDirectional = (direction: Direction): DirectionalScoreV4 => {
     const warnings: string[] = [];
     const hardBlocks: string[] = [];
+    const blockReasons: string[] = [];
 
     const l1 = scoreL1V4(direction, ema1h, ema4h);
     const l2 = scoreL2V4(direction, input.klines1h, input.klines4h);
@@ -1154,7 +1181,7 @@ export function scoreAnalysisV4(
     if (l5aRes.hardBlock) hardBlocks.push(l5aRes.hardBlock);
     if (l5aRes.warning) warnings.push(l5aRes.warning);
     if (l5aRes.layerResult.score < 1 && !l5aRes.hardBlock) {
-      hardBlocks.push(`L5a CVD chưa đủ 1đ — ${l5aRes.layerResult.reason}`);
+      blockReasons.push(`L5a CVD chưa đủ 1đ — ${l5aRes.layerResult.reason}`);
     }
     if (l6Res.hardBlock) hardBlocks.push(l6Res.hardBlock);
     if (l7Res.warning) warnings.push(l7Res.warning);
@@ -1204,7 +1231,8 @@ export function scoreAnalysisV4(
     }
 
     const referenceTotalScore = +(groupA + groupB + groupC).toFixed(2);
-    const isBlocked = hardBlocks.length > 0 || groupBlocks.length > 0;
+    const isBlocked =
+      hardBlocks.length > 0 || blockReasons.length > 0 || groupBlocks.length > 0;
 
     let awaitingRescore = false;
     let decision: DecisionTypeV4 = 'KHONG_VAO';
@@ -1214,7 +1242,7 @@ export function scoreAnalysisV4(
     if (
       l9Bad &&
       isOnlyL9SessionBlock(hardBlocks) &&
-      wouldPassWithoutL9(groupBlocks, hardBlocks, referenceTotalScore)
+      wouldPassWithoutL9(groupBlocks, hardBlocks, referenceTotalScore, blockReasons)
     ) {
       awaitingRescore = true;
       decision = 'CHO_TAI_CHAM';
@@ -1267,6 +1295,7 @@ export function scoreAnalysisV4(
       referenceTotalScore,
       officialTotalScore,
       hardBlocks,
+      blockReasons,
       groupBlocks,
       warnings,
       decision,
@@ -1296,6 +1325,7 @@ export function canEnterV4(active: DirectionalScoreV4): boolean {
   return (
     !active.awaitingRescore &&
     active.hardBlocks.length === 0 &&
+    active.blockReasons.length === 0 &&
     active.groupBlocks.length === 0 &&
     active.decision !== 'KHONG_VAO' &&
     active.decision !== 'CHO_THEM' &&

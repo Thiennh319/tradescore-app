@@ -1,0 +1,325 @@
+================================================================================
+TRADESCORE — INVESTIGATION REPORT (A + B)
+================================================================================
+
+Ngày        : 2026-07-11
+Loại        : Investigation-only — CHƯA SỬA CODE
+Phạm vi     : Nhiệm vụ A (L6 Funding) và Nhiệm vụ B (SOLUSDT Direction) — tách riêng
+
+================================================================================
+NHIỆM VỤ A — L6 FUNDING: lệch điểm dù cùng funding rate input
+================================================================================
+
+--------------------------------------------------------------------------------
+A.1 VỊ TRÍ CODE
+--------------------------------------------------------------------------------
+
+Tính L6 V4:
+  services/scorerV4.ts — scoreL6V4()           dòng 756–803
+  services/scorerV4.ts — scoreL6V4Legacy()     dòng 704–754 (fallback)
+
+Phân loại funding state:
+  constants/scoring.ts — classifyFundingState() dòng 834–865
+
+Score map theo direction:
+  services/scorerV4.ts — LONG_L6_BY_STATE      dòng 631–637
+  services/scorerV4.ts — SHORT_L6_BY_STATE       dòng 639–645
+
+Gọi từ pipeline:
+  services/scorerV4.ts — scoreAnalysisV4()     dòng 1168
+    const l6Res = scoreL6V4(direction, funding, input.fundingMetrics);
+
+Hard Block L6:
+  services/scorerV4.ts — dòng 1153–1155 (l3.score < 1 — không liên quan L6)
+
+Display score (audit thấy 0.75đ):
+  services/scorerV4.ts — scoringLayersToDisplayV4() dòng 1407–1421
+    weighted = (layer.score / layer.maxScore) * LAYER_MAX_POINTS
+  constants/scoring.ts — LAYER_MAX_POINTS = 1.5
+
+Audit path label:
+  services/exportService.ts — resolveL6ScoringPath() dòng 322–338
+
+--------------------------------------------------------------------------------
+A.2 ĐOẠN CODE GÂY NGHI VẤN
+--------------------------------------------------------------------------------
+
+(1) classifyFundingState — KHÔNG nhận direction (by design):
+
+  constants/scoring.ts dòng 834–865:
+
+  export function classifyFundingState(
+    fundingCurrent: number,
+    fundingVelocity: number,
+    _fundingAcceleration: number,
+  ): FundingState {
+    ...
+    if (
+      Math.abs(fundingCurrent) <= t.NEUTRAL_CURRENT_ABS_PCT &&   // 0.005
+      Math.abs(fundingVelocity) <= t.NEUTRAL_VELOCITY_ABS_PCT   // 0.002
+    ) {
+      return FundingState.NEUTRAL;
+    }
+    ...
+    return FundingState.NEUTRAL;   // ← fallback mặc định
+  }
+
+(2) Direction ĐƯỢC áp dụng ở bước sau — scoreL6V4:
+
+  services/scorerV4.ts dòng 790–802:
+
+  const state = classifyFundingState(
+    fundingMetrics.fundingCurrent,
+    fundingMetrics.fundingVelocity,
+    fundingMetrics.fundingAcceleration,
+  );
+  const scoreMap = direction === 'LONG' ? LONG_L6_BY_STATE : SHORT_L6_BY_STATE;
+  const score = scoreMap[state];
+  const label = getFundingStateLabel(state);
+  const reason =
+    `Funding ${fundingMetrics.fundingCurrent.toFixed(4)}% · ` +
+    `${label.icon} ${label.text}`;
+
+(3) NEUTRAL cho cùng điểm raw cả 2 hướng:
+
+  LONG_L6_BY_STATE[NEUTRAL]  = 1
+  SHORT_L6_BY_STATE[NEUTRAL] = 1
+
+(4) Display scale → 0.75đ cho cả 2:
+
+  raw=1, maxScore=2 (L6_RAW_MAX)
+  weighted = (1/2) * 1.5 = 0.75
+
+--------------------------------------------------------------------------------
+A.3 TRACE VỚI INPUT THỰC TẾ
+--------------------------------------------------------------------------------
+
+Input audit:
+  BTCUSDT  LONG  funding ≈ 0.0095%
+  NEARUSDT SHORT funding ≈ 0.0097%
+  l6Path   = V4_STATE
+  Actual   = 0.75đ — "Thị trường cân bằng" (cả 2 coin)
+
+Bước 1 — fundingMetrics.fundingCurrent ≈ 0.0095 (đơn vị %)
+
+Bước 2 — classifyFundingState(0.0095, velocity, accel):
+
+  |current| = 0.0095 > NEUTRAL_CURRENT_ABS_PCT (0.005) → không vào NEUTRAL sớm
+  0.0095 < EXTREME_LONG_CURRENT_PCT (0.01) → không EXTREME_LONG_EUPHORIA
+  LONG_EUPHORIA_FADING cần velocity < 0 — nếu velocity ≈ 0 → không khớp
+  Không khớp nhánh SHORT (funding dương)
+  → rơi vào return FundingState.NEUTRAL (fallback dòng 864)
+
+  (Đã có test xác nhận gap: constants/scoring.test.ts dòng 208–209
+   "current = 0.01% with positive velocity → NEUTRAL fallback")
+
+Bước 3 — scoreL6V4 với state = NEUTRAL:
+
+  BTC  LONG  → scoreMap[NEUTRAL] = 1 → display 0.75 → "Thị trường cân bằng"
+  NEAR SHORT → scoreMap[NEUTRAL] = 1 → display 0.75 → "Thị trường cân bằng"
+
+Bước 4 — So với Rule/Expected audit:
+
+  BTC LONG Expected 0đ:
+    Khớp logic legacy V3 (scoreL6V4Legacy) — funding dương ~0.01% → 0đ "không thuận Long"
+    HOẶC LONG_L6_BY_STATE[LONG_EUPHORIA_FADING] = 0.5 → display 0.375
+
+  NEAR SHORT Expected 1.13đ:
+    Khớp legacy SHORT funding dương → raw 0.75, max 1
+    display = (0.75/1)*1.5 = 1.125 ≈ 1.13
+    HOẶC SHORT_L6_BY_STATE[LONG_EUPHORIA_FADING] = 1.5 → display 1.125
+
+Kết luận trace:
+  Actual dùng V4_STATE + NEUTRAL fallback → cùng 0.75 cả 2 hướng.
+  Expected audit dùng logic legacy / tier theo direction → khác nhau.
+
+--------------------------------------------------------------------------------
+A.4 ROOT CAUSE HYPOTHESIS
+--------------------------------------------------------------------------------
+
+Giả thuyết audit (classifyFundingState không dùng direction):
+  KHÔNG ĐÚNG hoàn toàn — direction được áp dụng qua scoreMap ở scoreL6V4:795.
+  classifyFundingState cố ý không nhận direction (state mô tả thị trường).
+
+Root cause thực tế (2 lớp):
+
+  Lớp 1 — Gap classifyFundingState:
+    fundingCurrent ∈ (0.005%, 0.01%] với velocity không âm
+    → fallback NEUTRAL thay vì LONG_EUPHORIA_FADING hoặc state phân biệt hướng.
+
+  Lớp 2 — NEUTRAL symmetric:
+    LONG_L6_BY_STATE[NEUTRAL] = SHORT_L6_BY_STATE[NEUTRAL] = 1
+    → cùng raw score → cùng display 0.75 cho LONG và SHORT
+    → không phân biệt hướng dù funding dương bất lợi Long / có lợi Short.
+
+  Lớp 3 — Audit methodology mismatch (không phải bug đọc field):
+    Expected ~1.13đ SHORT khớp legacy path (0.75 raw × scale 1.5).
+    Expected 0đ LONG khớp legacy tier "cao — không thuận Long".
+    Actual dùng V4_STATE path — không phải V4_LEGACY.
+
+Loại trừ:
+  (a) Đọc nhầm h1/h4 — không áp dụng L6
+  (b) Nhầm timeframe — không áp dụng
+  (c) Hard Block L6 đọc sai score — không liên quan case này
+
+Confidence: 88%
+
+--------------------------------------------------------------------------------
+NHIỆM VỤ B — SOLUSDT: lệch direction giữa Rule và Actual
+================================================================================
+
+--------------------------------------------------------------------------------
+B.1 VỊ TRÍ CODE
+--------------------------------------------------------------------------------
+
+Chọn direction V4:
+  services/scorerV4.ts — suggestDirectionV4()     dòng 1334–1345
+  services/scorerV3.ts — suggestDirectionV3()     dòng 937–944 (V3 tương tự)
+
+Pipeline scan:
+  services/signalBoardScan.ts — dòng 1090–1135
+    scoringV4 = scoreAnalysisV4(...)
+    vwapBonusApplied = applyVwapBonusToScoring(...)
+    directionV4 = suggestDirectionV4(scoringV4WithBonus)
+    v4Base = snapshotFromV4(scoringV4WithBonus, directionV4)
+
+Ambiguity (không đổi direction, chỉ flag):
+  services/directionAmbiguity.ts — resolveDirectionAmbiguity()
+
+Rule Book mô tả:
+  docs/tradeScoreRuleBook.ts dòng 271–273
+
+Export active direction + layers:
+  services/exportService.ts — buildExportRow() dòng 398–419
+    snap = resolveSignalRow(row) → snap.direction, snap.layers (active side only)
+
+--------------------------------------------------------------------------------
+B.2 ĐOẠN CODE GÂY NGHI VẤN
+--------------------------------------------------------------------------------
+
+suggestDirectionV4 waterfall:
+
+  services/scorerV4.ts dòng 1334–1345:
+
+  export function suggestDirectionV4(result: ScoringResultV4): Direction {
+    const { long, short } = result;
+    if (long.hardBlocks.length > 0 && short.hardBlocks.length === 0) return 'SHORT';
+    if (short.hardBlocks.length > 0 && long.hardBlocks.length === 0) return 'LONG';
+    if (long.awaitingRescore && !short.awaitingRescore) return 'SHORT';
+    if (short.awaitingRescore && !long.awaitingRescore) return 'LONG';
+    if (long.decision === 'KHONG_VAO' && short.decision !== 'KHONG_VAO') return 'SHORT';
+    if (short.decision === 'KHONG_VAO' && long.decision !== 'KHONG_VAO') return 'LONG';
+    const longScore = long.officialTotalScore ?? long.referenceTotalScore;
+    const shortScore = short.officialTotalScore ?? short.referenceTotalScore;
+    return longScore >= shortScore ? 'LONG' : 'SHORT';
+  }
+
+L1 EMA — minh họa layer phụ thuộc direction (không phải bug):
+
+  services/scorerV4.ts — scoreL1V4()
+  Giá dưới tất cả EMA:
+    LONG  → 0đ  "giá dưới tất cả EMA"
+    SHORT → ~1.5đ "giá dưới EMA, dốc xuống" (nếu slope DOWN)
+
+VWAP bonus trước khi chọn direction:
+
+  services/signalBoardScan.ts dòng 1097–1131
+  applyVwapBonusToScoring() → patchDirectionalV4WithL5Bonus() → thay đổi total score
+
+--------------------------------------------------------------------------------
+B.3 TRACE VỚI INPUT SOLUSDT (từ audit mô tả)
+--------------------------------------------------------------------------------
+
+Audit mô tả:
+  Rule/Expected : direction=SHORT, Long=5.77, Short=7.6
+  Actual        : direction=LONG,  Long=6.75, Short=6.25
+  L1 EMA Rule   : 1.5đ SHORT "giá dưới EMA, dốc xuống"
+  L1 EMA Actual : 0.0đ LONG  "giá dưới tất cả EMA"
+
+Phân tích:
+
+  (1) L1 khác nhau KHÔNG chứng minh bug L1 —
+      Rule đang so layer tính cho SHORT (1.5đ),
+      Actual export layer của active direction LONG (0.0đ).
+      Cùng bộ EMA, cùng giá dưới EMA → đúng rule khi score 2 hướng khác nhau.
+
+  (2) suggestDirectionV4 với Actual totals:
+      longScore=6.75, shortScore=6.25
+      → longScore >= shortScore → return 'LONG' (dòng 1344)
+      Code hoạt động đúng theo waterfall bước cuối.
+
+  (3) Rule Expected direction SHORT:
+      Short=7.6 > Long=5.77
+      → cùng waterfall sẽ chọn SHORT
+      → Rule replay và App KHÁC direction vì TỔNG ĐIỂM 2 bên khác nhau,
+        không vì suggestDirectionV4 logic sai.
+
+  (4) Chênh lệch tổng điểm (ước tính):
+      Long:  6.75 actual vs 5.77 expected  (+0.98)
+      Short: 6.25 actual vs 7.6 expected   (-1.35)
+      → đủ đảo chiều winner LONG vs SHORT
+
+  (5) Các yếu tố có thể gây lệch tổng (cần trace snapshot SOL khi fix):
+      a) VWAP L5 bonus (+0.5 L5 raw) — chỉ áp sau scoreAnalysisV4, trước suggestDirection
+      b) Hard block một phía — waterfall ưu tiên TRƯỚC so sánh điểm:
+         short.hardBlocks > 0 && long.hardBlocks = 0 → ép LONG dù short score cao hơn
+      c) awaitingRescore / KHONG_VAO một phía (V4)
+      d) Rule audit replay thủ công không gồm bonus/block giống pipeline
+      e) L3 MACD fix gần đây có thể thay đổi điểm một phía (BTC case tương tự)
+
+  (6) Không có snapshot SOLUSDT Section 7 đính kèm trong repo —
+      chưa thể trace deterministic từng layer tại snapshot.
+      Cần audit package gốc để xác nhận hardBlocks / VWAP / L3 per side.
+
+--------------------------------------------------------------------------------
+B.4 ROOT CAUSE HYPOTHESIS
+--------------------------------------------------------------------------------
+
+Giả thuyết "code chọn sai direction do EMA/ADX waterfall":
+  KHÔNG ĐÚNG — suggestDirectionV4 không dùng EMA/ADX trực tiếp.
+  Chỉ dùng: hardBlocks → awaitingRescore → KHONG_VAO → so sánh total score.
+
+Giả thuyết "so sánh layer khác hướng trong audit":
+  ĐÚNG (methodology) — L1 Rule (SHORT) vs L1 Actual (LONG) là artifact
+  direction khác nhau, không phải bug layer riêng lẻ.
+
+Root cause thực tế (ưu tiên):
+
+  H1 (75%): Tổng điểm Long/Short trong app khác Rule replay
+            → suggestDirectionV4 chọn LONG (6.75 ≥ 6.25)
+            → Rule replay chọn SHORT (7.6 > 5.77)
+            Nguyên nhân delta: VWAP bonus, hard block một phía, hoặc
+            layer score khác (L3/L6/...) giữa manual replay và pipeline.
+
+  H2 (60%): Hard block / blockReasons chỉ trên SHORT side
+            → waterfall bước 2 ép LONG trước khi so điểm
+            (cần xác nhận từ snap.shortHardBlocks trong audit package)
+
+  H3 (40%): Rule audit replay không áp dụng cùng pipeline
+            (thiếu VWAP bonus, khác funding path V4_STATE vs legacy)
+
+  H4 (20%): Stale snapshot — ít khả năng vì scores có vẻ fresh từ cùng scan
+
+Không đủ dữ liệu SOL snapshot trong codebase để chốt H1 vs H2.
+
+Confidence tổng thể Task B: 72% (direction flip do score delta + audit so khác hướng)
+
+================================================================================
+TÓM TẮT — CHỜ CONFIRM TRƯỚC KHI FIX
+================================================================================
+
+NHIỆM VỤ A:
+  Không phải "classifyFundingState thiếu direction".
+  Là gap NEUTRAL fallback tại funding 0.005–0.01% + NEUTRAL symmetric score
+  + audit Expected dùng legacy tier khác Actual V4_STATE.
+
+NHIỆM VỤ B:
+  Không phải suggestDirectionV4 chọn direction bằng EMA.
+  Direction LONG vì app total Long > Short; Rule SHORT vì replay total Short > Long.
+  Layer L1 "lệch" do so sánh 2 hướng khác nhau trong audit.
+
+CHƯA SỬA CODE — chờ confirm.
+
+================================================================================
+END OF REPORT
+================================================================================

@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Kline } from './binanceApi';
 import type { BollingerAnalysisV3, EMAAnalysisV3, MACDAnalysisV3 } from './indicators';
 import {
+  scoreL1V4,
+  scoreL3V4,
+  scoreL4V4,
   scoreL5aV4,
   scoreL5bV4,
   scoreL6V4,
@@ -86,6 +89,118 @@ function baseInput(overrides?: Partial<AnalysisInput>): AnalysisInput {
   };
 }
 
+function macd(histogram: number, extras: Partial<MACDAnalysisV3> = {}): MACDAnalysisV3 {
+  return {
+    macd: histogram,
+    signal: 0,
+    histogram,
+    isTurningUp: false,
+    isTurningDown: false,
+    crossedZeroRecentlyUp: false,
+    crossedZeroRecentlyDown: false,
+    ...extras,
+  };
+}
+
+function bb(percentB: number, marketMode: 'TRENDING' | 'RANGING'): BollingerAnalysisV3 {
+  return {
+    upper: new Float32Array([110]),
+    middle: new Float32Array([100]),
+    lower: new Float32Array([90]),
+    percentB,
+    bandwidth: 5,
+    bandwidthSlope: marketMode === 'TRENDING' ? 'EXPANDING' : 'FLAT',
+    marketMode,
+  };
+}
+
+describe('scorerV4 L4 BB SHORT', () => {
+  it('RANGING %B=17 giá đáy dải → 0đ', () => {
+    const r = scoreL4V4('SHORT', bb(17, 'RANGING'));
+    expect(r.score).toBe(0);
+    expect(r.reason).toContain('đáy dải');
+  });
+
+  it('RANGING %B=50 vùng giữa → 2đ', () => {
+    expect(scoreL4V4('SHORT', bb(50, 'RANGING')).score).toBe(2);
+  });
+
+  it('TRENDING %B=17 ride band → 2đ', () => {
+    expect(scoreL4V4('SHORT', bb(17, 'TRENDING')).score).toBe(2);
+  });
+
+  it('TRENDING %B=75 → 0đ', () => {
+    expect(scoreL4V4('SHORT', bb(75, 'TRENDING')).score).toBe(0);
+  });
+});
+
+describe('scorerV4 L1 EMA mâu thuẫn', () => {
+  it('LONG mâu thuẫn 1H/4H hiển thị 1đ', () => {
+    const ema1hAbove = ema({ priceAboveEma20: true, priceAboveEma50: true, priceVsEma20Pct: 3 });
+    const ema4hBelow = ema({
+      priceAboveEma20: false,
+      priceAboveEma50: false,
+      priceVsEma20Pct: -3,
+      slope20: 'DOWN',
+    });
+    const r = scoreL1V4('LONG', ema1hAbove, ema4hBelow);
+    expect(r.reason).toContain('Mâu thuẫn 1H vs 4H');
+    const [display] = scoringLayersToDisplayV4([r]);
+    expect(display.score).toBe(1);
+  });
+
+  it('SHORT mâu thuẫn 1H/4H hiển thị 1đ', () => {
+    const ema1hBelow = ema({
+      priceAboveEma20: false,
+      priceAboveEma50: false,
+      priceVsEma20Pct: -3,
+      slope20: 'DOWN',
+    });
+    const ema4hAbove = ema({ priceAboveEma20: true, priceAboveEma50: true, priceVsEma20Pct: 3 });
+    const r = scoreL1V4('SHORT', ema1hBelow, ema4hAbove);
+    expect(r.reason).toContain('Mâu thuẫn 1H vs 4H');
+    const [display] = scoringLayersToDisplayV4([r]);
+    expect(display.score).toBe(1);
+  });
+});
+
+describe('scorerV4 L3 MACD SHORT', () => {
+  it('both histogram negative gets 2', () => {
+    const r = scoreL3V4('SHORT', macd(-0.5), macd(-0.3));
+    expect(r.score).toBe(2);
+    expect(r.reason).toContain('Histogram âm cả 1H & 4H');
+  });
+
+  it('both negative with turning down still gets 2 not 1.5', () => {
+    const r = scoreL3V4(
+      'SHORT',
+      macd(-0.5, { isTurningDown: true }),
+      macd(-0.3, { isTurningDown: true }),
+    );
+    expect(r.score).toBe(2);
+  });
+
+  it('both positive histogram VI PHẠM', () => {
+    const r = scoreL3V4('SHORT', macd(0.5), macd(0.3));
+    expect(r.score).toBe(0);
+    expect(r.reason).toContain('VI PHẠM');
+  });
+});
+
+describe('scorerV4 L3 MACD LONG', () => {
+  it('h1 negative h4 positive gets 1 khung thuận', () => {
+    const r = scoreL3V4('LONG', macd(-42.29), macd(145.61));
+    expect(r.score).toBe(1);
+    expect(r.reason).toContain('1 khung thuận');
+  });
+
+  it('h1 positive h4 negative gets 1 khung thuận', () => {
+    const r = scoreL3V4('LONG', macd(0.5), macd(-0.3));
+    expect(r.score).toBe(1);
+    expect(r.reason).toContain('1 khung thuận');
+  });
+});
+
 describe('scorerV4 L5a CVD', () => {
   function cvdPointsWithMomentum(
     currentCvd: number,
@@ -156,6 +271,19 @@ describe('scorerV4 L5a CVD', () => {
     expect(hardBlock).toContain('+2M');
   });
 
+  it('L5a score < 1 goes to blockReasons not hardBlocks', () => {
+    const input: AnalysisInputV4 = {
+      ...(baseInput() as AnalysisInputV4),
+      cvdPoints: [{ timestamp: 1, price: 100, cvd: 2_000 }],
+    };
+    const result = scoreAnalysisV4(input, { consecutiveLosses: 0, dailyLossUSDT: 0 });
+    const side = result.long;
+
+    expect(side.hardBlocks.some((b) => b.startsWith('L5a CVD chưa đủ'))).toBe(false);
+    expect(side.blockReasons.some((b) => b.startsWith('L5a CVD chưa đủ'))).toBe(true);
+    expect(canEnterV4(side)).toBe(false);
+  });
+
   it('L5b only scores Volume/OI without CVD', () => {
     const result = scoreL5bV4('LONG', klines([100, 101, 102]), 1_000_000, 990_000, 0.5);
     expect(result.layerNumber).toBe(LAYER_L5B_ID);
@@ -194,6 +322,30 @@ describe('scorerV4 L6 Funding', () => {
     const short = scoreL6V4('SHORT', funding, neutralMetrics);
     expect(long.layerResult.score).toBe(1);
     expect(short.layerResult.score).toBe(1);
+  });
+
+  const elevatedFundingMetrics = {
+    fundingCurrent: 0.0095,
+    fundingVelocity: 0,
+    fundingAcceleration: 0,
+    fundingAvg8: 0.0095,
+    fundingAvg16: 0.009,
+  };
+
+  it('LONG_FUNDING_ELEVATED → LONG raw 0.5 display 0.375', () => {
+    const funding = getFundingAnalysisV3([{ rate: 0.0095, timestamp: 1 }]);
+    const { layerResult } = scoreL6V4('LONG', funding, elevatedFundingMetrics);
+    expect(layerResult.score).toBe(0.5);
+    const [display] = scoringLayersToDisplayV4([layerResult]);
+    expect(display.score).toBe(0.38);
+  });
+
+  it('LONG_FUNDING_ELEVATED → SHORT raw 1.5 display 1.125', () => {
+    const funding = getFundingAnalysisV3([{ rate: 0.0095, timestamp: 1 }]);
+    const { layerResult } = scoreL6V4('SHORT', funding, elevatedFundingMetrics);
+    expect(layerResult.score).toBe(1.5);
+    const [display] = scoringLayersToDisplayV4([layerResult]);
+    expect(display.score).toBe(1.13);
   });
 
   it('fundingCurrent > 0.03% HARD BLOCKs LONG regardless of state', () => {
@@ -296,6 +448,7 @@ describe('scorerV4 pipeline', () => {
         referenceTotalScore: 11,
         officialTotalScore: null,
         hardBlocks: ['L9 Phiên xấu — Asia Dead Zone'],
+        blockReasons: [],
         groupBlocks: [],
         warnings: [],
         decision: 'CHO_TAI_CHAM',

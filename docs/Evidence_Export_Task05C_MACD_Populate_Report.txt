@@ -1,0 +1,165 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 05C)
+================================================================================
+Ngày: 2026-07-09
+Task:   Populate nhóm MACD vào RuleAuditSnapshot
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: EMA + RSI + MACD MAP LIVE — chưa wire scan, chưa export
+
+Tiền đề:
+  Task 05A — EMA
+  Task 05B — RSI
+  Task 05C — MACD (nhóm thứ 3)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Ghi dữ liệu MACD đã có sẵn vào snapshot.macd — map 1:1, không tính MACD,
+không gọi getMACDAnalysisV3 / calculateMACD trong populate.
+
+Nguyên tắc Task 05C:
+  ✅ Chỉ sửa ruleAuditSnapshotPopulate.ts
+  ✅ Thêm input.macd + populateMacd() + populateMacdTimeframe()
+  ✅ Giữ EMA (05A) và RSI (05B)
+  ❌ Không populate Bollinger, Volume, … (05D+)
+  ❌ Không sửa schema, builder, scan, export
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 05C)
+================================================================================
+
+export type RuleAuditMacdPopulateSource = RuleAuditMacdInput;
+
+export interface RuleAuditPopulateInput {
+  ema: RuleAuditEmaPopulateSource;
+  rsi: RuleAuditRsiPopulateSource;
+  macd: RuleAuditMacdPopulateSource;
+}
+
+Required khi gọi populateRuleAuditSnapshot(): ema, rsi, macd.
+Thiếu một trong ba → throw Error.
+
+================================================================================
+3. SCHEMA MACD (RuleAuditMacdInput)
+================================================================================
+
+Cấu trúc MTF — không dùng tên phẳng macd1h:
+
+  macd: {
+    h1: RuleAuditMacdTimeframe   // 1H
+    h4: RuleAuditMacdTimeframe   // 4H
+  }
+
+RuleAuditMacdTimeframe (7 field / TF):
+  macd, signal, histogram
+  isTurningUp, isTurningDown
+  crossedZeroRecentlyUp, crossedZeroRecentlyDown
+
+Khớp MACDAnalysisV3 (indicators.ts) — caller map trực tiếp.
+
+================================================================================
+4. ĐOẠN POPULATE MACD
+================================================================================
+
+function populateMacdTimeframe(target, source):
+  map 7 field 1:1 (macd, signal, histogram, isTurning*, crossedZero*)
+
+function populateMacd(snapshot, macd):
+  populateMacdTimeframe(snapshot.macd.h1, macd.h1)
+  populateMacdTimeframe(snapshot.macd.h4, macd.h4)
+
+populateRuleAuditSnapshot:
+  if (input.macd == null) throw 'input.macd is required'
+  populateMacd(snapshot, input.macd)
+
+================================================================================
+5. SOURCE MAPPING — BẮT BUỘC (AI AUDIT TRACE)
+================================================================================
+
+Snapshot Field                    Input Field                         Runtime Source
+────────────────────────────────  ──────────────────────────────────  ─────────────────────────────
+snapshot.macd.h1.macd             input.macd.h1.macd                  getMACDAnalysisV3(klines1h).macd
+snapshot.macd.h1.signal           input.macd.h1.signal                getMACDAnalysisV3(klines1h).signal
+snapshot.macd.h1.histogram        input.macd.h1.histogram             getMACDAnalysisV3(klines1h).histogram
+snapshot.macd.h1.isTurningUp      input.macd.h1.isTurningUp           getMACDAnalysisV3(klines1h).isTurningUp
+snapshot.macd.h1.isTurningDown    input.macd.h1.isTurningDown         getMACDAnalysisV3(klines1h).isTurningDown
+snapshot.macd.h1.crossedZeroRecentlyUp   input.macd.h1.crossedZeroRecentlyUp   getMACDAnalysisV3(klines1h).crossedZeroRecentlyUp
+snapshot.macd.h1.crossedZeroRecentlyDown input.macd.h1.crossedZeroRecentlyDown getMACDAnalysisV3(klines1h).crossedZeroRecentlyDown
+snapshot.macd.h4.macd             input.macd.h4.macd                  getMACDAnalysisV3(klines4h).macd
+snapshot.macd.h4.signal           input.macd.h4.signal                getMACDAnalysisV3(klines4h).signal
+snapshot.macd.h4.histogram        input.macd.h4.histogram             getMACDAnalysisV3(klines4h).histogram
+snapshot.macd.h4.isTurningUp      input.macd.h4.isTurningUp           getMACDAnalysisV3(klines4h).isTurningUp
+snapshot.macd.h4.isTurningDown    input.macd.h4.isTurningDown         getMACDAnalysisV3(klines4h).isTurningDown
+snapshot.macd.h4.crossedZeroRecentlyUp   input.macd.h4.crossedZeroRecentlyUp   getMACDAnalysisV3(klines4h).crossedZeroRecentlyUp
+snapshot.macd.h4.crossedZeroRecentlyDown input.macd.h4.crossedZeroRecentlyDown getMACDAnalysisV3(klines4h).crossedZeroRecentlyDown
+
+Populate KHÔNG gọi runtime source — caller truyền qua input.macd.
+
+Tổng: 14 field (7 field × 2 TF).
+
+================================================================================
+6. FIELD KHÔNG MAP — SCHEMA / NGUỒN THIẾU
+================================================================================
+
+| Field ví dụ task | Snapshot | Input | Runtime | Ghi chú |
+|------------------|----------|-------|---------|---------|
+| macd1h (flat)    | ❌       | ❌    | —       | Dùng snapshot.macd.h1.macd |
+| signal1h (flat)  | ❌       | ❌    | —       | Dùng snapshot.macd.h1.signal |
+| histogram1h      | ❌       | ❌    | —       | Dùng snapshot.macd.h1.histogram |
+| crossover        | ❌       | ❌    | —       | Proxy: crossedZeroRecentlyUp/Down |
+| trend            | ❌       | ❌    | —       | Proxy: isTurningUp/Down |
+
+Không tự thêm schema — mở rộng types/ ở task riêng nếu cần crossover/trend riêng.
+
+================================================================================
+7. WIRE DỰ KIẾN (SCAN)
+================================================================================
+
+  const macd1h = getMACDAnalysisV3(klines1h);
+  const macd4h = getMACDAnalysisV3(klines4h);
+  populateRuleAuditSnapshot(snapshot, {
+    ema: { ... },
+    rsi: { ... },
+    macd: { h1: macd1h, h4: macd4h },
+  });
+
+MACDAnalysisV3 ≡ RuleAuditMacdTimeframe — assign trực tiếp không transform.
+
+================================================================================
+8. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — không đổi
+  ruleAuditSnapshotBuilder.ts         — không đổi
+  signalBoardScan.ts                  — chưa wire
+  exportService.ts                    — không đụng
+  scorer*, v41/                       — không đụng
+
+================================================================================
+9. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit — không lỗi mới từ populate file.
+
+================================================================================
+10. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Nhóm populate | Trạng thái |
+|------|---------------|------------|
+| 05A  | EMA           | ✅ |
+| 05B  | RSI           | ✅ |
+| 05C  | MACD          | ✅ |
+| 05D+ | Bollinger, Volume, CVD, OI, Funding, BTC, ADX, VWAP, ATR, Structure | ⏳ |
+| —    | Wire scan     | ⏳ |
+| 06   | Export        | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 05C: map 14 field MACD (h1/h4 × 7) từ input.macd; runtime =
+getMACDAnalysisV3(klines1h/4h); crossover/trend không có schema.
+
+================================================================================

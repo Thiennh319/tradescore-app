@@ -1,0 +1,113 @@
+================================================================================
+TRADESCORE — AUDIT PACKAGE (GĐ2 - TASK 02)
+================================================================================
+Ngày: 2026-07-10
+Task:   Đổi nút Export V3/V4 thành TradeScore Audit Package (.txt)
+File:   components/dashboard/SignalBoard.tsx
+        services/exportService.ts
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Trước Task 02:
+  - Xuất ▼ → CSV + TXT (exportSignalData)
+  - Evidence ▼ → Evidence CSV / Evidence TXT
+
+Sau Task 02:
+  - Chỉ 1 đường Export
+  - 1 file: TradeScore_Audit_Package.txt
+
+================================================================================
+2. API MỚI
+================================================================================
+
+exportTradeScoreAuditPackage(rows, scorerVersion?)
+
+Nguồn nội dung (ghép TXT hiện có, không đổi format):
+
+  1. exportSignalData(rows, 'txt')
+  2. separator (80× '=')
+  3. exportRuleAuditHumanEvidenceTXT(rows, scorerVersion)
+
+Chưa có:
+  - RuleBook
+  - AI Instruction
+  - Output Template
+
+================================================================================
+3. UI — SignalBoard.tsx
+================================================================================
+
+Toolbar trước:
+
+  [ 📊 Xuất ▼ ]   [ 📋 Evidence ▼ ]   [ Quét lại ]
+
+Toolbar sau:
+
+  [ 📄 Audit Package ]   [ Quét lại ]
+
+Handler:
+  handleExportAuditPackage()
+    → exportTradeScoreAuditPackage(rows, scorerVersion)
+    → download TradeScore_Audit_Package.txt
+
+UI không gọi trực tiếp:
+  - exportSignalData()
+  - exportRuleAuditEvidenceCSV()
+  - exportRuleAuditHumanEvidenceTXT()
+
+Đã gỡ:
+  - handleExport()
+  - Evidence dropdown + Modal
+  - evidenceMenu state/styles
+  - evidenceExportTimestamp()
+
+================================================================================
+4. OUTPUT
+================================================================================
+
+Tên file:  TradeScore_Audit_Package.txt
+Số file:   1
+MIME:      text/plain
+
+Không còn sinh:
+  - tradescore-signal-*.csv
+  - tradescore-signal-*.txt
+  - tradescore-evidence-*.csv
+  - tradescore-evidence-*.txt
+
+================================================================================
+5. KHÔNG SỬA
+================================================================================
+
+RuleBook
+RuleAuditSnapshot schema / builder / populate
+Scoring / Decision / TradePlan logic
+exportSignalData() nội dung
+exportRuleAuditHumanEvidenceTXT() layout
+RULE_AUDIT_EVIDENCE_CSV_COLUMNS
+SignalBoardV41.tsx
+SignalBoardUnified.tsx
+Scorer
+
+================================================================================
+6. VERIFY
+================================================================================
+
+[PASS] Toolbar V3/V4: [ 📄 Audit Package ] [ Quét lại ]
+[PASS] Click → TradeScore_Audit_Package.txt
+[PASS] Không còn CSV / TXT riêng lẻ từ UI
+[PASS] Tab V4.1: không có Export (Task 01)
+[PASS] API ghép 2 TXT hiện có — chưa thêm RuleBook / AI Prompt
+
+================================================================================
+7. KẾT QUẢ
+================================================================================
+
+TradeScore V3/V4 chỉ còn 1 đường Export.
+Nội dung package sẽ nâng cấp dần từ Task 03 trở đi.
+
+================================================================================
+END OF REPORT
+================================================================================

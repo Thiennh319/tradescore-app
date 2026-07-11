@@ -1,0 +1,176 @@
+================================================================================
+TRADESCORE V3/V4 — EXPORT IMPLEMENTATION REPORT (Task 6)
+================================================================================
+Ngày: 2026-07-09
+File sửa: services/exportService.ts (duy nhất)
+Trigger UI: components/dashboard/SignalBoard.tsx → exportSignalData(rows, 'csv'|'txt')
+Output: tradescore-signal-{timestamp}.csv | .txt
+
+================================================================================
+1. TỔNG QUAN
+================================================================================
+
+Trước Task 6:  60 cột CSV (audit Task 5 ghi ~61 — đếm thực tế CSV_COLUMNS cũ)
+Sau Task 6:    80 cột CSV (60 + 20 cột audit mới)
+TXT:           Thêm section AUDIT FIELDS; nhãn L5 động theo engine
+
+Phạm vi: V3/V4 signal export only — không đụng scorer / pipeline / v41.
+
+================================================================================
+2. 20 CỘT MỚI — DANH SÁCH ĐẦY ĐỦ
+================================================================================
+
+NHÓM 1 — Status & Decision (5)
+  final_entry_status     snap.isAmbiguousDirection → AMBIGUOUS_DIRECTION
+                         else snap.finalEntryStatus ?? resolveFinalEntryStatus
+                         Giá trị: ENTRY_VALID | WAIT_ENTRY | SCORE_BLOCKED |
+                           GROUP_BLOCKED | HARD_BLOCKED | AMBIGUOUS_DIRECTION
+  decision_band          snap.decisionLabel ?? plan.decision
+  direction_active       snap.direction (LONG | SHORT)
+  ambiguity_status       AMBIGUOUS | CLEAR
+  ambiguity_score_diff   |longScore - shortScore| (2 chữ số thập phân)
+
+NHÓM 2 — L5 audit (3)
+  l5_block_path          Derive từ hard_blocks + block_reasons + warnings:
+                           CVD trong hard_blocks → HARD
+                           'L5a CVD chưa đủ' trong block_reasons → SCORE
+                           CVD phân kỳ / bull trap / bear trap → SOFT
+                           else → NONE
+  l5b_score              V4 only — layer id 52 (LAYER_L5B_ID), 4 decimal
+  l5b_note               V4 only — layer 52 reason
+
+NHÓM 3 — SL audit (3)
+  sl_quality             plan.stopLoss.quality (TIGHT | NORMAL | WIDE)
+  sl_atr_distance        plan.stopLoss.atrDistance (2 decimal)
+  sl_profile_v4          V4 only — plan.slProfile | slMultiplierProfile |
+                           slMultiplierResult.profile (hiện tại → '' — xem §5)
+
+NHÓM 4 — Entry audit (2)
+  entry_quality          plan.entryZone.quality
+                           (PERFECT | GOOD | ACCEPTABLE | RISKY | MISS)
+  rr_after_structure     plan.primaryRR (4 decimal)
+
+NHÓM 5 — Plan lifecycle (2)
+  plan_expiry_tier       plan.expiryTier (HIGH | MEDIUM | LOW)
+  structure_lookback_config  Inline ADX map (không import structureSL):
+                           adxAvg >= 35 → 40; >= 25 → 30; else 20
+                           Không có adxData → '20'
+
+NHÓM 6 — P0 audit (4 cột static + 1 dynamic)
+  l6_scoring_path        v3 → V3_TIER
+                         v4 + l6Detail.isFallback true → V4_LEGACY
+                         v4 + isFallback false → V4_STATE
+                         isFallback undefined → l6_note chứa '(fallback)' ?
+  l10_hb_active          'false' (HB production comment out — TODO dynamic)
+  score_thresholds_source  'literal' (TODO → SCORE_THRESHOLDS khi fix P0-2)
+  rr_config_source       'fixed_RR_TARGETS' (TODO khi fix P0-1)
+
+TXT-only (không CSV):
+  l5b_display_label      V4: 'L5a CVD' | V3: 'L5 Volume'
+
+================================================================================
+3. CSV_COLUMNS — THỨ TỰ (80 cột)
+================================================================================
+
+[1-11]   timestamp, symbol, price, priceChange24h, scoreTotal, scoreLong,
+         scoreShort, groupA, groupB, groupC, finalDecision
+[12-33]  l1_ema … l11_note (11 layer × score + note)
+[34-40]  adx_1h … adx_sl_mult
+[41-45]  structure_sl_* (5)
+[46-50]  vwap_* (5)
+[51-58]  entry, sl, tp1-3, rr_tp1-3
+[59]     market_mode
+[60-61]  hard_blocks, block_reasons
+[62-80]  20 cột audit (final_entry_status … rr_config_source)
+
+================================================================================
+4. TXT — SECTION AUDIT FIELDS
+================================================================================
+
+Vị trí: sau HARD BLOCKS / BLOCK REASONS, trước dòng kết thúc.
+
+Ẩn section khi: mọi giá trị dynamic rỗng VÀ ambiguity_status=CLEAR VÀ
+  l5_block_path=NONE.
+
+L5 layer label: dùng l5b_display_label thay 'L5 Volume' cố định.
+
+================================================================================
+5. GAP CÒN LẠI (chưa wire — ngoài phạm vi Task 6)
+================================================================================
+
+| Cột / tính năng          | Trạng thái | Ghi chú |
+|--------------------------|------------|---------|
+| sl_profile_v4            | Luôn ''    | TradePlanV3 không có slProfile* fields;
+                           |            | profile chỉ trong resolveV4SlMultiplier()
+                           |            | nội bộ tradePlanV4 — cần wire plan sau |
+| sl_cap_applied           | Chưa có    | Task 5 — NEED_WIRE |
+| entry_path               | Chưa có    | NEED_WIRE (entryType LIMIT_* / MARKET_OK) |
+| vwap_sl_recalc           | Chưa có    | NEED_WIRE |
+| direction_suggest_rule   | Chưa có    | NEED_WIRE (#1-#7 waterfall) |
+| scorerVersion từ UI tab  | Mặc định v4| exportSignalData không truyền tab V3 |
+
+Warnings: snap không có field `.warnings` — export dùng
+  scoringWarnings + longWarnings/shortWarnings theo direction.
+
+================================================================================
+6. SO VỚI TASK 5 (Export Gap Analysis)
+================================================================================
+
+Task 5 phân loại 20 item:
+  🟢 READY 16  → đã implement trong exportService.ts
+  🟡 NEED_WIRE 4 → chưa implement (sl_cap, entry_path, vwap_sl_recalc,
+                    direction_suggest_rule)
+  🔴 COMPLEX 0
+
+P0 audit columns (5): tất cả đã có trong CSV
+  rr_config_source, score_thresholds_source, l10_hb_active,
+  l6_scoring_path, l5_block_path
+
+================================================================================
+7. KIỂM TRA
+================================================================================
+
+TypeScript (npx tsc --noEmit):
+  Không lỗi mới từ exportService.ts (lỗi pre-existing ở v41/store/…)
+
+Vitest (npx vitest run):
+  1033 passed | 12 failed (driveSync e2e, v41 — không liên quan export)
+
+Đếm cột: node parse CSV_COLUMNS → count = 80
+
+Verify logic (mock):
+  final_entry_status ≠ 'KHÔNG VÀO' khi HARD_BLOCKED
+  l5_block_path = SCORE khi block_reasons chứa 'L5a CVD chưa đủ'
+  l10_hb_active = 'false' mọi row
+  rr_config_source = 'fixed_RR_TARGETS' mọi row
+  l6_scoring_path = V4_STATE khi l6Detail.isFallback === false
+
+================================================================================
+8. MẪU CSV (đuôi — minh họa)
+================================================================================
+
+Header (20 cột audit):
+final_entry_status,decision_band,direction_active,ambiguity_status,
+ambiguity_score_diff,l5_block_path,l5b_score,l5b_note,sl_quality,
+sl_atr_distance,sl_profile_v4,entry_quality,rr_after_structure,
+plan_expiry_tier,structure_lookback_config,l6_scoring_path,
+l10_hb_active,score_thresholds_source,rr_config_source
+
+Data row (BTC SHORT, HARD + L5a SCORE):
+HARD_BLOCKED,CO_THE_VAO,SHORT,CLEAR,1.70,SCORE,0.7500,Vol 1.3x,NORMAL,
+2.10,,GOOD,2.1500,MEDIUM,30,V4_STATE,false,literal,fixed_RR_TARGETS
+
+================================================================================
+9. TÀI LIỆU LIÊN QUAN
+================================================================================
+
+docs/RULE_REFERENCE.md / .txt        — Rule reference V3/V4
+docs/V3_V4_Export_Gap_Analysis_Report.txt — Task 5 gap analysis
+docs/V3_V4_Rule_Completeness_Classification_Report.txt — Task 3
+services/exportService.ts            — Implementation
+
+================================================================================
+KẾT LUẬN: Task 6 hoàn tất — 20 cột audit + TXT AUDIT section.
+Bước tiếp: wire sl_profile_v4 vào TradePlanV3 (pipeline) nếu cần giá trị thật;
+           truyền scorerVersion từ SignalBoard khi export tab V3.
+================================================================================

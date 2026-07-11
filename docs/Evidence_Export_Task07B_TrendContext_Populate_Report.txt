@@ -1,0 +1,178 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 07B)
+================================================================================
+Ngày: 2026-07-10
+Task:   Populate Trend Context — ADX / regime / gate
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: adx MAP LIVE (14 field) — adxSlope/trendState/adxValue DỪNG
+
+Tiền đề:
+  Task 07A — btcContext (Market Context partial)
+  Task 07B — snapshot.adx (Trend Context)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Map Trend Context đã có sẵn vào snapshot.adx — không tính ADX, không
+evaluateADXGate trong populate.
+
+Implement: RuleAuditAdxInput — 14 field (analysis + gate)
+DỪNG:     adxValue flat, adxSlope, trendState, trendStrength numeric, confidence on adx
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 07B)
+================================================================================
+
+export type RuleAuditAdxPopulateSource = RuleAuditAdxInput;
+
+export interface RuleAuditPopulateInput {
+  ema, rsi, macd, bollinger, volume, cvd, oi, funding, longShortRatio, btcContext
+  adx: RuleAuditAdxPopulateSource;
+}
+
+Required: 11 nhóm. Thiếu adx → throw Error.
+
+================================================================================
+3. POPULATE
+================================================================================
+
+function populateAdx(snapshot, adx):
+  adx1h, adx4h, adxAvg
+  regime, regimeStrength
+  isChoppy1h, isChoppy4h, bothChoppy
+  gateAllowed, gateBlock, gateSeverity
+  gateTpMultiplier, gateSlMultiplier, gateMessage
+
+================================================================================
+4. SOURCE MAPPING — adx (SCHEMA CÓ)
+================================================================================
+
+Snapshot Field              Input Field                 Runtime Source (caller)
+──────────────────────────  ──────────────────────────  ──────────────────────────────
+snapshot.adx.adx1h          input.adx.adx1h              adxData.adx1H (getADXAnalysis)
+snapshot.adx.adx4h          input.adx.adx4h              adxData.adx4H
+snapshot.adx.adxAvg         input.adx.adxAvg             adxData.adxAvg
+snapshot.adx.regime         input.adx.regime             adxData.regime | adxGate.regime
+snapshot.adx.regimeStrength input.adx.regimeStrength     adxData.regimeStrength
+snapshot.adx.isChoppy1h     input.adx.isChoppy1h         adxData.isChoppy1H
+snapshot.adx.isChoppy4h     input.adx.isChoppy4h         adxData.isChoppy4H
+snapshot.adx.bothChoppy     input.adx.bothChoppy         adxData.bothChoppy
+snapshot.adx.gateAllowed    input.adx.gateAllowed        adxGate.allowed (evaluateADXGate)
+snapshot.adx.gateBlock      input.adx.gateBlock          adxGate.block
+snapshot.adx.gateSeverity   input.adx.gateSeverity       adxGate.severity
+snapshot.adx.gateTpMultiplier input.adx.gateTpMultiplier adxGate.tpMultiplier
+snapshot.adx.gateSlMultiplier input.adx.gateSlMultiplier adxGate.slMultiplier
+snapshot.adx.gateMessage    input.adx.gateMessage        adxGate.message
+
+Tổng: 14 field.
+
+================================================================================
+5. SOURCE MAPPING — DỪNG (SCHEMA THIẾU)
+================================================================================
+
+Yêu cầu task          Snapshot    Input    Runtime
+────────────────────  ──────────  ───────  ──────────────────────────
+adxValue (flat)       ❌          ❌       Dùng adx1h / adx4h / adxAvg
+adxSlope              ❌          ❌       —
+trendStrength         ❌          ❌       Proxy: regimeStrength (WEAK|STRONG)
+trendState            ❌          ❌       —
+confidence (on adx)   ❌          ❌       btcContext.regimeConfidence
+
+Đề xuất Task sau: mở rộng RuleAuditAdxInput (adxSlope, trendState) nếu cần audit.
+
+================================================================================
+6. KIỂM TRA DUPLICATE
+================================================================================
+
+  ✅ Không gọi getADXAnalysis / evaluateADXGate trong populate
+  ✅ Không tính lại regime / trend state
+  ✅ Chỉ assign từ input.adx
+
+================================================================================
+7. EVIDENCE COVERAGE
+================================================================================
+
+1. Trend Strength?
+   Một phần — regimeStrength WEAK|STRONG; không numeric trendStrength
+
+2. Regime?
+   CÓ — regime CHOPPY|RANGING|TRENDING + gate severity/block
+
+3. Trend State?
+   KHÔNG — field trendState không có schema
+
+4. Còn thiếu giải thích xu hướng:
+   - adxSlope, trendState
+   - ADX history / slope
+   - Kết hợp btcContext + adx chưa wire scan
+   - Export Evidence TXT/CSV
+   - Decision band link (chỉ có sau export + wire)
+
+Mục tiêu kiểm toán (sau wire):
+  BTC TRENDING + adx.regime TRENDING + !gateBlock → evidence LONG hợp lý
+  BTC RANGING + bothChoppy + gateBlock → evidence WAIT/BLOCK
+  Regime đổi → adx.regime + gateMessage trong snapshot
+
+================================================================================
+8. WIRE DỰ KIẾN (SCAN — NGOÀI 07B)
+================================================================================
+
+  const adxData = analysisInputV4.adxData;
+  const adxGate = evaluateADXGate(adxData, directionV4);
+  populateRuleAuditSnapshot(snapshot, {
+    ...
+    adx: {
+      adx1h: adxData.adx1H,
+      adx4h: adxData.adx4H,
+      adxAvg: adxData.adxAvg,
+      regime: adxData.regime,
+      regimeStrength: adxData.regimeStrength,
+      isChoppy1h: adxData.isChoppy1H,
+      isChoppy4h: adxData.isChoppy4H,
+      bothChoppy: adxData.bothChoppy,
+      gateAllowed: adxGate.allowed,
+      gateBlock: adxGate.block,
+      gateSeverity: adxGate.severity,
+      gateTpMultiplier: adxGate.tpMultiplier,
+      gateSlMultiplier: adxGate.slMultiplier,
+      gateMessage: adxGate.message,
+    },
+  });
+
+================================================================================
+9. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — không đổi
+  ruleAuditSnapshotBuilder.ts         — không đổi
+  signalBoardScan.ts                  — chưa wire
+  exportService.ts, scorer*, v41/     — không đụng
+
+================================================================================
+10. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit — không lỗi mới từ ruleAuditSnapshotPopulate.ts
+
+================================================================================
+11. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Nhóm | Trạng thái |
+|------|------|------------|
+| 05A–06B | Indicator + Volume + Derivatives | ✅ |
+| 07A  | btcContext | ✅ |
+| 07B  | adx (Trend Context) | ✅ |
+| 07C+ | VWAP, ATR, Structure | ⏳ |
+| —    | Wire scan | ⏳ |
+| 08   | Export | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 07B: map adx 14 field (analysis + gate); adxSlope/trendState/adxValue
+DỪNG; regime + regimeStrength có — wire scan + export chưa.
+
+================================================================================

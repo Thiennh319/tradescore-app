@@ -5,6 +5,8 @@ import {
   calculateStructureSL,
   findRecentSwingHigh,
   findRecentSwingLow,
+  resolveStructureSlLookback,
+  resolveStructureSlMinCandlesBack,
 } from './structureSL';
 
 function makeKline(
@@ -79,6 +81,34 @@ describe('findRecentSwingHigh', () => {
   });
 });
 
+describe('resolveStructureSlLookback', () => {
+  it('ADX 40 → lookback 40', () => {
+    expect(resolveStructureSlLookback(40)).toBe(40);
+  });
+
+  it('ADX 30 → lookback 30', () => {
+    expect(resolveStructureSlLookback(30)).toBe(30);
+  });
+
+  it('ADX 20 → lookback 20', () => {
+    expect(resolveStructureSlLookback(20)).toBe(20);
+  });
+
+  it('ADX undefined → lookback 20', () => {
+    expect(resolveStructureSlLookback(undefined)).toBe(20);
+  });
+});
+
+describe('resolveStructureSlMinCandlesBack', () => {
+  it('ADX ≥ 35 → MIN_CANDLES_BACK 2', () => {
+    expect(resolveStructureSlMinCandlesBack(46)).toBe(2);
+  });
+
+  it('ADX < 35 → MIN_CANDLES_BACK 3', () => {
+    expect(resolveStructureSlMinCandlesBack(30)).toBe(3);
+  });
+});
+
 describe('calculateStructureSL', () => {
   const entryPrice = 100;
   const bufferPct = STRUCTURE_SL_DEFAULTS.BUFFER_PCT;
@@ -97,7 +127,10 @@ describe('calculateStructureSL', () => {
     const expectedStructureSL = 95 * (1 - bufferPct / 100);
     expect(result.slSource).toBe('STRUCTURE');
     expect(result.swingPrice).toBe(95);
-    expect(result.slPrice).toBeCloseTo(expectedStructureSL, 6);
+    // Capped: swing SL thô ~94.72 vượt MAX_STRUCTURE_SL_PCT 3.5%
+    // → capped tại entry × (1 − 0.035) = 96.5
+    expect(expectedStructureSL).toBeCloseTo(94.715, 2);
+    expect(result.slPrice).toBeCloseTo(96.5, 6);
     expect(result.candlesBack).toBe(klines.length - 1 - 20);
     expect(result.candlesBack).toBeGreaterThanOrEqual(STRUCTURE_SL_DEFAULTS.MIN_CANDLES_BACK);
   });
@@ -147,7 +180,10 @@ describe('calculateStructureSL', () => {
     const expectedStructureSL = 112 * (1 + bufferPct / 100);
     expect(result.slSource).toBe('STRUCTURE');
     expect(result.swingPrice).toBe(112);
-    expect(result.slPrice).toBeCloseTo(expectedStructureSL, 6);
+    // Capped: swing SL thô ~112.34 vượt MAX_STRUCTURE_SL_PCT 3.5%
+    // → capped tại entry × (1 + 0.035) = 103.5
+    expect(expectedStructureSL).toBeCloseTo(112.336, 2);
+    expect(result.slPrice).toBeCloseTo(103.5, 6);
   });
 
   it('SHORT: swing high < entry sau buffer → fallback ATR', () => {
@@ -177,8 +213,10 @@ describe('calculateStructureSL', () => {
 
     const structureSL = 92 * (1 - bufferPct / 100);
     expect(result.slSource).toBe('STRUCTURE');
-    expect(result.slPrice).toBeCloseTo(structureSL, 6);
-    expect(result.slPrice).toBeLessThan(atrSL);
+    // Capped: swing low 92 → SL thô ~91.72 vượt MAX_STRUCTURE_SL_PCT 3.5%
+    // → capped tại entry × (1 − 0.035) = 96.5 (thay vì min(structure, atrSL)=91.72)
+    expect(structureSL).toBeCloseTo(91.724, 2);
+    expect(result.slPrice).toBeCloseTo(96.5, 6);
   });
 
   it('LONG: ATR xa hơn structure → lấy ATR', () => {
@@ -193,8 +231,33 @@ describe('calculateStructureSL', () => {
     });
 
     expect(result.slSource).toBe('STRUCTURE');
-    expect(result.slPrice).toBe(atrSL);
     const structureSL = 96 * (1 - bufferPct / 100);
     expect(structureSL).toBeGreaterThan(atrSL);
+    // min(structure ~95.71, atrSL 88) = 88, nhưng cap 3.5% đẩy lên entry × (1 − 0.035) = 96.5
+    expect(result.slPrice).toBeCloseTo(96.5, 6);
+  });
+
+  it('ADX 40 mở rộng lookback 40 — tìm swing xa hơn (trước đó ATR_FALLBACK)', () => {
+    const klines = klinesWithSwingHigh(10, 112, 50);
+    const atrSL = 110;
+
+    const weakTrend = calculateStructureSL({
+      direction: 'SHORT',
+      entryPrice,
+      atrSL,
+      klines4H: klines,
+      adxValue: 20,
+    });
+    expect(weakTrend.slSource).toBe('ATR_FALLBACK');
+
+    const strongTrend = calculateStructureSL({
+      direction: 'SHORT',
+      entryPrice,
+      atrSL,
+      klines4H: klines,
+      adxValue: 40,
+    });
+    expect(strongTrend.slSource).toBe('STRUCTURE');
+    expect(strongTrend.swingPrice).toBe(112);
   });
 });

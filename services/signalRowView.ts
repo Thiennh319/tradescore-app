@@ -187,6 +187,9 @@ function directionalScoreFromSnapshot(
   const warnings = [...(snap.scoringWarnings ?? []), ...sideWarnings];
   const referenceTotalScore = isLong ? snap.longScore : snap.shortScore;
   const awaitingRescore = snap.awaitingRescore ?? false;
+  const blockReasons = isLong
+    ? (snap.longBlockReasons ?? [])
+    : (snap.shortBlockReasons ?? []);
 
   return {
     direction,
@@ -202,6 +205,7 @@ function directionalScoreFromSnapshot(
     referenceTotalScore,
     officialTotalScore: awaitingRescore ? null : referenceTotalScore,
     hardBlocks,
+    blockReasons,
     groupBlocks,
     warnings,
     decision: snap.decisionLabel as DirectionalScoreV4['decision'],

@@ -1,0 +1,206 @@
+================================================================================
+TP1/TP2/TP3 R:R LADDER — INVESTIGATION REPORT
+================================================================================
+Ngày: 2026-07-11
+Phạm vi: Tại sao RR ladder khác theo Decision Band dù rrConfigSource = "fixed_RR_TARGETS"
+Không sửa code — chỉ điều tra.
+
+================================================================================
+1. KẾT LUẬN (ROOT CAUSE)
+================================================================================
+
+Root cause: recalculatePlanAfterEntryChange() (tradePlanV3.ts ~764-783)
+được gọi từ applyVWAPEntryToPlan() khi VWAP quality IDEAL/GOOD và entry
+khác recommendedEntry.
+
+Hàm này truyền vào calculateOptimalTPs():
+  fixedRrTargets: CFG.RR_TARGETS[plan.decision]   ← TRADE_PLAN_V3_CONFIG
+KHÔNG phải RR_TARGETS từ capitalManagement.ts (2/3/4.5 cố định).
+
+→ TRADE_PLAN_V3_CONFIG.RR_TARGETS theo decision band KHÔNG phải DEAD PATH
+   trên nhánh VWAP recalc — đây là path production đang chạy.
+
+Khớp audit thủ công:
+  CO_THE_VAO / KHONG_VAO (fallback) → TP2=2.5, TP3=3.5  (CFG.CO_THE_VAO)
+  VAO_TU_TIN                         → TP2=3.0, TP3=4.5  (CFG.VAO_TU_TIN = capitalManagement)
+
+rrConfigSource "fixed_RR_TARGETS" là HARDCODE trong exportService.ts:549 —
+không phản ánh path thực tế, luôn trả cùng 1 string.
+
+ADX gate TP multiplier KHÔNG phải nguyên nhân chính pattern 2.5/3.5:
+  scaleTradePlanByAdxGate() chỉ scale giá TP/SL, không đổi rrRatio field.
+  VWAP recalc chạy SAU ADX và tính lại TP từ đầu theo decision-band RR.
+  BNB (tp mult ×1.0) và BTC (×0.85) cùng ra 2.5/3.5 vì cùng decision band
+  + cùng nhánh VWAP recalc — ADX mult bị ghi đè bởi bước VWAP.
+
+================================================================================
+2. HAI NGUỒN RR_TARGETS (TÊN TRÙNG — GÂY HIỂU LẦM)
+================================================================================
+
+A) constants/capitalManagement.ts — RR_TARGETS (production "fixed")
+   tp1: 2.0
+   tp2: 3.0
+   tp3: 4.5
+
+B) constants/scoring.ts — TRADE_PLAN_V3_CONFIG.RR_TARGETS (theo decision)
+   SETUP_NGON  : tp1=2.0, tp2=3.5, tp3=5.0
+   VAO_TU_TIN  : tp1=2.0, tp2=3.0, tp3=4.5
+   CO_THE_VAO  : tp1=2.0, tp2=2.5, tp3=3.5
+   CHO_THEM    : tp1=2.0, tp2=2.5, tp3=3.0
+   KHONG_VAO   : (không có key) → fallback CO_THE_VAO trong code
+
+================================================================================
+3. calculateOptimalTPs() — LOGIC NHÁNH
+================================================================================
+
+File: services/tradePlanV3.ts ~444-530
+
+  useCapitalRr = tpOptions?.fixedRrTargets != null
+
+  baseRR = tpOptions?.fixedRrTargets
+        ?? (CFG.RR_TARGETS[decision] ?? CFG.RR_TARGETS.CO_THE_VAO)
+
+  modeFactor = useCapitalRr ? 1 : CFG.MARKET_MODE_FACTOR[marketMode].tpFactor
+  flowBonus  = useCapitalRr ? 0 : (group B bonus nếu đủ ngưỡng)
+
+  rr1 = baseRR.tp1
+  rr2 = (baseRR.tp2 + flowBonus) * modeFactor
+  rr3 = (baseRR.tp3 + flowBonus * 1.5) * modeFactor
+
+  rrRatio export = actualRR sau structure snap S/R (makeTP ~505)
+
+Khi fixedRrTargets != null:
+  → Bỏ modeFactor + flowBonus
+  → Dùng đúng baseRR.tp1/tp2/tp3 được truyền vào (dù object nào)
+
+================================================================================
+4. CODE PATH — GỌI calculateOptimalTPs()
+================================================================================
+
+PATH A — Base plan (calculateTradePlanV3 / buildTradePlanV4Core)
+  tradePlanV3.ts:614-628
+  tradePlanV4.ts:278-292
+
+    calculateOptimalTPs(..., {
+      fixedRrTargets: RR_TARGETS,   // import capitalManagement → 2/3/4.5
+    })
+
+PATH B — VWAP entry recalc (applyVWAPEntryToPlan)
+  tradePlanV3.ts:828-851 → recalculatePlanAfterEntryChange()
+  tradePlanV3.ts:764-783
+
+    baseRR = CFG.RR_TARGETS[plan.decision] ?? CFG.RR_TARGETS.CO_THE_VAO
+    calculateOptimalTPs(..., {
+      slDistanceOverride: newSlDistance,
+      fixedRrTargets: baseRR,       // ← DECISION BAND, tên gây hiểu lầm
+    })
+
+Pipeline signalBoardScan.ts ~1210-1221:
+  1. calculateTradePlanV3/V4        → PATH A (2/3/4.5)
+  2. scaleTradePlanByAdxGate        → scale giá, không đổi rrRatio
+  3. applyVWAPEntryToPlan (V4)      → PATH B nếu VWAP IDEAL/GOOD + entry đổi
+  4. applyStructureSLToPlans        → recalc rrRatio từ giá TP cũ + SL mới
+
+================================================================================
+5. GIẢI THÍCH TỪNG COIN (AUDIT)
+================================================================================
+
+Coin | Band       | TP2  | TP3  | Giải thích
+-----|------------|------|------|------------------------------------------
+BTC  | CO_THE_VAO | 2.50 | 3.50 | VWAP recalc → CFG.CO_THE_VAO
+NEAR | VAO_TU_TIN | 3.00 | 4.50 | VWAP recalc → CFG.VAO_TU_TIN (= capitalManagement)
+SOL  | KHONG_VAO  | 2.50 | 3.50 | VWAP recalc → fallback CFG.CO_THE_VAO
+BNB  | CO_THE_VAO | 2.50 | 3.50 | VWAP recalc → CFG.CO_THE_VAO (ADX mult khác BTC
+     |            |      |      |   nhưng không ảnh hưởng sau VWAP recalc)
+
+NEAR khớp Rule Book "fixed 2/3/4.5" vì VAO_TU_TIN band trùng capitalManagement.
+3 coin còn lại lệch vì band CO_THE_VAO / fallback ≠ capitalManagement.
+
+Nếu VWAP không apply (quality NEUTRAL/POOR hoặc entry ≈ plan entry):
+  → Giữ PATH A ratios 2/3/4.5 (trừ Structure SL recalc rrRatio từ giá).
+
+================================================================================
+6. ADX GATE — TẠI SAO KHÔNG PHẢI NGUYÊN NHÂN PATTERN 2.5/3.5
+================================================================================
+
+scaleTradePlanByAdxGate() — signalBoardScan.ts:676-696
+
+  scaleTp(price) = entry + (price - entry) * gate.tpMultiplier
+  scaleSl(price) = entry - (entry - price) * gate.slMultiplier
+
+  Chỉ cập nhật .price trên stopLoss/tp1/tp2/tp3
+  KHÔNG cập nhật .rrRatio / primaryRR
+
+Ví dụ audit:
+  BTC/SOL: tpMultiplier 0.85 (RANGING WARNING)
+  BNB:     tpMultiplier 1.0 (BLOCK — không scale theo bảng severity)
+  NEAR:    tpMultiplier 0.9
+
+Nếu ADX là nguyên nhân duy nhất:
+  → RR sau scale phụ thuộc tpMultiplier → BNB ≠ BTC
+Thực tế BNB = BTC/SOL = 2.5/3.5 → không do ADX mult.
+
+Sau VWAP recalc, TP được tính lại từ decision-band RR targets — bỏ qua
+ảnh hưởng giá ADX scale trước đó.
+
+================================================================================
+7. rrConfigSource — HARDCODE
+================================================================================
+
+services/exportService.ts:549
+  rr_config_source: 'fixed_RR_TARGETS',
+
+Literal cố định trong buildExportRow() — không đọc plan, không phân biệt
+PATH A vs PATH B. Luôn giống nhau mọi coin → gây hiểu lầm khi audit.
+
+================================================================================
+8. RULE BOOK NOTE "DEAD PATH" — ĐÚNG HAY SAI?
+================================================================================
+
+docs/tradeScoreEntrySltpRuleBook.ts ghi:
+  "TRADE_PLAN_V3_CONFIG.RR_TARGETS ... DEAD PATH — production luôn dùng
+   fixed RR TP1=2.0× TP2=3.0× TP3=4.5× (capitalManagement.ts)"
+
+ĐÁNH GIÁ: SAI / KHÔNG ĐẦY ĐỦ
+
+  - PATH A (base plan): ĐÚNG — dùng capitalManagement RR_TARGETS 2/3/4.5
+  - PATH B (VWAP recalc): SAI — dùng CFG.RR_TARGETS[decision] theo band
+  - VAO_TU_TIN trùng 2/3/4.5 → che giấu bug/doc drift trên NEAR
+  - CO_THE_VAO / KHONG_VAO / CHO_THEM / SETUP_NGON → lệch rõ
+
+Cần sửa ghi chú Rule Book (khi được phép sửa doc):
+  Ghi rõ 2 path; RR_TARGETS theo decision band CÒN SỐNG trên nhánh
+  applyVWAPEntryToPlan → recalculatePlanAfterEntryChange.
+
+================================================================================
+9. ĐOẠN CODE CỐT LÕI (THAM CHIẾU)
+================================================================================
+
+// PATH A — capitalManagement fixed
+services/tradePlanV3.ts:626-628
+services/tradePlanV4.ts:290-292
+  fixedRrTargets: RR_TARGETS,
+
+// PATH B — decision band (root cause audit mismatch)
+services/tradePlanV3.ts:764-783
+  const baseRR =
+    CFG.RR_TARGETS[plan.decision as keyof typeof CFG.RR_TARGETS] ??
+    CFG.RR_TARGETS.CO_THE_VAO;
+  calculateOptimalTPs(..., { fixedRrTargets: baseRR, ... });
+
+// VWAP trigger
+services/tradePlanV3.ts:836-851
+  if (signal.quality !== 'IDEAL' && signal.quality !== 'GOOD') return plan;
+  ...
+  const recalculated = recalculatePlanAfterEntryChange(plan, vwapEntry);
+
+// CFG table
+constants/scoring.ts:902-907
+
+// Export misleading label
+services/exportService.ts:549
+  rr_config_source: 'fixed_RR_TARGETS',
+
+================================================================================
+END
+================================================================================

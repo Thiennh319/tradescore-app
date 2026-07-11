@@ -10,7 +10,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.tradescore.app",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch"]
+        "UIBackgroundModes": [
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -45,7 +47,8 @@
         }
       ],
       "expo-background-task",
-      "./plugins/withBackgroundScanService.js"
+      "./plugins/withBackgroundScanService.js",
+      "expo-sharing"
     ]
   }
 }

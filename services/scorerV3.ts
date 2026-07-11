@@ -153,6 +153,9 @@ function layer(
 // L1 — Giá & EMA V3
 // ─────────────────────────────────────────
 
+/** Raw L1 = 4/3 → hiển thị 1đ sau quy đổi LAYER_MAX_POINTS (1.5/2). */
+const L1_MTF_CONFLICT_RAW = 2 / LAYER_MAX_POINTS;
+
 export function scoreL1V3(
   direction: Direction,
   ema1h: EMAAnalysisV3,
@@ -175,7 +178,7 @@ export function scoreL1V3(
       return layer(1, 1, 'Đang pullback về EMA — vùng entry hợp lý', 'A');
     }
     if (both1h || both4h) {
-      return layer(1, 1, 'Mâu thuẫn 1H vs 4H', 'A');
+      return layer(1, L1_MTF_CONFLICT_RAW, 'Mâu thuẫn 1H vs 4H', 'A');
     }
     return layer(1, 0, 'Giá dưới tất cả EMA cả 2 khung', 'A');
   }
@@ -191,7 +194,7 @@ export function scoreL1V3(
     return layer(1, 1.5, 'Giá dưới EMA, slope chưa dốc rõ', 'A');
   }
   if (both1h || both4h) {
-    return layer(1, 1, 'Mâu thuẫn 1H vs 4H', 'A');
+    return layer(1, L1_MTF_CONFLICT_RAW, 'Mâu thuẫn 1H vs 4H', 'A');
   }
   return layer(1, 0, 'Giá trên tất cả EMA — không vào Short', 'A');
 }
@@ -293,28 +296,32 @@ export function scoreL3V3(
     if (macd1h.isTurningUp && macd4h.isTurningUp) {
       return layer(3, 1.5, 'Cả 2 khung đang bẻ góc lên', 'A');
     }
-    if (h1 > 0 || macd1h.isTurningUp) {
+    if (h1 > 0 || h4 > 0 || macd1h.isTurningUp || macd4h.isTurningUp) {
       return layer(3, 1, '1 khung thuận Long', 'A');
     }
     return layer(3, 0, 'Histogram âm cả 2 khung — VI PHẠM', 'A');
   }
 
-  if (h1 < 0 && h4 < 0) {
-    return layer(3, 2, 'Histogram âm cả 1H & 4H', 'A');
+  if (direction === 'SHORT') {
+    if (h1 > 0 && h4 > 0) {
+      return layer(3, 0, 'Histogram dương cả 2 khung — VI PHẠM Short', 'A');
+    }
+    if (h1 < 0 && h4 < 0) {
+      return layer(3, 2, 'Histogram âm cả 1H & 4H', 'A');
+    }
+    if (macd1h.crossedZeroRecentlyDown || macd4h.crossedZeroRecentlyDown) {
+      return layer(3, 1.5, 'MACD vừa cắt xuống 0 — tín hiệu mạnh', 'A');
+    }
+    if (macd1h.isTurningDown && macd4h.isTurningDown) {
+      return layer(3, 1.5, 'Cả 2 khung đang bẻ góc xuống', 'A');
+    }
+    if (h1 < 0 || h4 < 0 || macd1h.isTurningDown || macd4h.isTurningDown) {
+      return layer(3, 1, '1 khung thuận Short', 'A');
+    }
+    return layer(3, 0, 'MACD không thuận Short', 'A');
   }
-  if (macd1h.crossedZeroRecentlyDown || macd4h.crossedZeroRecentlyDown) {
-    return layer(3, 1.5, 'MACD vừa cắt xuống 0 — tín hiệu mạnh', 'A');
-  }
-  if (h1 < 0 && macd1h.isTurningDown) {
-    return layer(3, 1.5, '1H âm & đang bẻ góc xuống', 'A');
-  }
-  if (macd1h.isTurningDown && macd4h.isTurningDown) {
-    return layer(3, 1.5, 'Cả 2 khung đang bẻ góc xuống', 'A');
-  }
-  if (h1 < 0 || macd1h.isTurningDown) {
-    return layer(3, 1, '1 khung thuận Short', 'A');
-  }
-  return layer(3, 0, 'Histogram dương cả 2 khung — VI PHẠM Short', 'A');
+
+  return layer(3, 0, 'MACD không xác định', 'A');
 }
 
 // ─────────────────────────────────────────
@@ -352,22 +359,36 @@ export function scoreL4V3(
     return layer(4, 0, `%B=${percentB.toFixed(0)} Không thuận Long Ranging`, 'A');
   }
 
-  if (marketMode === 'TRENDING') {
-    if (percentB >= 10 && percentB <= 40) {
-      return layer(4, 2, `%B=${percentB.toFixed(0)} Trending nửa dưới — ride band`, 'A');
+  if (direction === 'SHORT') {
+    if (marketMode === 'TRENDING') {
+      if (percentB >= 10 && percentB <= 40) {
+        return layer(4, 2, `%B=${percentB.toFixed(0)} Trending nửa dưới — ride band`, 'A');
+      }
+      if (percentB > 40 && percentB <= 60) {
+        return layer(4, 1.5, `%B=${percentB.toFixed(0)} Hồi về giữa trong downtrend`, 'A');
+      }
+      if (percentB > 70) {
+        return layer(4, 0, `%B=${percentB.toFixed(0)} Quá cao — không thuận Short Trending`, 'A');
+      }
+      return layer(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Trending`, 'A');
     }
-    if (percentB > 40 && percentB <= 60) {
-      return layer(4, 1.5, `%B=${percentB.toFixed(0)} Hồi về giữa trong downtrend`, 'A');
+
+    if (percentB < 30) {
+      return layer(4, 0, `%B=${percentB.toFixed(0)} Giá đáy dải — không Short Ranging`, 'A');
     }
-    return layer(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Trending`, 'A');
+    if (percentB > 80) {
+      return layer(4, 0, `%B=${percentB.toFixed(0)} Overbought — không Short Ranging`, 'A');
+    }
+    if (percentB >= 45 && percentB <= 65) {
+      return layer(4, 2, `%B=${percentB.toFixed(0)} Ranging vùng giữa — tốt nhất để sell`, 'A');
+    }
+    if ((percentB >= 30 && percentB < 45) || (percentB > 65 && percentB <= 80)) {
+      return layer(4, 1, `%B=${percentB.toFixed(0)} Ranging nửa dải — potential short`, 'A');
+    }
+    return layer(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Ranging`, 'A');
   }
-  if (percentB >= 45 && percentB <= 65) {
-    return layer(4, 2, `%B=${percentB.toFixed(0)} Ranging vùng giữa — tốt nhất để sell`, 'A');
-  }
-  if (percentB > 65 && percentB <= 80) {
-    return layer(4, 1, `%B=${percentB.toFixed(0)} Ranging nửa trên — potential short`, 'A');
-  }
-  return layer(4, 0, `%B=${percentB.toFixed(0)} Không thuận Short Ranging`, 'A');
+
+  return layer(4, 0, `%B=${percentB.toFixed(0)} Không xác định`, 'A');
 }
 
 // ─────────────────────────────────────────

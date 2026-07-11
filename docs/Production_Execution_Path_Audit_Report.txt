@@ -1,0 +1,340 @@
+================================================================================
+TRADESCORE — PRODUCTION EXECUTION PATH AUDIT REPORT
+================================================================================
+Date:     2026-07-11
+Scope:    EMA20 | CVD | Momentum | Hard Block
+Mode:     READ ONLY — no code changes
+Version:  v1.0.5 (source tree at audit time)
+================================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+Production scoring for Signal Board is driven by:
+
+  scanSignalSymbol (signalBoardScan.ts)
+    → scoreAnalysisV4 (scorerV4.ts)
+    → getEMAAnalysisV3 / buildCVDPointsFromKlines / hardBlocks[] + ADX overlay
+
+V4.1 runs a fully separate parallel stack (v41/indicators, momentumEngine1H,
+separate CVD models). Default UI tab is "unified" (App.tsx).
+
+Legacy code still executes on every scan via computeFullAnalysisBundle
+(runFullAnalysis / makeDecision). Unified tab has a wiring gap: buildV41Row
+omits momentum before unifiedSignalEngine gate.
+
+================================================================================
+PRODUCTION ENTRY POINTS (verified App.tsx)
+================================================================================
+
+App.tsx
+  ├─ useUnifiedAppScan (60s, default tab = unified)
+  │    ├─ useSignalBoard.scan → scanAllSignalRows → scanSignalSymbol   [V3/V4 PRIMARY]
+  │    ├─ scanV41 → scanOneSymbolV41                                  [V4.1 PARALLEL]
+  │    └─ scanUnified → buildUnifiedSignal                            [MERGE]
+  ├─ periodicTradingWork → scanAllSignalRows only                     [BG V3/V4, no V4.1]
+  ├─ useLockedPlanMonitor → lockedPlanScoring                         [LOCKED PLAN V2]
+  ├─ useTradeStore.fetchAndAnalyze → scoreAnalysisV4 + computeFullAnalysisBundle
+  └─ useMarketAnalysis → runFullAnalysis / computeAIScore             [Trading Overview]
+
+Default UI: signalBoardTab === 'unified' → SignalBoardUnified
+
+================================================================================
+MASTER CALL CHAIN — V3/V4 PRODUCTION SCORING
+================================================================================
+
+SignalBoard / SignalBoardUnified / periodicTradingWork
+  ↓
+useSignalBoard.scan / scanAllSignalRows
+  ↓
+scanSignalSymbol (services/signalBoardScan.ts)
+  ↓
+buildAnalysisInputV4FromMarket → buildAnalysisInputFromMarket (analysisInput.ts)
+  ├─ buildCVDPointsFromKlines (indicators.ts)
+  └─ klines1h/4h (EMA computed later in scorer)
+  ↓
+scoreAnalysisV4 + scoreAnalysisV3 (scorerV4.ts / scorerV3.ts)
+  ├─ getEMAAnalysisV3 → calculateEMA(20)              [EMA20]
+  ├─ scoreL5aV4 → analyzeCVD + evaluateLongCvdHardBlock [CVD + Hard Block]
+  ├─ scoreL8V4 → getBTCAnalysisV3.momentum            [Momentum BTC]
+  └─ scoreL3/L6/L8/L9/L10 → hardBlocks[]              [Hard Block]
+  ↓
+applyVwapBonusToScoring
+  ↓
+calculateTradePlanV4/V3 → getEMAAnalysisV3 (entry zone)
+  ↓
+evaluateADXGate → applyAdxBlockToSnapshot             [Hard Block overlay]
+  ↓
+SignalRow → UI / export / journal
+
+LEGACY SIDE PATH (still runs every scan at signalBoardScan.ts ~1137):
+  computeFullAnalysisBundle → runFullAnalysis → makeDecision
+  → row.tradePlan / tradePlans.LONG|SHORT (legacy v2 plan)
+
+================================================================================
+MASTER CALL CHAIN — V4.1 PARALLEL STACK
+================================================================================
+
+scanV41 → scanOneSymbolV41 (services/v41/scanV41.ts)
+  ├─ v41/indicators.calculateEMA(20)                  [EMA20 — separate copy]
+  ├─ computeMomentum1H (momentumEngine1H.ts)          [Momentum 1H]
+  ├─ reversalDetector.cvdProxy                          [CVD per-bar proxy]
+  ├─ reversalProbabilityEngine.calculateCVDV41          [CVD cumulative]
+  └─ earlyWarningEngine (BLOCK severity)              [Hard Block V4.1 only]
+
+UNIFIED MERGE (scanUnified.ts):
+  buildV41Row(symbol) — rebuilds from useV41Store, OMITS momentum field
+  → buildUnifiedSignal → unifiedSignalEngine.isMomentumConfirmedForDirection
+     always returns false (momentum missing)
+
+================================================================================
+SECTION 1 — EMA20
+================================================================================
+
+Implementation                          | File                          | Caller                          | Call Chain                                                                 | Prod | Legacy | Dead | Risk
+----------------------------------------|-------------------------------|---------------------------------|----------------------------------------------------------------------------|------|--------|------|------
+calculateEMA(closes, 20)                | services/indicators.ts        | getEMAs, getEMAAnalysisV3       | scoreAnalysisV4 → getEMAAnalysisV3 → scoreL1V4 → scanSignalSymbol          | YES  | NO     | NO   | LOW
+getEMAAnalysisV3                        | services/indicators.ts        | scoreAnalysisV4/V3, tradePlan   | scanSignalSymbol → scoreL1V4, calculateOptimalEntry, evaluateLongCvdHardBlock| YES  | NO     | NO   | LOW
+getEMAs                                 | services/indicators.ts        | lockedPlanScoring               | useLockedPlanMonitor → locked-plan rescoring                               | YES* | Parallel| NO  | MED
+calculateEMA(20) V4.1                   | services/v41/indicators.ts    | trendStrengthEngine, etc.       | scanV41 → SignalBoardV41 / unified store                                   | YES  | NO     | NO   | MED
+getAllMAs                               | services/indicators.ts        | NONE                            | —                                                                          | NO   | NO     | YES  | LOW
+buildIndicatorSet → calculateEMA(20)    | services/scorer.ts            | computeFullAnalysisBundle       | scanSignalSymbol legacy tradePlan; useTradeStore                           | YES  | YES    | NO   | MED
+scoreEmaTrend → Wilder EMA(20)          | services/scorer.ts            | computeAIScore only             | useMarketAnalysis → TradingOverview / AIScorePanel                         | YES  | YES    | NO   | HIGH
+calculateEntryZone / computeOptimalLimit| indicators.ts / scorer.ts     | calculateTradePlan (legacy)     | runFullAnalysis → computeFullAnalysisBundle                                | YES  | YES    | NO   | MED
+hasEmaPullbackSetup                     | services/whaleConfirmation.ts | tradePlanV4, scoreL7V4          | scanSignalSymbol → whale confirm                                           | YES  | NO     | NO   | LOW
+
+* YES for locked-plan monitor only (no slope vs L1 V4)
+
+EMA20 — NEVER CALLED IN PRODUCTION:
+  - getAllMAs (services/indicators.ts) — zero call sites
+
+EMA20 — LEGACY BUT STILL EXECUTED:
+  - scoreEmaTrend (Wilder formula — different from L1/trade plan standard EMA)
+  - buildIndicatorSet EMA via computeFullAnalysisBundle (every scanSignalSymbol)
+  - legacy row.tradePlan fallback in SignalBoard.tsx (~1471)
+
+EMA20 — ACCIDENTAL LEGACY RISK: YES
+  Three formulas coexist: standard α=2/(n+1), V4.1 duplicate copy, Wilder in scoreEmaTrend.
+  Every scan still runs computeFullAnalysisBundle for legacy tradePlan sidecar.
+
+EMA20 — DETAILED V4.1 USAGE (v41/indicators.calculateEMA 20):
+  earlyWarningEngine:  detectPriceVsEma20, detectEma20Slope, detectBtcSignal
+  reversalDetector:    detectPriceBelow/AboveEma20, checkRetestEMA20_1H, computeCounterTrendSL
+  trendStrengthEngine: resolveTrendDirection, calculateEMAAlignmentScore
+  trendExhaustionEngine: calculateTrendExhaustion, calculateDistanceEMA20Score
+
+================================================================================
+SECTION 2 — CVD
+================================================================================
+
+Implementation                          | File                          | Caller                          | Call Chain                                                                 | Prod | Legacy | Dead | Risk
+----------------------------------------|-------------------------------|---------------------------------|----------------------------------------------------------------------------|------|--------|------|------
+buildCVDPointsFromKlines → calculateCVD | services/indicators.ts        | buildAnalysisInputFromMarket    | scanSignalSymbol → scoreL5aV4 / scoreL5V3                                  | YES  | NO     | NO   | LOW
+analyzeCVD                              | services/indicators.ts        | scoreL5aV4, scoreL5V3, locked  | scanSignalSymbol → L5/L5a + export                                         | YES  | NO     | NO   | LOW
+evaluateLongCvdHardBlock                | services/indicators.ts        | scoreL5aV4                      | scoreAnalysisV4 → hardBlocks[]                                             | YES  | NO     | NO   | LOW
+applyRecoveringCvdLocalPenalty          | services/indicators.ts        | scoreL5aV4                      | V4 scan                                                                    | YES  | NO     | NO   | LOW
+classifyCvdState / computeCvdMomentum24h| services/indicators.ts        | analyzeCVD → scoreL5aV4         | V4 hard block + penalty                                                    | YES  | NO     | NO   | LOW
+cvdDivergenceAgainstDirection           | scorerV3.ts + scorerV4.ts     | scoreL5V3 / scoreL5aV4          | scanSignalSymbol                                                           | YES  | NO     | NO   | MED
+detectCVDDivergence / analyzeOrderFlow  | services/indicators.ts        | useMarketAnalysis               | TradingOverview / CVDChart                                                 | YES  | YES    | NO   | MED
+scoreCvdDivergence / cvdStructuralBoost | services/scorer.ts            | computeAIScore                  | useMarketAnalysis                                                          | YES  | YES    | NO   | MED
+cvdSlopeExhausted                       | services/scorer.ts            | NONE                            | —                                                                          | NO   | —      | YES  | LOW
+cvdSlopeToTrend                         | services/journalService.ts    | NONE                            | —                                                                          | NO   | —      | YES  | LOW
+computeTradingBias                      | utils/tradingBias.ts          | NONE                            | —                                                                          | NO   | —      | YES  | LOW
+computeCvd (per-bar proxy)              | v41/momentumEngine1H.ts       | computeMomentum1H               | scanV41 → SignalBoardV41                                                   | YES  | NO     | NO   | MED
+cvdProxy                                | v41/reversalDetector.ts       | checkReversalSignals            | scanV41                                                                    | YES  | NO     | NO   | MED
+calculateCVDV41                         | v41/reversalProbabilityEngine | calculateReversalProbability    | scanV41 → MIL                                                              | YES  | NO     | NO   | MED
+scoreLayer5_VolumeOICVD                 | lockedPlanScoring.ts          | scoreInEntryZoneMode            | useLockedPlanMonitor                                                       | YES  | YES    | NO   | MED
+
+CVD — CANONICAL V3/V4 PATH:
+  indicators.ts → buildCVDPointsFromKlines → analyzeCVD
+  Fed through analysisInput.ts → scoreL5aV4 (V4) / scoreL5V3 (V3)
+
+CVD — NEVER CALLED:
+  - cvdSlopeExhausted (scorer.ts)
+  - cvdSlopeToTrend (journalService.ts)
+  - computeTradingBias (utils/tradingBias.ts)
+
+CVD — THREE DIVERGENCE ALGORITHMS (not unified):
+  1. analyzeCVD — slope + simple price/CVD delta
+  2. detectCVDDivergence — swing HH/LL (legacy overview)
+  3. calculateCVDDivergenceScore — V4.1 swing-based (0/50/100)
+
+CVD — CVDX NOTE:
+  "CVDX" is NOT a separate calculateCVDX function.
+  It is a StrategySource label ('V3'|'V4'|'CVDX'|'MANUAL') for journal/UI.
+  CVDX rules live in scoreL5aV4 + evaluateLongCvdHardBlock + applyRecoveringCvdLocalPenalty.
+
+CVD — ACCIDENTAL LEGACY RISK: YES
+  Trading Overview uses analyzeOrderFlow; Signal Board uses analyzeCVD.
+  V3 scan has no L5a CVD hard blocks. User switching to V3 tab drops CVD hard blocks.
+
+================================================================================
+SECTION 3 — MOMENTUM
+================================================================================
+
+Implementation                          | File                          | Caller                          | Call Chain                                                                 | Prod | Legacy | Dead | Risk
+----------------------------------------|-------------------------------|---------------------------------|----------------------------------------------------------------------------|------|--------|------|------
+computeMomentum1H                       | v41/momentumEngine1H.ts       | resolveMomentumExhaustion       | scanV41 → SignalRowV41.momentum                                            | YES  | NO     | NO   | LOW*
+isMomentumConfirmedForDirection         | unifiedSignalEngine.ts        | resolveV41Context               | scanUnified → buildUnifiedSignal                                           | BROKEN| NO    | NO   | HIGH
+getBTCAnalysisV3 → momentum             | services/indicators.ts        | scoreL8V4, scoreL8V3            | scanSignalSymbol → V4/V3 score                                             | YES  | NO     | NO   | LOW
+MACD histogram momentum (L3)            | scorerV3/V4 scoreL3V*         | scoreAnalysisV4/V3              | scanSignalSymbol                                                           | YES  | NO     | NO   | LOW
+computeCvdMomentum24h                   | services/indicators.ts        | analyzeCVD → scoreL5aV4         | V4 L5a hard block / penalty                                                | YES  | NO     | NO   | LOW
+resolveMomentumConfirmed (EQ engine)    | v41/entryQualityEngine.ts     | computeEntryQuality             | scanV41.resolveOpportunity (momentum NOT passed)                           | BYPASS| NO    | NO   | MED
+evaluateMomentumReversal                | v41/positionAdvisorV41.ts     | NONE in prod                    | Journal advisor never passes momentum                                      | NO   | —      | YES  | LOW
+RSI "còn momentum" strings              | services/scorer.ts            | Not in scan pipeline            | —                                                                          | NO   | YES    | YES  | LOW
+lockedPlanScoring %B momentum text      | lockedPlanScoring.ts          | Locked plan only                | useLockedPlanMonitor                                                       | YES  | YES    | NO   | LOW
+
+* LOW on V4.1 tab; broken on Unified tab
+
+MOMENTUM — FIVE DISTINCT FAMILIES:
+  1. V4.1 computeMomentum1H — volume spike + 3-bar taker CVD (1H gate)
+  2. BTC L8 momentum — ACCELERATING/DECELERATING/NEUTRAL (24h vs 1h rate)
+  3. MACD L3 histogram momentum — zero-cross, turning up/down
+  4. CVD 24h momentum — computeCvdMomentum24h for L5a hard block (NOT same as #1)
+  5. lockedPlanScoring %B text — display only
+
+MOMENTUM — DEFAULT UNIFIED TAB REALITY:
+  V4 side:     BTC L8 + MACD L3 + CVD 24h via scanSignalSymbol → ACTIVE
+  V4.1 gate:   isMomentumConfirmedForDirection needs v41Row.momentum → ALWAYS FAILS
+               (scanUnified.buildV41Row omits momentum)
+  V4.1 tab:    computeMomentum1H on v41Rows from hook → ACTIVE
+  Background:  periodicTradingWork → V4 only, no V4.1 momentum
+
+MOMENTUM — WIRING GAPS (documented, not fixed):
+  1. scanV41.resolveOpportunity → computeEntryQuality without momentum (null bypass)
+  2. scanUnified.buildV41Row → no momentum field
+  3. App.tsx SignalBoardUnified → no v41Rows prop (badge often shows "—")
+  4. positionAdvisorV41.evaluateMomentumReversal — never receives momentum param
+
+MOMENTUM — ACCIDENTAL LEGACY RISK: YES
+  Unified tab can show STRONG_V41 / RESCUE when V4 hard-blocked.
+  V4.1 entry logic on unified tab ≠ V4.1 tab entry logic.
+
+================================================================================
+SECTION 4 — HARD BLOCK
+================================================================================
+
+Implementation                          | File                          | Caller                          | Call Chain                                                                 | Prod | Legacy | Dead | Risk
+----------------------------------------|-------------------------------|---------------------------------|----------------------------------------------------------------------------|------|--------|------|------
+scoreAnalysisV4 → hardBlocks[]          | services/scorerV4.ts          | scanSignalSymbol                | SignalBoard / unified V4 side                                              | YES  | NO     | NO   | LOW
+evaluateLongCvdHardBlock                | services/indicators.ts        | scoreL5aV4                      | V4 only                                                                    | YES  | NO     | NO   | LOW
+evaluateADXGate → applyAdxBlock         | adxGate.ts + signalBoardScan  | scanSignalSymbol                | Post-scorer overlay                                                        | YES  | NO     | NO   | MED
+HARD_BLOCK_RULES_V4                     | constants/scoring.ts          | scorerV4 + SignalBoard.tsx      | Scan + UI duplicate BTC check                                              | YES  | NO     | NO   | HIGH
+scoreAnalysisV3 → hardBlocks[]          | services/scorerV3.ts          | scanSignalSymbol (parallel)     | Dual-run every scan                                                        | YES  | Parallel| NO  | MED
+checkHardBlocks                         | lockedPlanScoring.ts          | scoreInEntryZoneMode            | useLockedPlanMonitor                                                       | YES  | YES    | NO   | MED
+makeDecision                            | services/scorer.ts            | runFullAnalysis                 | computeFullAnalysisBundle + useTradeStore                                  | YES  | YES    | NO   | HIGH
+lossStreakCooldownL10                   | scorerV3/V4                   | COMMENTED OUT in L10            | —                                                                          | NO   | Dormant| YES  | HIGH
+CVD_LONG_HARD_BLOCK -2M constant        | constants/scoring.ts          | UNUSED for LONG                 | LONG uses evaluateLongCvdHardBlock instead                                 | NO   | Misleading| YES| MED
+V4.1 Early Warning BLOCK                | v41/earlyWarningEngine.ts     | scanV41                         | visibilityMode = WATCH_MODE                                                | YES  | NO     | NO   | MED
+exportServiceV41.evaluateEntryGates     | exportServiceV41.ts           | Export only                     | Audit text, not runtime                                                    | NO   | —      | N/A  | LOW
+SignalBoard MACD suppress / ADX override| SignalBoard.tsx               | UI display                      | Can downgrade/upgrade HARD badge vs snapshot                               | YES  | NO     | NO   | HIGH
+unifiedSignalEngine RESCUE/STRONG_V41   | unifiedSignalEngine.ts        | buildUnifiedSignal              | Can canEnter when V4 blocked                                               | YES  | NO     | NO   | HIGH
+
+HARD BLOCK — V4 LAYER PRODUCERS (scoreAnalysisV4):
+  scoreL3V4  — L3 MACD violation → hardBlocks
+  scoreL5aV4 — CVD hard block (LONG: evaluateLongCvdHardBlock; SHORT: CVD > +2M)
+  scoreL6V4  — Funding extreme squeeze
+  scoreL8V4  — BTC extreme / directional (±2%, ±8%)
+  scoreL9V4  — Bad session (L9-only bypass via awaitingRescore)
+  scoreL10V4 — L10 score < 1 → soft "Tâm lý chưa sẵn sàng" (not explicit HB)
+  blockReasons — e.g. L5a CVD chưa đủ 1đ (soft, not hardBlocks)
+  groupBlocks  — group A/B/C below minRequired
+
+HARD BLOCK — STACKED LAYERS (not single gate):
+  Layer 1: scorerV4.hardBlocks + blockReasons + groupBlocks     [engine]
+  Layer 2: evaluateADXGate → applyAdxBlockToSnapshot            [post-engine]
+  Layer 3: enrichSnapshotFinalStatus → finalEntryStatus         [status]
+  Layer 4: SignalBoard UI overrides (ADX, MACD suppress)       [display only]
+  Layer 5: unifiedSignalEngine (V4.1 can bypass V4 block)       [unified tab]
+
+HARD BLOCK — THREE CONSTANT FAMILIES (sync burden):
+  HARD_BLOCK_RULES      → lockedPlanScoring, useTradeStore, legacy scorer.ts
+  HARD_BLOCK_RULES_V3   → scorerV3.ts
+  HARD_BLOCK_RULES_V4   → scorerV4.ts, SignalBoard.tsx (UI duplicate)
+
+HARD BLOCK — NEVER CALLED / DORMANT:
+  - lossStreakCooldownL10 (commented in scoreL10V3/V4 — TODO: BẬT LẠI KHI PRODUCTION)
+  - HARD_BLOCK_RULES_V4.CVD_LONG_HARD_BLOCK: -2_000_000 for LONG (unused; LONG uses evaluateLongCvdHardBlock)
+  - derivativesDataService.groupBlock — L13 whale delta; not wired into V3/V4 hardBlocks
+
+HARD BLOCK — ACCIDENTAL LEGACY RISK: YES
+  1. useTradeStore still runs computeFullAnalysisBundle with weaker makeDecision blocks
+  2. User on V3 tab loses L5a CVD hard blocks
+  3. hardBlocked flag includes groupBlocks (mislabeled as hard)
+  4. Unified can enter via RESCUE/STRONG_V41 while V4 hardBlocks non-empty
+  5. Manual entry path may bypass scorer gates (SignalBoard manual open)
+  6. Loss streak tracked (lossStreakLocked) but NOT hard-blocked — only lowers L10 score
+
+================================================================================
+SECTION 5 — SUMMARY MATRIX
+================================================================================
+
+Domain    | Canonical Production Impl                    | Duplicates              | Dead Code | Legacy Still Executed      | Accidental Legacy Risk
+----------|----------------------------------------------|-------------------------|-----------|----------------------------|------------------------
+EMA20     | indicators.calculateEMA via getEMAAnalysisV3 | V4.1 copy, getEMAs,     | getAllMAs | computeFullAnalysisBundle  | YES — 3 formulas,
+          |                                              | Wilder scoreEmaTrend    |           | legacy plan every scan     | legacy plan every scan
+CVD       | buildCVDPointsFromKlines → analyzeCVD        | V4.1 proxy + CVDV41,    | 3 funcs   | Overview panel,            | YES — different algos
+          |                                              | legacy analyzeOrderFlow |           | locked plan V2             | per screen
+Momentum  | V4: BTC L8 + MACD L3 + CVD 24h;             | 5 families              | evaluate  | locked plan %B text        | YES — unified drops
+          | V4.1: computeMomentum1H                      |                         | Momentum  |                            | V4.1 momentum
+          |                                              |                         | Reversal  |                            |
+Hard Block| scoreAnalysisV4.hardBlocks + ADX overlay    | 3 constant objects,     | L10 streak| runFullAnalysis,           | YES — stacked gates
+          |                                              | UI duplicate, V2 locked | blocks    | locked plan, makeDecision  | can disagree
+
+================================================================================
+SECTION 6 — FILE INDEX (key touchpoints)
+================================================================================
+
+PRODUCTION SCAN:
+  App.tsx
+  hooks/useSignalBoard.ts
+  hooks/useUnifiedAppScan.ts
+  services/signalBoardScan.ts          — scanSignalSymbol, applyAdxBlock*
+  services/analysisInput.ts            — buildCVDPointsFromKlines
+  services/scorerV4.ts                 — scoreAnalysisV4, scoreL5aV4, getEMAAnalysisV3
+  services/scorerV3.ts                 — scoreAnalysisV3 (parallel)
+  services/indicators.ts               — calculateEMA, analyzeCVD, evaluateLongCvdHardBlock
+  services/adxGate.ts                  — evaluateADXGate
+  services/scanUnified.ts              — buildV41Row (momentum gap)
+  services/unifiedSignalEngine.ts      — isMomentumConfirmedForDirection
+  services/periodicTradingWork.ts      — background scan (V4 only)
+
+V4.1:
+  services/v41/scanV41.ts
+  services/v41/indicators.ts
+  services/v41/momentumEngine1H.ts
+  services/v41/reversalDetector.ts
+  services/v41/reversalProbabilityEngine.ts
+  services/v41/earlyWarningEngine.ts
+  services/v41/entryQualityEngine.ts
+
+LEGACY / PARALLEL:
+  hooks/useMarketAnalysis.ts           — computeFullAnalysisBundle, runFullAnalysis
+  services/scorer.ts                   — scoreEmaTrend, makeDecision, scoreCvdDivergence
+  services/lockedPlanScoring.ts        — checkHardBlocks, getEMAs, scoreLayer5
+  store/useTradeStore.ts               — dual scoreAnalysisV4 + computeFullAnalysisBundle
+
+UI:
+  components/dashboard/SignalBoard.tsx
+  components/dashboard/SignalBoardV41.tsx
+  components/dashboard/SignalBoardUnified.tsx
+
+CONSTANTS:
+  constants/scoring.ts                 — HARD_BLOCK_RULES, _V3, _V4
+
+================================================================================
+SECTION 7 — RECOMMENDATIONS (guidance only — not implemented)
+================================================================================
+
+Priority fixes if consolidation is desired later:
+
+  P1 — Wire momentum into scanUnified.buildV41Row (unified tab gate broken)
+  P2 — Remove or gate computeFullAnalysisBundle from hot scan path (legacy EMA/plan)
+  P3 — Single HARD_BLOCK_RULES source; remove SignalBoard duplicate BTC checks
+  P4 — Split hardBlocked vs groupBlocked on snapshots
+  P5 — Enable or delete commented L10 loss-streak/daily-loss hard blocks
+  P6 — Merge V3/V4 cvdDivergenceAgainstDirection; merge V4.1 computeCvd/cvdProxy
+  P7 — Document/decide: can Unified RESCUE/STRONG_V41 enter when V4 hardBlocks set?
+
+================================================================================
+END OF REPORT
+================================================================================

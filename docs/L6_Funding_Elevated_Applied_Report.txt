@@ -1,0 +1,107 @@
+================================================================================
+TRADESCORE — L6 LONG_FUNDING_ELEVATED — APPLIED REPORT
+================================================================================
+
+Ngày        : 2026-07-11
+Trạng thái  : HOÀN THÀNH (phase 1)
+Phạm vi     : LONG_FUNDING_ELEVATED only — không có SHORT_FUNDING_ELEVATED
+
+================================================================================
+1. DIFF ĐÃ ÁP DỤNG
+================================================================================
+
+constants/scoring.ts
+  + LONG_FUNDING_ELEVATED_MAX_PCT: 0.01
+  + FundingState.LONG_FUNDING_ELEVATED
+  + FUNDING_STATE_LABELS (icon 📊, text 'Funding dương vừa phải')
+  + classifyFundingState() nhánh sau LONG_EUPHORIA_FADING, trước NEUTRAL (rõ)
+
+services/scorerV4.ts
+  + LONG_L6_BY_STATE[LONG_FUNDING_ELEVATED] = 0.5
+  + SHORT_L6_BY_STATE[LONG_FUNDING_ELEVATED] = 1.5
+
+services/journalService.ts
+  + 'LONG_FUNDING_ELEVATED' trong FUNDING_STATE_VALUES
+
+screens/SystemPerformanceScreen.tsx
+  + filter tab { id: LONG_FUNDING_ELEVATED, label: 'Funding dương vừa' }
+
+services/actualWinrate.ts
+  + LONG_FUNDING_ELEVATED trong FUNDING_STATE_ORDER (giữa LONG_EUPHORIA_FADING và EXTREME)
+
+Không đổi: planHealth.ts, positionAdvisorV4.ts
+
+================================================================================
+2. TEST
+================================================================================
+
+Cập nhật test cũ:
+  constants/scoring.test.ts:208–209
+    0.01, 0.001 → LONG_FUNDING_ELEVATED (trước: NEUTRAL)
+
+Test mới:
+  constants/scoring.test.ts
+    - 0.0095, vel=0 → LONG_FUNDING_ELEVATED
+    - 0.005, vel=0 → NEUTRAL (rõ)
+    - 0.0050001, vel=0 → LONG_FUNDING_ELEVATED
+    - 0.01, vel=0 → LONG_FUNDING_ELEVATED
+    - 0.0100001, vel=0 → NEUTRAL fallback
+    - 0.0100001, vel=0.001 → EXTREME_LONG_EUPHORIA
+    - getFundingStateLabel(LONG_FUNDING_ELEVATED)
+
+  services/scorerV4.test.ts
+    - LONG 0.0095% → raw 0.5, display 0.38 (rounded)
+    - SHORT 0.0095% → raw 1.5, display 1.13 (rounded)
+
+npx tsc --noEmit
+  Có lỗi pre-existing toàn project (App.tsx, journalService.test types, ...)
+  Không có lỗi mới từ Record<FundingState> exhaustiveness sau khi thêm state.
+
+npx vitest run constants/scoring.test.ts services/scorerV4.test.ts
+  services/journalService.test.ts services/actualWinrate.test.ts
+
+Kết quả:
+  Test Files : 4 passed (4)
+  Tests      : 105 passed (105)
+  Fail       : 0
+  Test cũ break ngoài dự kiến: không
+
+SystemPerformanceScreen: không có file test riêng — không chạy.
+
+================================================================================
+3. BTC / NEAR — TRACE L6 SAU FIX
+================================================================================
+
+Input: fundingCurrent ≈ 0.0095–0.0097%, fundingVelocity ≈ 0
+State : LONG_FUNDING_ELEVATED
+
+| Coin     | Hướng | Raw L6 | Display L6 (UI) | Label                         |
+|----------|-------|--------|-----------------|-------------------------------|
+| BTCUSDT  | LONG  | 0.5    | 0.38đ           | Funding dương vừa phải        |
+| NEARUSDT | SHORT | 1.5    | 1.13đ           | Funding dương vừa phải        |
+
+Trước fix (NEUTRAL): cả 2 hướng raw 1 → display 0.75đ
+
+Hard Block L6:
+  Không kích hoạt (extremeRisk NONE tại ~0.0095%)
+  Hard Block L3: không đổi bởi fix L6 — phụ thuộc L3 score riêng
+
+Total score / direction:
+  Chỉ thay đổi nếu Group B (L6) đóng góp vào referenceTotalScore;
+  delta LONG ≈ -0.37đ display, SHORT ≈ +0.38đ display so với trước (0.75→0.38/1.13).
+  Có thể ảnh hưởng suggestDirectionV4 nếu chênh lệch Long/Short đủ lớn — cần rescan thực tế.
+
+================================================================================
+4. CHECKLIST
+================================================================================
+
+  [x] LONG_FUNDING_ELEVATED phase 1
+  [x] Không SHORT_FUNDING_ELEVATED
+  [x] 1 test cũ đổi expected
+  [x] Test mới classify + scoreL6V4 + label
+  [x] vitest 105/105 pass
+  [x] BTC/NEAR L6 trace
+
+================================================================================
+END OF REPORT
+================================================================================

@@ -1,0 +1,289 @@
+================================================================================
+ENTRY / SL / TP — ĐIỀU TRA CODE + ĐỀ XUẤT Entry_SLTP_Audit_Package
+================================================================================
+Ngày     : 2026-07-11
+Phạm vi   : CHỈ ĐIỀU TRA + ĐỀ XUẤT — KHÔNG VIẾT/SỬA CODE
+
+================================================================================
+BƯỚC 1 — GENERATOR AUDIT PACKAGE HIỆN TẠI
+================================================================================
+
+Đường dẫn:
+  Generator chính : services/exportService.ts → exportTradeScoreAuditPackage() ~1370-1400
+  UI trigger      : components/dashboard/SignalBoard.tsx → handleExportAuditPackage() ~661-666
+  Filename        : TradeScore_Audit_Package.txt
+  Section 1       : docs/tradeScoreRuleBook.ts → getTradeScoreRuleBookText()
+  Section 2-5     : docs/tradeScoreAiAuditInstruction.ts
+                      tradeScoreMasterAuditPrompt.ts
+                      tradeScoreAuditOutputTemplate.ts
+  Section 6-9     : formatHumanEvidenceCoinBlock() ~1162-1232 → partition
+  Section 10      : exportSignalData(rows, 'txt')
+  Section 11      : buildEvidenceBaselineReport() — docs/tradeScoreAuditPackageBaseline.ts
+
+Cấu trúc 11 section (code thực tế):
+  Package Header
+  SECTION 1  — RULE BOOK
+  SECTION 2  — AI AUDIT INSTRUCTION
+  SECTION 3  — AI AUDIT WORKFLOW
+  SECTION 4  — MASTER AUDIT PROMPT
+  SECTION 5  — AI OUTPUT TEMPLATE
+  SECTION 6  — EXECUTIVE SUMMARY
+  SECTION 7  — MARKET EVIDENCE
+  SECTION 8  — RULE DECISION
+  SECTION 9  — TRADE PLAN
+  SECTION 10 — ACTUAL RESULT
+  SECTION 11 — BASELINE
+
+Lưu ý: docs/tradeScoreAiAuditWorkflow.ts (spec GĐ3 dài) KHÔNG gọi trực tiếp;
+       Section 3 dùng bản workflow ngắn trong tradeScoreAiAuditInstruction.ts.
+
+--------------------------------------------------------------------------------
+SECTION 2 — AI AUDIT INSTRUCTION (tradeScoreAiAuditInstruction.ts)
+--------------------------------------------------------------------------------
+14 nhiệm vụ AI Auditor:
+  1. Đọc Rule Book
+  2. Đọc Decision Trace
+  3. Đọc Market Evidence
+  4. Đọc Actual Result
+  5. Không suy diễn ngoài Rule
+  6. Tự tính Expected theo Rule Book
+  7. So sánh Expected vs Actual
+  8. PASS/FAIL từng Layer
+  9. FAIL → Rule/Module/Expected/Actual/Root Cause
+  10-12. Không đề xuất chiến lược / không tối ưu / không sửa Rule
+  13. Chỉ đánh giá app đúng Rule
+  14. Sinh Prompt Cursor sửa module
+Tái dùng: CÓ — thay "từng Layer L1-L11" → Entry/SL/TP/RR/Quality.
+
+--------------------------------------------------------------------------------
+SECTION 3 — AI AUDIT WORKFLOW (tradeScoreAiAuditInstruction.ts)
+--------------------------------------------------------------------------------
+STEP 1: Validate package (Rule Book, Instruction, Prompt, Template, Evidence)
+STEP 2: Đọc Rule Book (SSOT)
+STEP 3: Đọc Evidence (không giả định)
+STEP 4: Replay từng Layer L1→L11 (Input/Expected/Actual/PASS-FAIL)
+STEP 5: Replay Group Score → Decision → Trade Plan → Final Status
+STEP 6: Expected == Actual → PASS, else FAIL
+STEP 7: FAIL → Module/Function/Rule/Evidence/Root Cause/Cursor Prompt
+STEP 8: Không thêm/sửa Rule
+Tái dùng: CÓ — STEP 4/5 thu hẹp pipeline Entry→SL→TP→RR.
+
+--------------------------------------------------------------------------------
+SECTION 4 — MASTER AUDIT PROMPT (tradeScoreMasterAuditPrompt.ts)
+--------------------------------------------------------------------------------
+- Mục tiêu: kiểm tra app vs RuleBook
+- Nguồn duy nhất: nội dung package
+- Quy trình 8 bước: Rule Book → Evidence → Expected (Decision, L1-L11,
+  Hard Block, Entry, SL, TP) → Compare → PASS/FAIL
+- Ràng buộc: không suy diễn; INSUFFICIENT EVIDENCE nếu thiếu data
+Tái dùng: CÓ — đã có Expected Entry/SL/TP; bỏ phần Layer.
+
+--------------------------------------------------------------------------------
+SECTION 5 — AI OUTPUT TEMPLATE (tradeScoreAuditOutputTemplate.ts)
+--------------------------------------------------------------------------------
+- OVERALL RESULT (PASS/FAIL/INSUFFICIENT_EVIDENCE, Confidence, Summary)
+- RULE CHECK (Rule Book, Decision Trace, Market Evidence, Actual Result)
+- LAYER AUDIT L1-L11 (mỗi layer: PASS/FAIL, Expected, Actual, Reason)
+- TRADE PLAN AUDIT (Decision, Direction, Entry, Stop Loss, Take Profit, Hard Block)
+- ROOT CAUSE + FIX RECOMMENDATION
+Tái dùng: Phần TRADE PLAN AUDIT + ROOT CAUSE;
+           thay LAYER AUDIT bằng ENTRY/SL/TP/RR checklist.
+
+================================================================================
+BƯỚC 2 — INVENTORY CODE ENTRY / SL / TP
+================================================================================
+
+Pipeline thực tế (signalBoardScan.ts ~1206-1262):
+  calculateTradePlanV3 / calculateTradePlanV4Native
+    → evaluateADXGate + scaleTradePlanByAdxGate (TP/SL scale)
+    → applyVWAPEntryToPlan (V4, IDEAL/GOOD)
+    → applyStructureSLToPlans (STRUCTURE vs ATR_FALLBACK)
+    → invalidatePlanIfStructureRrBelowMin
+    → ADX block nếu bothChoppy
+
+ENTRY PRICE
+-----------
+calculateOptimalEntry()       tradePlanV3.ts           159-309
+  EMA20 pullback, S/R + buffer, fallback patience % theo decision
+finalizeEntryZone()           tradePlanV3.ts           (trong calculateOptimalEntry)
+applyVWAPEntryToPlan()        tradePlanV3.ts           827+
+getVWAPEntrySignal()          vwapService.ts           153-212
+calculateVWAP()               vwapService.ts           79+
+calculateTradePlanV4Native()  tradePlanV4.ts           172-237
+recommendedEntry              constants/scoring.ts     ~1090 (= entryZone.optimal)
+
+Entry patience: TRADE_PLAN_V3_CONFIG.ENTRY_PATIENCE — scoring.ts 912-917
+
+Hai hệ quality khác nhau:
+  entryZone.quality     : GOOD / ACCEPTABLE / RISKY / MISS (calculateOptimalEntry)
+  vwap.entryQuality     : IDEAL / GOOD / NEUTRAL / POOR (getVWAPEntrySignal)
+Export ưu tiên plan.entryZone.quality, fallback snapshot.vwap.entryQuality.
+
+ENTRY QUALITY (IDEAL/GOOD/NEUTRAL/POOR)
+---------------------------------------
+|price−VWAP| ≤ 0.5%                    → IDEAL   (vwapService.ts 157-163, 186-191)
+Pullback 0.5-2% đúng hướng             → GOOD    (165-170, 193-198)
+LONG BELOW_BAND2 / SHORT ABOVE_BAND2     → POOR    (172-177, 200-205)
+Còn lại                                → NEUTRAL (179-183, 207-211)
+Constants: VWAP_DEFAULTS NEAR 0.5%, PULLBACK 2%
+
+SL CALCULATION
+--------------
+calculateOptimalSL()          tradePlanV3.ts           315-430
+slQualityFromAtrDistance()    tradePlanV3.ts           734-737
+resolveV4SlMultiplier()       tradePlanV4.ts           112-169
+calculateStructureSL()        structureSL.ts           207-263
+buildFallbackResult()         structureSL.ts           ~145
+applyStructureSLToPlans()     signalBoardScan.ts       977-1013
+applyTierMaxLossCap()         tradePlanV3.ts           81+
+scaleTradePlanByAdxGate()     signalBoardScan.ts       676-697
+
+ATR SL base mult: TRADE_PLAN_V3_CONFIG.ATR_SL_MULTIPLIER — scoring.ts 893-898
+  SETUP_NGON 1.5× | VAO_TU_TIN 2.0× | CO_THE_VAO 2.5× | CHO_THEM 3.0×
+Market mode slFactor: TRENDING 0.9 / RANGING 1.1 — scoring.ts 920-928
+Structure lookback: ADX≥35→40, ≥25→30, else 20 — structureSL.ts
+
+STRUCTURE vs ATR_FALLBACK:
+  Swing hợp lệ + structure SL đúng phía entry → STRUCTURE
+  Không swing / structure vô lý                      → ATR_FALLBACK
+
+SL QUALITY (TIGHT / NORMAL / WIDE)
+----------------------------------
+< 1.2×ATR  → TIGHT   (tradePlanV3.ts 422-423, 734-736)
+> 3×ATR     → WIDE
+else        → NORMAL
+
+TP1/TP2/TP3 + RR
+----------------
+calculateOptimalTPs()         tradePlanV3.ts           444-530
+Production RR fixed           capitalManagement.ts     11-15
+  TP1=2.0 | TP2=3.0 | TP3=4.5
+Gọi production                tradePlanV3.ts 627-628, tradePlanV4.ts 291
+  fixedRrTargets: RR_TARGETS → modeFactor và GROUP_B bonus BỎ QUA
+primaryRR                     tradePlanV3.ts 631 (= tp1.rrRatio)
+MIN_RR_TO_ENTER               scoring.ts 943 (= 2.0)
+invalidatePlanIfStructureRrBelowMin  signalBoardScan.ts 955-975
+applyStructureSlToPlan()      signalBoardScan.ts       927-953
+recalculatePlanAfterEntryChange  tradePlanV3.ts      741+
+
+Partial close: TP1 50% | TP2 30% | TP3 20%
+
+ADX GATE → TP/SL MULTIPLIER (adxGate.ts 31-111)
+-----------------------------------------------
+bothChoppy       tpMult 1.0  slMult 1.0  BLOCK (chặn plan, không scale)
+1 TF choppy      tpMult 0.9  slMult 1.1  WARNING
+RANGING          tpMult 0.85 slMult 1.1  WARNING
+TRENDING STRONG  tpMult 1.2  slMult 0.9  BONUS
+TRENDING weak    tpMult 1.0  slMult 1.0  OK
+Scale: kéo TP/SL về entry theo multiplier (signalBoardScan.ts 676-697)
+
+EXPORT / SNAPSHOT
+-----------------
+formatCoinBlock() Entry/SL/TP     exportService.ts 625-630
+AUDIT FIELDS entry/sl/rr        exportService.ts 364-390
+ruleAuditSnapshot                 types/ruleAuditSnapshot.ts 137-201
+  adx | vwap | atr | structure
+Populate                          ruleAuditSnapshotPopulate.ts
+
+================================================================================
+BƯỚC 3 — RULE BOOK (ENTRY/SL/TP ONLY)
+================================================================================
+Nguồn: docs/tradeScoreRuleBook.ts
+
+ADX Gate (210-220):
+  BLOCK bothChoppy | WARNING mixed/RANGING | BONUS TRENDING STRONG
+  TP/SL mult như inventory trên
+
+VWAP (224-232):
+  NEAR ≤0.5% → IDEAL | Pullback 0.5-2% → GOOD | ngoài 2σ → POOR | else NEUTRAL
+  Constants: NEAR 0.5%, PULLBACK 2.0%, MIN_CANDLES 5
+
+ATR (236-249):
+  SL quality TIGHT/WIDE/NORMAL
+  Patience + ATR× theo decision band:
+    SETUP_NGON 0.2%/1.5× | VAO_TU_TIN 0.4%/2.0× | CO_THE_VAO 0.6%/2.5× | CHO_THEM 1.0%/3.0×
+  marketMode: TRENDING sl×0.9 tp×1.2 | RANGING sl×1.1 tp×0.8
+  V4 CVD_SL_TIGHTEN=0.3; Profiles CVD_DOMINANT/TREND_DOMINANT/BALANCED
+
+Structure SL (253-261):
+  Lookback 20/30/40 | MIN_CANDLES_BACK 3 (ADX≥35→2)
+  Buffer 0.3% | Cap 3.5% | Cap 4.0×ATR
+
+Entry Rule (265-273):
+  Patience theo Decision Band | VWAP quality IDEAL/GOOD/NEUTRAL/POOR
+  V4 CVD profile ảnh hưởng SL multiplier
+
+Take Profit (282-289):
+  Production fixed RR: TP1 2.0× | TP2 3.0× | TP3 4.5×
+  TRADE_PLAN_V3_CONFIG.RR_TARGETS by decision = dead path
+
+Risk (293+):
+  Size 17.65% | maxLoss 25% size | leverage 5x | milestone +30%
+
+================================================================================
+BƯỚC 4 — ĐỀ XUẤT Entry_SLTP_Audit_Package (11 SECTION)
+================================================================================
+Giữ pattern header + 11 section + deterministic audit.
+Bỏ toàn bộ L1-L11 scoring.
+
+#  | Section                      | Nội dung
+---|------------------------------|------------------------------------------
+1  | ENTRY/SL/TP RULE BOOK        | Extract tradeScoreRuleBook: ADX, VWAP,
+   |                              | ATR, Structure SL, Entry, TP, Risk, V4 SL
+   |                              | profile. Không L1-L11.
+2  | AI AUDIT INSTRUCTION         | Clone Section 2 hiện tại; PASS/FAIL
+   |                              | Entry, SL source, SL quality, TP1-3,
+   |                              | primary RR, Entry Quality
+3  | AI AUDIT WORKFLOW            | Clone STEP 1-3,6-8; STEP 4 replay pipeline:
+   |                              | Entry → ADX scale → VWAP → Structure SL
+   |                              | → RR check; STEP 5 bỏ Group/Decision
+4  | MASTER AUDIT PROMPT          | Clone; Expected chỉ Entry/SL/TP/RR/Quality
+5  | AI OUTPUT TEMPLATE           | Bỏ LAYER AUDIT; mở rộng TRADE PLAN AUDIT:
+   |                              | Entry, Entry Quality, SL price/source/quality,
+   |                              | ATR dist, TP1-3, RR1-3, primary RR,
+   |                              | ADX mult, Structure lookback
+6  | EXECUTIVE SUMMARY            | Per coin: Symbol, Direction, Entry, SL,
+   |                              | TP1-3, Primary RR, Entry Quality, SL Quality,
+   |                              | SL Source, Final Entry Status. Không L1-L11.
+7  | MARKET EVIDENCE              | Chỉ ATR, VWAP, STRUCTURE, ADX + price,
+   |                              | direction. Optional mini EMA20 (ảnh hưởng entry).
+8  | EXPECTED CALCULATION         | Tính thủ công từ Rule Book + Sec 7:
+   |                              | Expected entry, SL, TP1-3, RR, qualities.
+   |                              | Ghi đúng thứ tự pipeline. (Đổi tên từ
+   |                              | "Rule Decision" để tránh nhầm layer scores.)
+9  | ACTUAL TRADE PLAN            | App sau full pipeline: resolveTradePlanV3,
+   |                              | structureSL, adxGate, vwapSignal
+10 | ACTUAL RESULT                | TXT subset: KẾ HOẠCH + STRUCTURE SL + VWAP
+   |                              | + ADX GATE + audit fields. Không 10 layer.
+11 | BASELINE                     | Checklist module Entry/SL/TP; không scoring
+
+GENERATOR ĐỀ XUẤT (CHƯA CODE):
+  services/exportEntrySltpAuditPackage.ts
+    hoặc exportEntrySltpAuditPackage() trong exportService.ts
+  docs/tradeScoreEntrySltpRuleBook.ts (slice SSOT từ rule book hiện tại)
+  Reuse: formatAuditPackageSection, header, ruleAuditSnapshot ATR/VWAP/
+         STRUCTURE/ADX, resolveTradePlanV3, structureSL, formatCoinBlock subset
+  UI: nút riêng hoặc option — CHỜ CONFIRM
+
+ĐIỂM LƯU Ý KHI BUILD:
+  1. Hai hệ Entry Quality — tách entryZone.quality vs vwap.entryQuality
+  2. RR production luôn fixed 2/3/4.5 — không RR_TARGETS by decision
+  3. ADX scale trước Structure SL — Expected đúng thứ tự pipeline
+  4. Structure chỉ override khi slSource === STRUCTURE
+  5. Section 8 đổi tên EXPECTED CALCULATION (không "Rule Decision")
+
+================================================================================
+KẾT LUẬN
+================================================================================
+Generator hiện tại : exportTradeScoreAuditPackage() — exportService.ts
+Section 2-5        : Meta AI — tái dùng được với scope thu hẹp
+Code Entry/SL/TP   : tradePlanV3/V4, structureSL, vwapService, adxGate,
+                     signalBoardScan pipeline
+Rule Book          : Đủ block ADX/VWAP/ATR/Structure/Entry/TP/Risk
+Đề xuất            : Entry_SLTP_Audit_Package 11 section, bỏ scoring
+
+CHỜ CONFIRM trước khi implement generator.
+
+================================================================================
+END
+================================================================================

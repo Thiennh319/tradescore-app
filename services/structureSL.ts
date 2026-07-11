@@ -25,6 +25,24 @@ export const STRUCTURE_SL_DEFAULTS = {
   MIN_CANDLES_BACK: 3,
 } as const;
 
+/** Lookback 4H theo ADX — mặc định 20 khi không có ADX. */
+export function resolveStructureSlLookback(adxValue?: number): number {
+  if (adxValue == null || !Number.isFinite(adxValue)) return 20;
+  if (adxValue >= 35) return 40;
+  if (adxValue >= 25) return 30;
+  return 20;
+}
+
+/** MIN_CANDLES_BACK giảm khi trend mạnh (ADX ≥ 35). */
+export function resolveStructureSlMinCandlesBack(adxValue?: number): number {
+  if (adxValue != null && Number.isFinite(adxValue) && adxValue >= 35) return 2;
+  return STRUCTURE_SL_DEFAULTS.MIN_CANDLES_BACK;
+}
+
+/** Cap Structure SL — không xa hơn 3.5% entry hoặc 4×ATR từ entry */
+export const MAX_STRUCTURE_SL_PCT = 0.035;
+export const MAX_STRUCTURE_SL_ATR = 4.0;
+
 const SWING_NEIGHBOR_BARS = 2;
 
 function isSwingLow(klines: Kline[], index: number): boolean {
@@ -54,11 +72,12 @@ function isSwingHigh(klines: Kline[], index: number): boolean {
 function resolveSwingSearchRange(
   klines: Kline[],
   lookback: number,
+  minCandlesBack: number = STRUCTURE_SL_DEFAULTS.MIN_CANDLES_BACK,
 ): { fromIndex: number; toIndex: number } | null {
   const len = klines.length;
   const minIndex = SWING_NEIGHBOR_BARS;
   const maxIndexByNeighbors = len - 1 - SWING_NEIGHBOR_BARS;
-  const maxIndexByRecency = len - 1 - STRUCTURE_SL_DEFAULTS.MIN_CANDLES_BACK;
+  const maxIndexByRecency = len - 1 - minCandlesBack;
   const toIndex = Math.min(maxIndexByNeighbors, maxIndexByRecency);
   const fromIndex = Math.max(minIndex, len - lookback);
 
@@ -70,8 +89,9 @@ function resolveSwingSearchRange(
 export function findRecentSwingLow(
   klines4H: Kline[],
   lookback: number = STRUCTURE_SL_DEFAULTS.LOOKBACK_CANDLES,
+  minCandlesBack: number = STRUCTURE_SL_DEFAULTS.MIN_CANDLES_BACK,
 ): SwingPoint | null {
-  const range = resolveSwingSearchRange(klines4H, lookback);
+  const range = resolveSwingSearchRange(klines4H, lookback, minCandlesBack);
   if (!range) return null;
 
   for (let i = range.toIndex; i >= range.fromIndex; i -= 1) {
@@ -91,8 +111,9 @@ export function findRecentSwingLow(
 export function findRecentSwingHigh(
   klines4H: Kline[],
   lookback: number = STRUCTURE_SL_DEFAULTS.LOOKBACK_CANDLES,
+  minCandlesBack: number = STRUCTURE_SL_DEFAULTS.MIN_CANDLES_BACK,
 ): SwingPoint | null {
-  const range = resolveSwingSearchRange(klines4H, lookback);
+  const range = resolveSwingSearchRange(klines4H, lookback, minCandlesBack);
   if (!range) return null;
 
   for (let i = range.toIndex; i >= range.fromIndex; i -= 1) {
@@ -138,8 +159,49 @@ export interface CalculateStructureSLParams {
   entryPrice: number;
   atrSL: number;
   klines4H: Kline[];
+  /** ATR 1H thô — nếu bỏ trống, suy ra từ |entry − atrSL| / MAX_STRUCTURE_SL_ATR */
+  atr?: number;
   bufferPct?: number;
   lookback?: number;
+  /** ADX trung bình 1H/4H — điều chỉnh lookback & MIN_CANDLES_BACK */
+  adxValue?: number;
+}
+
+function resolveAtrUnit(
+  entryPrice: number,
+  atrSL: number,
+  direction: 'LONG' | 'SHORT',
+  atr?: number,
+): number {
+  if (atr != null && atr > 0) return atr;
+  const distance =
+    direction === 'LONG' ? entryPrice - atrSL : atrSL - entryPrice;
+  return Math.max(0, distance) / MAX_STRUCTURE_SL_ATR;
+}
+
+/** Giới hạn SL structure — chỉ khi slSource STRUCTURE (gọi trước return). */
+function capStructureSlPrice(
+  direction: 'LONG' | 'SHORT',
+  entryPrice: number,
+  atrSL: number,
+  slPrice: number,
+  atr?: number,
+): number {
+  const atrUnit = resolveAtrUnit(entryPrice, atrSL, direction, atr);
+
+  if (direction === 'LONG') {
+    const capByPct = entryPrice * (1 - MAX_STRUCTURE_SL_PCT);
+    const capByAtr = entryPrice - atrUnit * MAX_STRUCTURE_SL_ATR;
+    const slCap = Math.max(capByPct, capByAtr);
+    if (slPrice < slCap) return slCap;
+    return slPrice;
+  }
+
+  const capByPct = entryPrice * (1 + MAX_STRUCTURE_SL_PCT);
+  const capByAtr = entryPrice + atrUnit * MAX_STRUCTURE_SL_ATR;
+  const slCap = Math.min(capByPct, capByAtr);
+  if (slPrice > slCap) return slCap;
+  return slPrice;
 }
 
 export function calculateStructureSL(params: CalculateStructureSLParams): StructureSLResult {
@@ -148,12 +210,17 @@ export function calculateStructureSL(params: CalculateStructureSLParams): Struct
     entryPrice,
     atrSL,
     klines4H,
+    atr,
     bufferPct = STRUCTURE_SL_DEFAULTS.BUFFER_PCT,
-    lookback = STRUCTURE_SL_DEFAULTS.LOOKBACK_CANDLES,
+    lookback: lookbackOverride,
+    adxValue,
   } = params;
 
+  const lookback = lookbackOverride ?? resolveStructureSlLookback(adxValue);
+  const minCandlesBack = resolveStructureSlMinCandlesBack(adxValue);
+
   if (direction === 'LONG') {
-    const swing = findRecentSwingLow(klines4H, lookback);
+    const swing = findRecentSwingLow(klines4H, lookback, minCandlesBack);
     if (!swing) return buildFallbackResult(entryPrice, atrSL, bufferPct);
 
     const structureSL = swing.price * (1 - bufferPct / 100);
@@ -161,7 +228,8 @@ export function calculateStructureSL(params: CalculateStructureSLParams): Struct
       return buildFallbackResult(entryPrice, atrSL, bufferPct);
     }
 
-    const slPrice = Math.min(structureSL, atrSL);
+    let slPrice = Math.min(structureSL, atrSL);
+    slPrice = capStructureSlPrice('LONG', entryPrice, atrSL, slPrice, atr);
     return {
       swingPrice: swing.price,
       swingTime: swing.time,
@@ -173,7 +241,7 @@ export function calculateStructureSL(params: CalculateStructureSLParams): Struct
     };
   }
 
-  const swing = findRecentSwingHigh(klines4H, lookback);
+  const swing = findRecentSwingHigh(klines4H, lookback, minCandlesBack);
   if (!swing) return buildFallbackResult(entryPrice, atrSL, bufferPct);
 
   const structureSL = swing.price * (1 + bufferPct / 100);
@@ -181,7 +249,8 @@ export function calculateStructureSL(params: CalculateStructureSLParams): Struct
     return buildFallbackResult(entryPrice, atrSL, bufferPct);
   }
 
-  const slPrice = Math.max(structureSL, atrSL);
+  let slPrice = Math.max(structureSL, atrSL);
+  slPrice = capStructureSlPrice('SHORT', entryPrice, atrSL, slPrice, atr);
   return {
     swingPrice: swing.price,
     swingTime: swing.time,

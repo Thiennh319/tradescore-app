@@ -13,6 +13,7 @@ export function calculateVWAPBonus(
   vwapData: VWAPResult | undefined,
   direction: 'LONG' | 'SHORT',
   currentL5Raw: number,
+  cvdValue?: number,
 ): VWAPBonusResult {
   const noBonus = (reason: string): VWAPBonusResult => ({
     bonusRaw: 0,
@@ -26,6 +27,18 @@ export function calculateVWAPBonus(
 
   if (!vwapData.isNearVwap) {
     return noBonus('Giá chưa gần VWAP');
+  }
+
+  if (cvdValue === undefined) {
+    return noBonus('Không có dữ liệu CVD');
+  }
+
+  if (direction === 'LONG' && cvdValue <= 0) {
+    return noBonus('LONG: CVD không dương — không bonus');
+  }
+
+  if (direction === 'SHORT' && cvdValue >= 0) {
+    return noBonus('SHORT: CVD không âm — không bonus');
   }
 
   if (direction === 'LONG' && vwapData.zone === 'BELOW_BAND2') {

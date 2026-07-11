@@ -1,0 +1,157 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 05A)
+================================================================================
+Ngày: 2026-07-09
+Task:   Populate nhóm EMA vào RuleAuditSnapshot
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: EMA MAP LIVE — chưa wire scan, chưa export
+
+Tiền đề:
+  Task 01–04 — schema, SignalRow wire, builder, populate stub
+  Task 05A — nhóm đầu tiên có populate thật (EMA only)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Ghi dữ liệu EMA đã có sẵn vào snapshot.ema — map 1:1, không tính EMA,
+không gọi getEMAAnalysisV3 / indicators.
+
+Nguyên tắc Task 05A:
+  ✅ Chỉ sửa ruleAuditSnapshotPopulate.ts
+  ✅ Mở rộng RuleAuditPopulateInput với input.ema
+  ✅ Map h1, h4 + alignment, pullback
+  ❌ Không populate RSI, MACD, … (05B+)
+  ❌ Không sửa builder, schema, signalBoardScan, exportService
+  ❌ Không suy luận alignment/pullback từ giá EMA
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 05A)
+================================================================================
+
+export interface RuleAuditEmaPopulateSource {
+  h1: RuleAuditEmaTimeframe;
+  h4: RuleAuditEmaTimeframe;
+  alignment: string;
+  pullback: boolean;
+}
+
+export interface RuleAuditPopulateInput {
+  ema: RuleAuditEmaPopulateSource;
+}
+
+Nguồn h1/h4 dùng type RuleAuditEmaTimeframe từ schema — khớp EMAAnalysisV3
+(ema20, ema50, ema200, slope20/50, priceVs*, priceAbove*).
+
+alignment / pullback: caller truyền giá trị đã có (vd. từ L1 khi wire scan).
+Populate không derive từ timeframe fields.
+
+================================================================================
+3. MAP EMA — CHI TIẾT
+================================================================================
+
+populateEmaTimeframe(target, source) — 10 field / TF:
+
+  ema20, ema50, ema200
+  slope20, slope50
+  priceVsEma20Pct, priceVsEma50Pct
+  priceAboveEma20, priceAboveEma50
+
+populateEma(snapshot, ema):
+
+  snapshot.ema.h1  ← ema.h1
+  snapshot.ema.h4  ← ema.h4
+  snapshot.ema.alignment ← ema.alignment
+  snapshot.ema.pullback  ← ema.pullback
+
+populateRuleAuditSnapshot():
+
+  if (input.ema == null) → throw Error('input.ema is required')
+  else populateEma(snapshot, input.ema)
+
+Các nhóm snapshot khác (rsi, macd, …): giữ nguyên skeleton từ builder.
+
+================================================================================
+4. HÀM PRIVATE (FILE-LOCAL)
+================================================================================
+
+  populateEmaTimeframe()  — map 1 TF
+  populateEma()           — map cả nhóm ema
+
+Không export ra ngoài file.
+
+================================================================================
+5. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — schema giữ nguyên
+  ruleAuditSnapshotBuilder.ts         — skeleton giữ nguyên
+  signalBoardScan.ts                  — chưa gọi populate
+  exportService.ts                    — không đụng
+  scorer*, tradePlan*, v41/           — không đụng
+
+================================================================================
+6. WIRE DỰ KIẾN (TASK SAU — NGOÀI 05A)
+================================================================================
+
+Trong scan (khi được phép sửa signalBoardScan):
+
+  const ema1h = getEMAAnalysisV3(klines1h);   // đã có trong scorer path
+  const ema4h = getEMAAnalysisV3(klines4h);
+  const snapshot = buildRuleAuditSnapshot();
+  populateRuleAuditSnapshot(snapshot, {
+    ema: {
+      h1: ema1h,    // structural match RuleAuditEmaTimeframe
+      h4: ema4h,
+      alignment: '...',  // từ L1 / caller — không suy trong populate
+      pullback: false,   // từ L1 / caller
+    },
+  });
+  baseRow.ruleAuditSnapshot = snapshot;
+
+Tránh double-compute: cache ema1h/ema4h từ scorer hoặc tính một lần tại scan.
+
+================================================================================
+7. LIÊN HỆ EXPORT CSV (TASK 6c / 06)
+================================================================================
+
+Sau wire + export:
+
+  ema20_1h  ← snapshot.ema.h1.ema20
+  ema50_1h  ← snapshot.ema.h1.ema50
+  ema20_4h  ← snapshot.ema.h4.ema20
+  ema50_4h  ← snapshot.ema.h4.ema50
+  ema_alignment ← snapshot.ema.alignment
+  ema_pullback  ← snapshot.ema.pullback
+
+TXT section EMA INPUT — cùng nguồn snapshot.ema.
+
+================================================================================
+8. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit
+  - Không lỗi mới từ ruleAuditSnapshotPopulate.ts
+
+Runtime: populate chưa gọi từ pipeline → row.ruleAuditSnapshot vẫn undefined.
+
+================================================================================
+9. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Task | Trạng thái |
+|------|------|------------|
+| 01–04 | Schema, wire, builder, populate stub | ✅ |
+| 05A  | Populate EMA                      | ✅ |
+| 05B+ | RSI, MACD, Bollinger, …           | ⏳ |
+| —    | Wire scan + gán SignalRow         | ⏳ |
+| 06   | exportService Evidence            | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 05A: populate EMA map 1:1 từ input.ema (h1/h4/alignment/pullback);
+throw nếu thiếu input.ema; chưa wire scan.
+
+================================================================================

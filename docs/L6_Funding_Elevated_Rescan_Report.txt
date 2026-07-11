@@ -1,0 +1,132 @@
+================================================================================
+L6 LONG_FUNDING_ELEVATED — RE-SCAN 4 COIN (SAU FIX)
+================================================================================
+Loại: Snapshot mới — KHÔNG khớp audit package cũ
+Thời điểm quét: 2026-07-11T00:28:35.623Z (~07:28 VN)
+Khung phân tích: 1h
+BTC 24h change: +1.675%
+Pipeline: scoreAnalysisV4 → VWAP bonus L5 → suggestDirectionV4 (scanSignalSymbol)
+Psychology checklist: DEFAULT_SCORING_PSYCHOLOGY_CHECKLIST (slTpReady=false)
+
+================================================================================
+BẢNG TỔNG HỢP 4 COIN
+================================================================================
+
+Coin      | Funding State           | Funding %  | L6 LONG      | L6 SHORT     | Total LONG | Total SHORT | Direction | Long−Short
+----------|-------------------------|------------|--------------|--------------|------------|-------------|-----------|----------
+BTCUSDT   | LONG_FUNDING_ELEVATED   | 0.0100%    | 0.5 → 0.38đ  | 1.5 → 1.13đ  | 5.92       | 5.42        | LONG      | +0.50
+NEARUSDT  | NEUTRAL                 | 0.0024%    | 1 → 0.75đ    | 1 → 0.75đ    | 4.79       | 7.92        | SHORT     | −3.13
+SOLUSDT   | LONG_FUNDING_ELEVATED   | 0.0053%    | 0.5 → 0.38đ  | 1.5 → 1.13đ  | 6.35       | 6.35        | LONG      | 0.00
+BNBUSDT   | LONG_FUNDING_ELEVATED   | 0.0100%    | 0.5 → 0.38đ  | 1.5 → 1.13đ  | 6.67       | 5.60        | LONG      | +1.07
+
+Giá tại snapshot:
+  BTCUSDT  64089.4
+  NEARUSDT 1.894
+  SOLUSDT  77.98
+  BNBUSDT  575.99
+
+================================================================================
+CHI TIẾT TỪNG COIN
+================================================================================
+
+--- BTCUSDT ---
+Funding state: LONG_FUNDING_ELEVATED (0.0100%)
+LONG:
+  L6 raw/display: 0.5 / 0.38đ
+  L6 reason: Funding 0.0100% · 📊 Funding dương vừa phải
+  officialTotalScore: 5.92
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+SHORT:
+  L6 raw/display: 1.5 / 1.13đ
+  L6 reason: Funding 0.0100% · 📊 Funding dương vừa phải
+  officialTotalScore: 5.42
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+Direction (suggestDirectionV4): LONG
+
+--- NEARUSDT ---
+Funding state: NEUTRAL (0.0024%)
+LONG:
+  L6 raw/display: 1 / 0.75đ
+  L6 reason: Funding 0.0024% · ➡️ Thị trường cân bằng
+  officialTotalScore: 4.79
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+SHORT:
+  L6 raw/display: 1 / 0.75đ
+  L6 reason: Funding 0.0024% · ➡️ Thị trường cân bằng
+  officialTotalScore: 7.92
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+Direction (suggestDirectionV4): SHORT
+
+--- SOLUSDT ---
+Funding state: LONG_FUNDING_ELEVATED (0.0053%)
+LONG:
+  L6 raw/display: 0.5 / 0.38đ
+  L6 reason: Funding 0.0053% · 📊 Funding dương vừa phải
+  officialTotalScore: 6.35
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+SHORT:
+  L6 raw/display: 1.5 / 1.13đ
+  L6 reason: Funding 0.0053% · 📊 Funding dương vừa phải
+  officialTotalScore: 6.35
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+Direction (suggestDirectionV4): LONG
+
+--- BNBUSDT ---
+Funding state: LONG_FUNDING_ELEVATED (0.0100%)
+LONG:
+  L6 raw/display: 0.5 / 0.38đ
+  L6 reason: Funding 0.0100% · 📊 Funding dương vừa phải
+  officialTotalScore: 6.67
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+SHORT:
+  L6 raw/display: 1.5 / 1.13đ
+  L6 reason: Funding 0.0100% · 📊 Funding dương vừa phải
+  officialTotalScore: 5.60
+  hardBlocks:
+    - L9 Phiên xấu — Asia Dead Zone: 02-08h VN: Thanh khoản thấp nhất, dễ bị quét
+    - L10 Tâm lý chưa sẵn sàng
+Direction (suggestDirectionV4): LONG
+
+================================================================================
+PHÂN TÍCH RIÊNG SOLUSDT (SO VỚI TRƯỚC FIX)
+================================================================================
+
+Metric              | Trước fix (audit cũ) | Sau fix (snapshot mới) | Delta
+--------------------|----------------------|------------------------|-------
+Total LONG          | 6.75                 | 6.35                   | −0.40
+Total SHORT         | 6.25                 | 6.35                   | +0.10
+Direction           | LONG                 | LONG                   | Không đổi
+Long − Short        | +0.50                | 0.00                   | −0.50
+
+L6 trước fix (NEUTRAL fallback): LONG 0.75đ / SHORT 0.75đ (raw 1 / 1)
+L6 sau fix (LONG_FUNDING_ELEVATED): LONG 0.38đ / SHORT 1.13đ (raw 0.5 / 1.5)
+
+Đảo chiều LONG → SHORT: KHÔNG (longScore >= shortScore → tie → LONG)
+Chênh lệch Long−Short hiện tại: 0.00 (sát ngưỡng đảo chiều)
+
+================================================================================
+GHI CHÚ
+================================================================================
+
+- BTC, SOL, BNB: funding trong khoảng (0.005%, 0.01%] velocity>=0 → LONG_FUNDING_ELEVATED
+- NEAR: funding 0.0024% → NEUTRAL, L6 đối xứng 0.75đ
+- Cả 4 coin: hardBlocks giống nhau (L9 Asia Dead Zone + L10 psychology) cả LONG và SHORT
+- suggestDirectionV4 không override vì cả hai phía đều có hardBlocks
+
+================================================================================
+END OF REPORT
+================================================================================

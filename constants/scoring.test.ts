@@ -205,8 +205,36 @@ describe('classifyFundingState', () => {
     expect(classifyFundingState(0.005, 0, 0)).toBe(FundingState.NEUTRAL);
   });
 
-  it('boundary: current = 0.01% (not > 0.01) with positive velocity → NEUTRAL fallback', () => {
-    expect(classifyFundingState(0.01, 0.001, 0)).toBe(FundingState.NEUTRAL);
+  it('boundary: current = 0.01% (not > 0.01) with positive velocity → LONG_FUNDING_ELEVATED', () => {
+    expect(classifyFundingState(0.01, 0.001, 0)).toBe(
+      FundingState.LONG_FUNDING_ELEVATED,
+    );
+  });
+
+  it('LONG_FUNDING_ELEVATED when current = 0.0095% and velocity = 0', () => {
+    expect(classifyFundingState(0.0095, 0, 0)).toBe(
+      FundingState.LONG_FUNDING_ELEVATED,
+    );
+  });
+
+  it('boundary: current = 0.0050001% and velocity = 0 → LONG_FUNDING_ELEVATED', () => {
+    expect(classifyFundingState(0.0050001, 0, 0)).toBe(
+      FundingState.LONG_FUNDING_ELEVATED,
+    );
+  });
+
+  it('boundary: current = 0.01% and velocity = 0 → LONG_FUNDING_ELEVATED', () => {
+    expect(classifyFundingState(0.01, 0, 0)).toBe(FundingState.LONG_FUNDING_ELEVATED);
+  });
+
+  it('boundary: current = 0.0100001% and velocity = 0 → NEUTRAL fallback', () => {
+    expect(classifyFundingState(0.0100001, 0, 0)).toBe(FundingState.NEUTRAL);
+  });
+
+  it('boundary: current = 0.0100001% and velocity > 0 → EXTREME_LONG_EUPHORIA', () => {
+    expect(classifyFundingState(0.0100001, 0.001, 0)).toBe(
+      FundingState.EXTREME_LONG_EUPHORIA,
+    );
   });
 
   it('boundary: velocity = 0.002% at neutral current → NEUTRAL', () => {
@@ -223,6 +251,10 @@ describe('getFundingStateLabel', () => {
     expect(getFundingStateLabel(FundingState.SHORT_SQUEEZE_BUILDING)).toEqual({
       icon: '⚡',
       text: 'Short đang bị ép mạnh',
+    });
+    expect(getFundingStateLabel(FundingState.LONG_FUNDING_ELEVATED)).toEqual({
+      icon: '📊',
+      text: 'Funding dương vừa phải',
     });
   });
 });

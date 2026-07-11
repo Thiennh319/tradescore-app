@@ -1,0 +1,116 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 13)
+================================================================================
+Ngày: 2026-07-10
+Task:   Wire Evidence Export vào Toolbar SignalBoard
+File:   components/dashboard/SignalBoard.tsx
+        components/dashboard/SignalBoardV41.tsx
+
+================================================================================
+1. TOOLBAR SAU KHI THÊM MENU
+================================================================================
+
+Tab V4 (SignalBoard.tsx):
+
+  [ 📊 Xuất ▼ ]   [ 📋 Evidence ▼ ]   [ Quét lại ]
+
+Tab V4.1 (SignalBoardV41.tsx):
+
+  [ 📊 Xuất ▼ ]   [ 📋 Evidence ▼ ]   [ Quét lại ]
+
+Evidence nằm ngay bên phải nút Xuất.
+Cùng exportBtn style (padding, border, fontSize 12, fontWeight 600).
+Cùng gap 8 trong headerActions.
+Layout Toolbar không đổi (chỉ thêm 1 nút giữa Xuất và Quét lại).
+
+Evidence ▼ menu:
+
+  ├── Export Evidence CSV
+  └── Export Evidence TXT
+
+================================================================================
+2. EVIDENCE CSV EXPORT
+================================================================================
+
+Action:   Export Evidence CSV
+Handler:  handleEvidenceExportCsv()
+Chain:    exportRuleAuditEvidenceCSV(rows)
+          → buildRuleAuditEvidenceExportRow()
+          → formatRuleAuditEvidenceCSV()
+File:     tradescore-evidence-YYYYMMDD-HHmmss.csv
+Columns:  125 (RULE_AUDIT_EVIDENCE_CSV_COLUMNS)
+          symbol (1) + snapshot (120) + metadata (4)
+
+Trạng thái: WIRED — download qua downloadTextFileWeb / saveAndShareNativeFile
+
+================================================================================
+3. EVIDENCE TXT EXPORT
+================================================================================
+
+Action:   Export Evidence TXT
+Handler:  handleEvidenceExportTxt()
+Chain:    exportRuleAuditHumanEvidenceTXT(rows, scorerVersion)
+          V4 tab: scorerVersion từ store (v3 | v4)
+          V4.1 tab: scorerVersion = 'v4'
+File:     tradescore-evidence-YYYYMMDD-HHmmss.txt
+
+Nội dung TXT (contract Task 10/10A):
+  EXECUTIVE SUMMARY
+  MARKET
+  RULE
+  TRADE
+  METADATA
+
+Trạng thái: WIRED — download qua downloadTextFileWeb / saveAndShareNativeFile
+
+================================================================================
+4. EXPORT CŨ VẪN HOẠT ĐỘNG
+================================================================================
+
+Tab V4 — nút Xuất ▼:
+  handleExport() — KHÔNG ĐỔI
+  exportSignalData(rows, 'txt')
+  exportSignalData(rows, 'csv')
+  File: tradescore-signal-{timestamp}.txt / .csv
+  Columns: 80 (CSV_COLUMNS)
+
+Tab V4.1 — nút Xuất ▼:
+  handleExport() — KHÔNG ĐỔI
+  exportV41SignalReport(rows, quotes)
+  File: tradescore-v41-signal-{timestamp}.txt / .csv
+  Columns: 61 (CSV_COLUMNS V41)
+
+Không sửa:
+  exportService.ts
+  exportSignalData()
+  exportSignalDataV41()
+  CSV_COLUMNS
+  RULE_AUDIT_EVIDENCE_CSV_COLUMNS
+  Business logic / Rule / TradePlan / Snapshot
+
+================================================================================
+5. IMPORT MỚI (UI ONLY)
+================================================================================
+
+SignalBoard.tsx:
+  exportRuleAuditEvidenceCSV
+  exportRuleAuditHumanEvidenceTXT
+
+SignalBoardV41.tsx:
+  exportRuleAuditEvidenceCSV
+  exportRuleAuditHumanEvidenceTXT
+  type SignalRow (cast rows cho evidence API)
+
+================================================================================
+6. VERIFY CHECKLIST
+================================================================================
+
+[PASS] Toolbar hiển thị [Xuất ▼] [Evidence ▼] [Quét lại]
+[PASS] Evidence CSV → exportRuleAuditEvidenceCSV → 125 cột
+[PASS] Evidence TXT → exportRuleAuditHumanEvidenceTXT → Human layout
+[PASS] Xuất cũ → exportSignalData / exportV41SignalReport — không đổi
+[PASS] Không sửa services/exportService.ts
+
+================================================================================
+END OF REPORT
+================================================================================

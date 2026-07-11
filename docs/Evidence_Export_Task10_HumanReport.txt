@@ -1,0 +1,144 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 10)
+================================================================================
+Ngày: 2026-07-10
+Task:   Human Friendly Evidence Report (.txt)
+File:   services/exportService.ts (sửa duy nhất)
+Trạng thái: HUMAN TXT LIVE — không phải dữ liệu GPT
+
+Tiền đề:
+  Task 08  — wire ruleAuditSnapshot
+  Task 09A — RAW CSV evidence
+  Task 09A.1 — validateEvidenceCoverage()
+  Task 10  — báo cáo TXT cho con người đọc
+
+================================================================================
+1. API
+================================================================================
+
+formatRuleAuditHumanEvidenceCoinBlock(row, exportTimestamp?, scorerVersion?)
+formatRuleAuditHumanEvidenceTXT(rows, exportTimestamp?, scorerVersion?)
+exportRuleAuditHumanEvidenceTXT(rows, scorerVersion?)
+
+================================================================================
+2. LAYOUT MỖI COIN
+================================================================================
+
+========================================================
+{SYMBOL}
+========================================================
+
+MARKET
+  EMA / RSI / MACD / BOLLINGER / VOLUME / CVD
+  DERIVATIVES / BTC CONTEXT / ADX / ATR / VWAP / STRUCTURE
+
+--------------------------------------------------------
+
+RULE
+  Decision, Decision Band, Entry Status, Direction, Score
+  Layer Summary (từng layer: score — reason)
+
+--------------------------------------------------------
+
+TRADE
+  Entry Quality, SL Quality, ATR Distance, Structure Lookback
+
+--------------------------------------------------------
+
+METADATA
+  Rule Version, Snapshot Version, Evidence Version, Export Time
+
+========================================================
+
+================================================================================
+3. NGUỒN DỮ LIỆU
+================================================================================
+
+MARKET   row.ruleAuditSnapshot — 120 leaf field, không rút gọn
+RULE     resolveSignalRow + resolveFinalEntryStatus
+TRADE    resolveTradePlanV3 + snapshot fallback (vwap.entryQuality, structure.lookbackCandles)
+METADATA RULE_AUDIT_* constants + ISO8601 export time
+
+Giá trị: formatRuleAuditEvidenceCell — không làm tròn, không đổi nội dung.
+
+================================================================================
+4. MẪU — 50 DÒNG ĐẦU (BTCUSDT verify)
+================================================================================
+
+========================================================
+BTCUSDT
+========================================================
+
+MARKET
+
+EMA
+h1.ema20: 95000.123456789
+h1.ema50: 0
+h1.ema200: 
+h1.slope20: FLAT
+h1.slope50: FLAT
+h1.priceVsEma20Pct: 0
+h1.priceVsEma50Pct: 0
+h1.priceAboveEma20: false
+h1.priceAboveEma50: false
+h4.ema20: 0
+h4.ema50: 0
+h4.ema200: 
+h4.slope20: FLAT
+h4.slope50: FLAT
+h4.priceVsEma20Pct: 0
+h4.priceVsEma50Pct: 0
+h4.priceAboveEma20: false
+h4.priceAboveEma50: false
+alignment: Giá trên EMA20/50 cả 2 khung, EMA dốc lên
+pullback: false
+
+RSI
+rsi1h: 55.3
+rsi4h: 0
+divergence1h: NONE
+divergence4h: NONE
+
+MACD
+h1.macd: 0
+h1.signal: 0
+h1.histogram: 0
+h1.isTurningUp: false
+h1.isTurningDown: false
+h1.crossedZeroRecentlyUp: false
+h1.crossedZeroRecentlyDown: false
+h4.macd: 0
+h4.signal: 0
+h4.histogram: 0
+h4.isTurningUp: false
+h4.isTurningDown: false
+h4.crossedZeroRecentlyUp: false
+h4.crossedZeroRecentlyDown: false
+
+(Tiếp: BOLLINGER → … → STRUCTURE → RULE → TRADE → METADATA)
+
+================================================================================
+5. PHẠM VI KHÔNG SỬA
+================================================================================
+
+  types/ruleAuditSnapshot.ts, builder, populate, signalBoardScan
+  scorer*, tradePlan*, finalEntry*, v41/
+  RAW CSV format (Task 09A)
+  validateEvidenceCoverage (Task 09A.1)
+
+================================================================================
+6. KHÔNG LÀM
+================================================================================
+
+  Validator block
+  Task 11
+  Wire UI (chưa gọi từ SignalBoard)
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 10: exportRuleAuditHumanEvidenceTXT() — TXT đọc được, full snapshot +
+RULE/TRADE/METADATA, không rút gọn giá trị.
+
+================================================================================

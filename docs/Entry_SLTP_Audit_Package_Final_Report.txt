@@ -1,0 +1,117 @@
+================================================================================
+ENTRY / SL / TP AUDIT PACKAGE — BÁO CÁO HOÀN THÀNH
+================================================================================
+Ngày: 2026-07-11
+Trạng thái: DONE — generator + UI dropdown + test + Section 8 Worksheet B1
+
+================================================================================
+1. TÓM TẮT
+================================================================================
+
+Đã build Entry_SLTP_Audit_Package (11 section) song song Full Audit L1-L11.
+exportTradeScoreAuditPackage() — KHÔNG sửa.
+
+Section 8 = Worksheet trống (Option B1):
+  AI Auditor tự tính Expected từ Rule Book (Sec 1) + Market Evidence (Sec 7).
+Section 9–10 = Actual từ pipeline thật (resolveTradePlanV3 + adxGate +
+  structureSL + vwapSignal) — nguồn duy nhất cho giá trị app.
+
+Xác minh Section 8 vs 9: CHUNG 1 nguồn nếu pre-fill plan → đã chuyển B1.
+
+================================================================================
+2. FILE MỚI
+================================================================================
+
+docs/tradeScoreEntrySltpRuleBook.ts
+  getTradeScoreEntrySltpRuleBookText()
+  + 2 ghi chú bắt buộc (dual Entry Quality, DEAD PATH RR_TARGETS)
+
+docs/tradeScoreEntrySltpAuditMeta.ts
+  Sections 2–5: Instruction, Workflow, Master Prompt, Output Template
+
+services/exportEntrySltpAuditPackage.ts
+  exportEntrySltpAuditPackage(rows, scorerVersion?)
+  Filename: Entry_SLTP_Audit_Package.txt
+
+services/exportEntrySltpAuditPackage.test.ts
+  8 tests (Section 1 notes, 11 headers, Sec 8 worksheet, Sec 9/10 actual)
+
+docs/Entry_SLTP_Audit_Package_Sample_Output.txt
+  Mẫu output đầy đủ 11 section — BTCUSDT probe
+
+================================================================================
+3. FILE SỬA
+================================================================================
+
+components/dashboard/SignalBoard.tsx
+  Dropdown audit export:
+    "Full Audit (L1-L11 Scoring)"  → exportTradeScoreAuditPackage()
+    "Entry / SL / TP Audit"        → exportEntrySltpAuditPackage()
+  Default: Full Audit (behavior cũ 100%)
+
+================================================================================
+4. CẤU TRÚC 11 SECTION
+================================================================================
+
+ 1  ENTRY/SL/TP RULE BOOK     getTradeScoreEntrySltpRuleBookText()
+ 2  AI AUDIT INSTRUCTION      getTradeScoreEntrySltpAuditInstructionText()
+ 3  AI AUDIT WORKFLOW         getTradeScoreEntrySltpAuditWorkflowText()
+ 4  MASTER AUDIT PROMPT       getTradeScoreEntrySltpMasterAuditPrompt()
+ 5  AI OUTPUT TEMPLATE        getTradeScoreEntrySltpAuditOutputTemplate()
+ 6  EXECUTIVE SUMMARY         per coin — Entry/SL/TP/RR/Quality/Status
+ 7  MARKET EVIDENCE           ATR, VWAP, STRUCTURE, ADX + price/direction
+ 8  EXPECTED CALCULATION      worksheet trống ______________ (B1)
+ 9  ACTUAL TRADE PLAN         resolveTradePlanV3 + gate/structure/vwap
+10  ACTUAL RESULT             TXT subset (KẾ HOẠCH/STRUCTURE/VWAP/ADX, no L1-L11)
+11  BASELINE                  buildEvidenceBaselineReport() + Entry/SL/TP checklist
+
+================================================================================
+5. SECTION 8 — WORKSHEET (B1)
+================================================================================
+
+formatExpectedCalculationCoinBlock(symbol) — chỉ dùng symbol.
+
+KHÔNG gọi: resolveTradePlanV3, adxGate, structureSL, vwapSignal, snapshot.
+
+Format per coin:
+  ════════════════════════════
+  {SYMBOL} — EXPECTED CALCULATION WORKSHEET
+  ════════════════════════════
+  Bước (a) Base Plan      — Entry, SL, TP1/2/3
+  Bước (b) ADX Scale      — regime+severity, TP/SL mult
+  Bước (c) VWAP Overlay   — entryQuality, overlay?
+  Bước (d) Structure SL   — source, lý do
+  Bước (e) RR Check       — primary RR, invalidate?
+  entryZone.quality, SL Quality
+
+================================================================================
+6. UI EXPORT
+================================================================================
+
+Signal Board → dropdown chọn loại → nút 📄 Audit Package
+  Full:     TradeScore_Audit_Package.txt
+  Entry/SL: Entry_SLTP_Audit_Package.txt
+
+================================================================================
+7. TEST & BUILD
+================================================================================
+
+npx vitest run services/exportEntrySltpAuditPackage.test.ts
+  → Test Files 1 passed | Tests 8 passed
+
+npx tsc --noEmit (file mới exportEntrySltp / tradeScoreEntrySltp)
+  → 0 lỗi (repo có lỗi tsc legacy khác)
+
+================================================================================
+8. BÁO CÁO LIÊN QUAN
+================================================================================
+
+docs/Entry_SLTP_Audit_Package_Design_Report.txt
+docs/Entry_SLTP_Section8_Mechanism_Report.txt
+docs/Entry_SLTP_Section8_vs9_Source_Verification_Report.txt
+docs/Entry_SLTP_Section8_Worksheet_Completion_Report.txt
+docs/Entry_SLTP_Audit_Package_Sample_Output.txt
+
+================================================================================
+END
+================================================================================

@@ -786,6 +786,7 @@ export const STORAGE_KEYS_V4 = {
 export const FUNDING_STATE_THRESHOLDS = {
   EXTREME_LONG_CURRENT_PCT: 0.01,
   LONG_FADING_CURRENT_PCT: 0.005,
+  LONG_FUNDING_ELEVATED_MAX_PCT: 0.01,
   NEUTRAL_CURRENT_ABS_PCT: 0.005,
   NEUTRAL_VELOCITY_ABS_PCT: 0.002,
   SHORT_FADING_CURRENT_PCT: -0.005,
@@ -794,6 +795,7 @@ export const FUNDING_STATE_THRESHOLDS = {
 export enum FundingState {
   EXTREME_LONG_EUPHORIA = 'EXTREME_LONG_EUPHORIA',
   LONG_EUPHORIA_FADING = 'LONG_EUPHORIA_FADING',
+  LONG_FUNDING_ELEVATED = 'LONG_FUNDING_ELEVATED',
   NEUTRAL = 'NEUTRAL',
   SHORT_EUPHORIA_FADING = 'SHORT_EUPHORIA_FADING',
   SHORT_SQUEEZE_BUILDING = 'SHORT_SQUEEZE_BUILDING',
@@ -812,6 +814,10 @@ const FUNDING_STATE_LABELS: Record<FundingState, FundingStateLabel> = {
   [FundingState.LONG_EUPHORIA_FADING]: {
     icon: '📉',
     text: 'Long đang hạ nhiệt',
+  },
+  [FundingState.LONG_FUNDING_ELEVATED]: {
+    icon: '📊',
+    text: 'Funding dương vừa phải',
   },
   [FundingState.NEUTRAL]: {
     icon: '➡️',
@@ -844,6 +850,14 @@ export function classifyFundingState(
 
   if (fundingCurrent > t.LONG_FADING_CURRENT_PCT && fundingVelocity < 0) {
     return FundingState.LONG_EUPHORIA_FADING;
+  }
+
+  if (
+    fundingCurrent > t.LONG_FADING_CURRENT_PCT &&
+    fundingCurrent <= t.LONG_FUNDING_ELEVATED_MAX_PCT &&
+    fundingVelocity >= 0
+  ) {
+    return FundingState.LONG_FUNDING_ELEVATED;
   }
 
   if (

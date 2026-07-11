@@ -1,0 +1,142 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 12)
+================================================================================
+Ngày: 2026-07-10
+Task:   Freeze Evidence Package GĐ1 — Baseline
+File:   services/exportService.ts (sửa duy nhất)
+Trạng thái: BASELINE FROZEN — READY FOR GĐ2
+
+Tiền đề:
+  Task 08–11 — wire, CSV, TXT, Executive Summary, Acceptance
+  Task 12  — buildEvidenceBaselineReport() — contract LOCKED
+
+================================================================================
+1. CONSTANT
+================================================================================
+
+export const EVIDENCE_PACKAGE_VERSION = '1.0'
+export const BASELINE_STATUS = 'FROZEN'
+
+================================================================================
+2. API
+================================================================================
+
+buildEvidenceBaselineReport(): EvidenceBaselineReport
+
+EvidenceBaselineReport {
+  evidencePackageVersion
+  snapshotVersion
+  ruleVersion
+  csvColumnCount
+  snapshotFieldCount
+  coveragePct
+  acceptanceReady
+  baselineFrozen
+  generatedAt
+  reportText
+}
+
+================================================================================
+3. BASELINE REPORT (RUNTIME)
+================================================================================
+
+====================================
+TradeScore Evidence Baseline
+====================================
+
+Evidence Package
+
+1.0
+
+Snapshot Version
+
+1.0.0
+
+Rule Version
+
+TradeScore V4
+
+CSV Columns
+
+125
+
+Snapshot Fields
+
+120
+
+Coverage
+
+100%
+
+Acceptance
+
+READY FOR AI AUDIT
+
+Baseline
+
+FROZEN
+
+Generated
+
+<ISO8601>
+
+====================================
+Evidence Contract
+
+LOCKED
+
+CSV Contract
+
+LOCKED
+
+TXT Contract
+
+LOCKED
+
+Snapshot Contract
+
+LOCKED
+
+====================================
+READY FOR GĐ2
+
+====================================
+
+================================================================================
+4. CONTRACT GĐ1 (FROZEN)
+================================================================================
+
+Evidence.csv     — RULE_AUDIT_EVIDENCE_CSV_COLUMNS (125 cột)
+Evidence.txt     — exportRuleAuditHumanEvidenceTXT() layout
+RuleAuditSnapshot — 120 leaf fields (Snapshot Contract V1)
+Rule Document    — RULE_AUDIT_RULE_VERSION = TradeScore V4
+
+baselineFrozen = BASELINE_STATUS === 'FROZEN'
+              && acceptanceReady
+              && coveragePct === 100
+
+================================================================================
+5. PHẠM VI KHÔNG SỬA
+================================================================================
+
+  scorer*, signalBoardScan, ruleAuditSnapshot*, builder, populate
+  tradePlan*, finalEntry*, v41/
+  CSV format, TXT format, Snapshot schema
+  Export logic (chỉ thêm baseline report)
+
+================================================================================
+6. KHÔNG LÀM
+================================================================================
+
+  Golden Dataset / AI Prompt
+  Sửa Export / Snapshot
+  Task GĐ2
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 12: EVIDENCE_PACKAGE_VERSION 1.0 BASELINE FROZEN — 125 CSV / 120 snapshot /
+100% coverage / READY FOR AI AUDIT / READY FOR GĐ2.
+
+================================================================================

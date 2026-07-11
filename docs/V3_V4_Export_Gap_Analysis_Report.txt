@@ -1,0 +1,302 @@
+TradeScore — V3/V4 Export Gap Analysis Report
+Generated: 2026-07-09
+Mode: READ-ONLY (no source files modified)
+
+Scope: services/exportService.ts, signalRowView.ts, signalBoardScan.ts,
+  SignalBoard.tsx, structureSL.ts, tradePlanV3/V4.ts, finalEntryStatus.ts
+
+Excluded: v41/, marketIntelligence*, exhaustion*, reversal*, earlyWarning*,
+  visibility*, entryQualityEngine*, momentum*, scanV41*
+
+==================================================
+BƯỚC A — exportService.ts INVENTORY
+==================================================
+
+Entry points:
+  exportSignalData(rows, 'csv'|'txt')  — exportService.ts:403
+    → rows.map(buildExportRow)  — KHÔNG truyền scorerVersion → default 'v4'
+  SignalBoard.tsx:665-666 gọi exportSignalData(rows) — không chọn tab V3/V4
+
+──────────────────────────────────────────────────
+A1. buildExportRow(row, scorerVersion='v4')
+──────────────────────────────────────────────────
+
+| Export field | Nguồn trong code | Ghi chú |
+|--------------|------------------|---------|
+| timestamp | vnTimestamp() — thời điểm export | Không phải scan time |
+| symbol | row.symbol | |
+| price | row.price | |
+| priceChange24h | row.change24h | |
+| scoreTotal | snap.score từ resolveSignalRow(row, version) | |
+| scoreLong | snap.longScore | |
+| scoreShort | snap.shortScore | |
+| groupA/B/C | snap.groupScores | |
+| finalDecision | mapFinalDecision(resolveFinalEntryStatus(...)) | Xem đặc biệt bên dưới |
+| l1_ema … l10_* | layerFields(snap.layers, 1..10) | Weighted display layers |
+| l11_squeeze | row.squeezeRisk?.score hoặc 0 | |
+| l11_note | squeeze.reasons join hoặc row.squeezeWarning | |
+| adx_1h/4h/avg | row.adxData | |
+| adx_regime | adxGate.regime ?? adxData.regime | |
+| adx_severity | adxGate.severity | |
+| adx_tp_mult / adx_sl_mult | adxGate multipliers (default 1) | |
+| structure_sl_price | row.structureSL.slPrice | |
+| structure_sl_source | row.structureSL.slSource | STRUCTURE / ATR_FALLBACK |
+| structure_swing_price | row.structureSL.swingPrice | |
+| structure_candles_back | row.structureSL.candlesBack | Xem đặc biệt — KHÔNG phải lookback config |
+| structure_distance_pct | row.structureSL.distanceFromEntry | % từ entry |
+| vwap_price | row.vwapData.vwap | |
+| vwap_zone | row.vwapData.zone | |
+| vwap_entry_quality | row.vwapSignal.quality | IDEAL/GOOD/POOR/NEUTRAL |
+| vwap_price_vs_vwap | row.vwapData.priceVsVwap | |
+| vwap_bonus_applied | row.vwapBonus.applied === true | |
+| entry | plan.recommendedEntry | resolveTradePlanV3(row, version) |
+| sl | plan.stopLoss.price | |
+| tp1-3 | plan.tp1/2/3.price | |
+| rr_tp1-3 | plan.tp1/2/3.rrRatio | |
+| market_mode | plan.marketMode ?? snap.marketMode | |
+| hard_blocks | joinUnique(collectHardBlockReasons({...})) | Pipe `|` separated |
+| block_reasons | joinUnique([planBlock, groupBlock, scoreBlock]) | Pipe `|` separated |
+
+snap = resolveSignalRow(row, scorerVersion) → row.v4 hoặc row.v3 snapshot
+plan = resolveTradePlanV3(row, scorerVersion) → tradePlansByScorer[version]
+
+──────────────────────────────────────────────────
+ĐẶC BIỆT — XÁC NHẬN
+──────────────────────────────────────────────────
+
+finalDecision:
+  Nguồn: resolveFinalEntryStatus → FinalEntryStatus enum (5 giá trị)
+  Convert: mapFinalDecision() — exportService.ts:174-178
+    ENTRY_VALID  → 'VÀO'
+    WAIT_ENTRY   → 'CHỜ'
+    HARD_BLOCKED / GROUP_BLOCKED / SCORE_BLOCKED → 'KHÔNG VÀO'
+  KHÔNG export enum gốc; ambiguity KHÔNG nằm trong FinalEntryStatus
+
+hard_blocks:
+  collectHardBlockReasons() → string[] side hard blocks
+  joinUnique() → một string, phân tách bằng '|'
+  Có thể lọc MACD block khi near entry + plan health (tradePlanDisplay.ts:107)
+
+L5 trong CSV:
+  Cột: l5_volume, l5_note
+  Nguồn: layerFields(layers, 5) — chỉ layer id 5
+  V4: layer 5 = L5a CVD (weighted display từ scoringLayersToDisplayV4)
+  V4: layer 52 = L5b Vol/OI — KHÔNG export
+  V3: layer 5 = Vol+OI+CVD gộp
+  TXT label: "L5 Volume" (cố định, không phân biệt V4 L5a)
+
+structure_candles_back:
+  Nguồn: StructureSLResult.candlesBack
+  Ý nghĩa: số nến từ swing point đến nến hiện tại (candlesBackFromCurrent)
+  KHÔNG phải LOOKBACK_CANDLES config (20)
+  KHÔNG phải 12 — giá trị động theo vị trí swing (vd. test: swing index 20 → candlesBack tùy len)
+  Lookback config thực tế: STRUCTURE_SL_DEFAULTS.LOOKBACK_CANDLES = 20
+    resolveStructureSlLookback(adx): 20 / 30 / 40 — KHÔNG có trong export
+
+──────────────────────────────────────────────────
+A2. formatAsCSV() — CSV_COLUMNS (61 cột)
+──────────────────────────────────────────────────
+
+Thứ tự header (exportService.ts:84-146):
+  timestamp, symbol, price, priceChange24h,
+  scoreTotal, scoreLong, scoreShort, groupA, groupB, groupC, finalDecision,
+  l1_ema, l1_note, l2_rsi, l2_note, l3_macd, l3_note, l4_bb, l4_note,
+  l5_volume, l5_note, l6_funding, l6_note, l7_ls_ratio, l7_note,
+  l8_btc, l8_note, l9_session, l9_note, l10_psychology, l10_note,
+  l11_squeeze, l11_note,
+  adx_1h, adx_4h, adx_avg, adx_regime, adx_severity, adx_tp_mult, adx_sl_mult,
+  structure_sl_price, structure_sl_source, structure_swing_price,
+  structure_candles_back, structure_distance_pct,
+  vwap_price, vwap_zone, vwap_entry_quality, vwap_price_vs_vwap, vwap_bonus_applied,
+  entry, sl, tp1, tp2, tp3, rr_tp1, rr_tp2, rr_tp3, market_mode,
+  hard_blocks, block_reasons
+
+Số cột: 61
+
+──────────────────────────────────────────────────
+A3. formatAsTXT() — sections (formatCoinBlock)
+──────────────────────────────────────────────────
+
+| Section | Fields từ SignalExportRow |
+|---------|---------------------------|
+| Header | symbol, price, priceChange24h, timestamp |
+| ĐIỂM SỐ | scoreTotal, finalDecision, long/short, group A/B/C |
+| 10 LỚP CHẤM ĐIỂM | L1–L10 score+note; L11 squeeze (ghi "10 LỚP" nhưng có L11) |
+| ADX GATE | adx_1h/4h/avg, regime, severity, tp/sl mult |
+| STRUCTURE SL | source, swing+candles_back, sl_price+distance_pct |
+| VWAP | price, zone, entry quality, vs vwap, bonus |
+| KẾ HOẠCH | entry, sl, tp1-3 + rr |
+| HARD BLOCKS | hard_blocks |
+| BLOCK REASONS | block_reasons (nếu có) |
+
+Thiếu trong TXT so với UI: decisionLabel, canEnter, winrate, awaitingRescore,
+  finalEntryStatus label, ambiguity, adxBlockReason, plan warnings
+
+==================================================
+GAP — TÍNH TOÁN CÓ NHƯNG CHƯA EXPORT
+==================================================
+
+Có trên SignalRow / snap / plan nhưng KHÔNG trong CSV/TXT:
+
+| Computed | Nguồn | Export? |
+|----------|-------|---------|
+| finalEntryStatus (5 enum) | snap.finalEntryStatus | Chỉ 3-way finalDecision |
+| decisionLabel / decisionDisplay | snap.decisionLabel, decisionDisplay | Không |
+| canEnter | snap.canEnter | Không |
+| winrate | snap.winrate | Không |
+| awaitingRescore / CHO_TAI_CHAM | snap.awaitingRescore (V4) | Không |
+| isAmbiguousDirection | snap / row | Không |
+| ambiguousMessage | snap | Không |
+| adxBlockReason | row.adxBlockReason | Không |
+| l6Detail (FundingState, isFallback) | row.l6Detail | Không |
+| L5b layer 52 | snap.layers layer=52 | Không |
+| long/short blockReasons riêng | snap.longBlockReasons etc. | Gộp một phía vào block_reasons |
+| stopLoss.quality / atrDistance | plan.stopLoss | Không |
+| entryZone.quality / entryType | plan.entryZone | Không (chỉ vwap_entry_quality) |
+| primaryRR | plan.primaryRR | Không (rr_tp1 ≈ primaryRR sau structure) |
+| tradePlanValid | plan.tradePlanValid | Không |
+| expiryTier / expiryHours | plan.expiryTier | Không |
+| warnings[] | plan.warnings | Không |
+| slMultiplierNote / targetAtrMultiplier | plan.stopLoss (V4 CVD tighten) | Không |
+| entryNote (VWAP recalc) | TradePlanVwapExtension | Không |
+| scorerVersion tab V3 | export luôn default v4 | Không chọn theo UI tab |
+
+==================================================
+BƯỚC B + C — 20 ITEM ĐỀ XUẤT + PHÂN LOẠI
+==================================================
+
+| # | Item | Cột đề xuất | Nguồn (file:field) | 🟢/🟡/🔴 | Ghi chú |
+|---|------|-------------|-------------------|----------|---------|
+| 1 | finalEntryStatus_full | final_entry_status | snap.finalEntryStatus hoặc resolveFinalEntryStatus | 🟢 | Enum 5 giá trị; KHÔNG có AMBIGUOUS_DIRECTION trong enum — dùng #13 riêng |
+| 2 | sl_quality | sl_quality | plan.stopLoss.quality | 🟢 | TIGHT/NORMAL/WIDE |
+| 3 | sl_atr_distance | sl_atr_distance | plan.stopLoss.atrDistance | 🟢 | |
+| 4 | sl_cap_applied | sl_cap_applied | KHÔNG có flag | 🟡 | capStructureSlPrice() không export capApplied; cần thêm field StructureSLResult hoặc stopLoss flag |
+| 5 | sl_profile_v4 | sl_profile_v4 | resolveV4SlMultiplier(score) → profile | 🟢 | Gọi trong exportService từ scoringResultV4FromSignalRow; V3 để trống |
+| 6 | entry_quality | entry_quality | plan.entryZone.quality | 🟢 | GOOD/ACCEPTABLE/RISKY/MISS |
+| 7 | entry_path | entry_path | Derive từ plan.entryZone.reasoning / entryType | 🟡 | Schema thực: LIMIT_WAIT/LIMIT_NEAR/MARKET_OK — map sang EMA_PULLBACK/SR/PATIENCE cần helper |
+| 8 | structure_lookback_config | structure_lookback_config | resolveStructureSlLookback(row.adxData?.adxAvg) | 🟢 | Compute trong export; giá trị hiện tại 20/30/40 (không phải 12) |
+| 9 | rr_after_structure | rr_after_structure | plan.primaryRR | 🟢 | Đã reflect structure override; rr_tp1 thường khớp |
+| 10 | vwap_sl_recalc | vwap_sl_recalc | Infer: plan entryNote chứa 'VWAP' hoặc entry thay đổi | 🟡 | applyVWAPEntryToPlan không set flag boolean |
+| 11 | direction_active | direction_active | snap.direction | 🟢 | LONG/SHORT |
+| 12 | direction_suggest_rule | direction_suggest_rule | suggestDirectionV3/V4 | 🟡 | Hàm chỉ trả Direction; cần wire rule #1-#7 vào scorer hoặc snap |
+| 13 | ambiguity_status | ambiguity_status | snap.isAmbiguousDirection | 🟢 | CLEAR / AMBIGUOUS |
+| 14 | ambiguity_score_diff | ambiguity_score_diff | Math.abs(snap.longScore - snap.shortScore) | 🟢 | |
+| 15 | l5b_score (V4) | l5b_score | layerFields(snap.layers, 52).score | 🟢 | layer 52 có trong snap.layers V4 |
+| 16 | l5b_note (V4) | l5b_note | layerFields(snap.layers, 52).note | 🟢 | |
+| 17 | plan_expiry_tier | plan_expiry_tier | plan.expiryTier | 🟢 | HIGH/MEDIUM/LOW |
+| 18 | decision_band | decision_band | snap.decisionLabel hoặc plan.decision | 🟢 | SETUP_NGON/VAO_TU_TIN/... |
+| 19 | score_thresholds_source | score_thresholds_source | Audit static: "literal" | 🟢 | Production luôn literal 11.5/10/9/8 — không đọc SCORE_THRESHOLDS |
+| 20 | rr_config_source | rr_config_source | Audit static: "fixed_RR_TARGETS" | 🟢 | calculateTradePlanV3/V4 luôn pass fixedRrTargets: RR_TARGETS |
+
+Tổng phân loại 20 item:
+  🟢 READY: 16
+  🟡 NEED_WIRE: 4  (#4 sl_cap_applied, #7 entry_path, #10 vwap_sl_recalc, #12 direction_suggest_rule)
+  🔴 COMPLEX: 0
+
+==================================================
+BƯỚC D — P0 EXPORT PLAN (Task 4)
+==================================================
+
+| P0 | Cột audit đề xuất | Nguồn | 🟢/🟡/🔴 | Ghi chú |
+|----|-------------------|-------|----------|---------|
+| P0-1 RR_TARGETS drift | rr_config_source | Static "fixed_RR_TARGETS" hoặc detect tpOptions | 🟢 | tradePlanV3.ts:627, tradePlanV4.ts:291 đều fixedRrTargets |
+| P0-2 SCORE_THRESHOLDS | score_thresholds_source | Static "literal" | 🟢 | scorerV3.ts:872, scorerV4 resolveDecision:999 |
+| P0-3 L10 HB comment out | l10_hb_active | Runtime: scoreL10* luôn hardBlock=null | 🟢 | Export false; code TODO comment cả V3/V4 |
+| P0-4 L6 V4 fallback | l6_scoring_path | row.l6Detail.isFallback + version | 🟢 | V4: isFallback? V4_LEGACY : V4_STATE; V3: "V3_TIER" |
+| P0-5 L5 block path | l5_block_path | Parse snap hardBlocks + blockReasons | 🟢 | HARD if hardBlocks L5a/L3; SCORE if blockReasons L5a; SOFT warning; NONE |
+
+Chi tiết l5_block_path (derive trong exportService):
+  HARD: hardBlocks match L5a hardBlock / L3 MACD
+  SCORE: blockReasons startsWith 'L5a CVD chưa đủ'
+  SOFT: warnings CVD phân kỳ (V3 L5 divergence)
+  NONE: else
+
+Chi tiết l6_scoring_path:
+  if version==='v3' → V3_TIER
+  else if row.l6Detail?.isFallback === true → V4_LEGACY
+  else → V4_STATE
+
+==================================================
+BẢNG 1 — EXPORT HIỆN TẠI ĐẦY ĐỦ (61 cột + ví dụ)
+==================================================
+
+| Tên cột CSV | Field nguồn | Giá trị ví dụ |
+|-------------|-------------|---------------|
+| timestamp | vnTimestamp() | 09:30:00 9/7/2026 |
+| symbol | row.symbol | NEARUSDT |
+| price | row.price | 2.1050 |
+| priceChange24h | row.change24h | 1.2500 |
+| scoreTotal | snap.score | 11.2000 |
+| scoreLong | snap.longScore | 11.2000 |
+| scoreShort | snap.shortScore | 8.5000 |
+| groupA | snap.groupScores.A | 4.2000 |
+| groupB | snap.groupScores.B | 3.8000 |
+| groupC | snap.groupScores.C | 3.2000 |
+| finalDecision | mapFinalDecision(enum) | VÀO / CHỜ / KHÔNG VÀO |
+| l1_ema … l10_psychology | layerFields 1-10 | 1.5000 (weighted) |
+| l1_note … l10_note | layer.reason | text |
+| l11_squeeze | row.squeezeRisk.score | 6.0000 |
+| l11_note | squeeze reasons | fundingCrowding+… |
+| adx_1h / adx_4h / adx_avg | row.adxData | 28.5 / 31.2 / 29.8 |
+| adx_regime | adxGate.regime | TRENDING |
+| adx_severity | adxGate.severity | OK |
+| adx_tp_mult / adx_sl_mult | adxGate | 1.0000 / 1.0000 |
+| structure_sl_price | structureSL.slPrice | 2.0450 |
+| structure_sl_source | structureSL.slSource | STRUCTURE |
+| structure_swing_price | structureSL.swingPrice | 2.0500 |
+| structure_candles_back | structureSL.candlesBack | 15 (vd. swing cách hiện tại) |
+| structure_distance_pct | structureSL.distanceFromEntry | 2.8500 |
+| vwap_price | vwapData.vwap | 2.1020 |
+| vwap_zone | vwapData.zone | NEAR_VWAP |
+| vwap_entry_quality | vwapSignal.quality | IDEAL |
+| vwap_price_vs_vwap | vwapData.priceVsVwap | 0.1200 |
+| vwap_bonus_applied | vwapBonus.applied | true |
+| entry / sl / tp1-3 | plan | prices |
+| rr_tp1-3 | plan.tp*.rrRatio | 2.0000 / 3.0000 / 4.5000 |
+| market_mode | plan.marketMode | TRENDING |
+| hard_blocks | joinUnique(collectHardBlockReasons) | L3 MACD vi phạm… |
+| block_reasons | plan+group+score blocks join | R:R 1.85:1 < … |
+
+==================================================
+BẢNG 2 — ITEM CẦN THÊM (tóm tắt)
+==================================================
+
+(Xem bảng chi tiết Bước B+C ở trên)
+
+🟢 = 16 | 🟡 = 4 | 🔴 = 0
+
+==================================================
+BẢNG 3 — P0 EXPORT PLAN
+==================================================
+
+(Xem Bước D — tất cả 5 P0 đều 🟢 với static/derive trong exportService)
+
+==================================================
+TỔNG KẾT
+==================================================
+
+  Số item 🟢 (thêm ngay Task 6):     16
+  Số item 🟡 (cần wire trước):        4
+  Số item 🔴 (để sau):                 0
+
+  P0 audit columns:                  5/5 🟢
+
+  TOP 10 🟢 ưu tiên Task 6 (impact verify rule):
+
+  1.  final_entry_status — phân biệt HARD/GROUP/SCORE vs VÀO/CHỜ
+  2.  decision_band — SETUP_NGON vs CO_THE_VAO vs CHO_TAI_CHAM
+  3.  l5b_score + l5b_note — lấp gap L5b V4 (P0-5 liên quan)
+  4.  l5_block_path — audit HARD vs SCORE vs SOFT (P0-5)
+  5.  ambiguity_status + ambiguity_score_diff — direction clarity
+  6.  sl_quality + sl_atr_distance — SL audit
+  7.  entry_quality — entry zone audit
+  8.  l6_scoring_path — V4_STATE vs V4_LEGACY vs V3_TIER (P0-4)
+  9.  rr_config_source + score_thresholds_source — P0-1/P0-2 audit
+  10. plan_expiry_tier + rr_after_structure — plan lifecycle
+
+  Lưu ý Task 6:
+  - Export luôn scorerVersion='v4' — nếu cần export tab V3 phải wire SignalBoard
+  - structure_candles_back ≠ structure_lookback_config — đừng nhầm khi audit
+  - finalEntryStatus KHÔNG gồm AMBIGUOUS — dùng ambiguity_status riêng
+
+END OF REPORT

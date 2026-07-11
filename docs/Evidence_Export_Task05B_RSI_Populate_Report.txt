@@ -1,0 +1,150 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 05B)
+================================================================================
+Ngày: 2026-07-09
+Task:   Populate nhóm RSI vào RuleAuditSnapshot
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: EMA + RSI MAP LIVE — chưa wire scan, chưa export
+
+Tiền đề:
+  Task 05A — populate EMA (h1/h4/alignment/pullback)
+  Task 05B — populate RSI (4 field schema)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Ghi dữ liệu RSI đã có sẵn vào snapshot.rsi — map 1:1, không tính RSI,
+không gọi getRSI / detectRSIDivergenceV3 trong populate.
+
+Nguyên tắc Task 05B:
+  ✅ Chỉ sửa ruleAuditSnapshotPopulate.ts
+  ✅ Thêm input.rsi + populateRsi()
+  ✅ Giữ populate EMA (05A) — không đụng lại logic EMA
+  ❌ Không populate MACD, Bollinger, … (05C+)
+  ❌ Không sửa schema, builder, scan, export
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 05B)
+================================================================================
+
+export type RuleAuditRsiPopulateSource = RuleAuditRsiInput;
+
+export interface RuleAuditPopulateInput {
+  ema: RuleAuditEmaPopulateSource;
+  rsi: RuleAuditRsiPopulateSource;
+}
+
+Cả ema và rsi đều required khi gọi populateRuleAuditSnapshot().
+Thiếu một trong hai → throw Error.
+
+================================================================================
+3. MAP RSI — CHI TIẾT
+================================================================================
+
+populateRsi(snapshot, rsi):
+
+  snapshot.rsi.rsi1h         ← rsi.rsi1h
+  snapshot.rsi.rsi4h         ← rsi.rsi4h
+  snapshot.rsi.divergence1h  ← rsi.divergence1h
+  snapshot.rsi.divergence4h  ← rsi.divergence4h
+
+Guard:
+  if (input.rsi == null)
+    → throw 'populateRuleAuditSnapshot: input.rsi is required'
+
+================================================================================
+4. MAPPING NGUỒN → INPUT (WIRE DỰ KIẾN)
+================================================================================
+
+Populate KHÔNG gọi indicator — caller truyền giá trị đã tính:
+
+| Nguồn runtime (scorer / scan)     | input.rsi field   | snapshot field        |
+|-----------------------------------|-------------------|-----------------------|
+| getRSI(klines1h)                  | rsi1h             | snapshot.rsi.rsi1h    |
+| getRSI(klines4h)                  | rsi4h             | snapshot.rsi.rsi4h    |
+| detectRSIDivergenceV3(klines1h)   | divergence1h      | snapshot.rsi.divergence1h |
+| detectRSIDivergenceV3(klines4h)   | divergence4h      | snapshot.rsi.divergence4h |
+
+Enum divergence: 'BULLISH' | 'BEARISH' | 'NONE' (RuleAuditDivergence)
+
+================================================================================
+5. FIELD KHÔNG MAP — SCHEMA GIỚI HẠN
+================================================================================
+
+Task mô tả ví dụ: zone, trend, momentum, signal, state.
+
+RuleAuditRsiInput (schema Task 01) CHỈ có 4 field — không sửa schema:
+
+  ❌ zone      — không có trên snapshot
+  ❌ trend     — không có trên snapshot
+  ❌ momentum  — không có trên snapshot
+  ❌ signal    — không có trên snapshot
+  ❌ state     — không có trên snapshot
+
+Nếu cần export các field này → mở rộng schema ở task riêng (ngoài 05B).
+
+================================================================================
+6. LIÊN HỆ EXPORT CSV (TASK 6c)
+================================================================================
+
+Sau wire + export:
+
+  rsi_1h  ← snapshot.rsi.rsi1h
+  rsi_4h  ← snapshot.rsi.rsi4h
+
+divergence1h/4h — chưa có cột CSV Task 6c; có thể thêm Evidence TXT
+section RSI INPUT sau này.
+
+================================================================================
+7. LUỒNG POPULATE HIỆN TẠI
+================================================================================
+
+  const snapshot = buildRuleAuditSnapshot();
+  populateRuleAuditSnapshot(snapshot, {
+    ema: { h1, h4, alignment, pullback },
+    rsi: { rsi1h, rsi4h, divergence1h, divergence4h },
+  });
+
+Các nhóm khác (macd, bollinger, …): vẫn skeleton từ builder.
+
+================================================================================
+8. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — không đổi
+  ruleAuditSnapshotBuilder.ts         — không đổi
+  signalBoardScan.ts                  — chưa wire
+  exportService.ts                    — không đụng
+  scorer*, indicators*, v41/          — không đụng
+
+================================================================================
+9. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit
+  - Không lỗi mới từ ruleAuditSnapshotPopulate.ts
+
+Runtime: populate chưa gọi từ pipeline.
+
+================================================================================
+10. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Task | Trạng thái |
+|------|------|------------|
+| 01–04 | Schema, wire, builder, stub     | ✅ |
+| 05A  | Populate EMA                     | ✅ |
+| 05B  | Populate RSI                     | ✅ |
+| 05C+ | MACD, Bollinger, Volume, …       | ⏳ |
+| —    | Wire scan → SignalRow            | ⏳ |
+| 06   | exportService Evidence           | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 05B: map 4 field RSI 1:1 (rsi1h/4h + divergence h1/h4); input.rsi
+required; zone/trend/momentum không trong schema — không map.
+
+================================================================================

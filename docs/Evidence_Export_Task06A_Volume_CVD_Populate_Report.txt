@@ -1,0 +1,226 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 06A)
+================================================================================
+Ngày: 2026-07-10
+Task:   Populate Volume Flow — Volume + CVD vào RuleAuditSnapshot
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: VOLUME + CVD MAP LIVE — chưa wire scan, chưa export
+
+Tiền đề:
+  Task 05A–05D — EMA, RSI, MACD, Bollinger
+  Task 06A — Volume + CVD (nhóm Volume Flow)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Ghi dữ liệu Volume và CVD đã có sẵn vào snapshot — map 1:1, không tính
+volume/CVD, không gọi getVolumeRatio / analyzeCVD / buildCVD trong populate.
+
+Nguyên tắc Task 06A:
+  ✅ Thêm input.volume + input.cvd
+  ✅ populateVolume() + populateCvd()
+  ✅ Giữ EMA, RSI, MACD, Bollinger (05A–05D)
+  ❌ Không populate OI, Funding, BTC, … (06B+)
+  ❌ Không sửa schema, builder, scan, export
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 06A)
+================================================================================
+
+export type RuleAuditVolumePopulateSource = RuleAuditVolumeInput;
+export type RuleAuditCvdPopulateSource = RuleAuditCvdInput;
+
+export interface RuleAuditPopulateInput {
+  ema: RuleAuditEmaPopulateSource;
+  rsi: RuleAuditRsiPopulateSource;
+  macd: RuleAuditMacdPopulateSource;
+  bollinger: RuleAuditBollingerPopulateSource;
+  volume: RuleAuditVolumePopulateSource;
+  cvd: RuleAuditCvdPopulateSource;
+}
+
+Required: ema, rsi, macd, bollinger, volume, cvd (6 nhóm).
+Thiếu một trong sáu → throw Error.
+
+================================================================================
+3. SCHEMA — VOLUME & CVD
+================================================================================
+
+RuleAuditVolumeInput (4 field — phẳng, không h1/h4 object):
+  volumeRatio1h, volumeRatio4h, lastVolume, avgVolume1h
+
+RuleAuditCvdInput (8 field — phẳng, không h4.delta):
+  value, trend, slope, divergence, divergenceType
+  supportive, cvdMomentum24h, reason
+
+================================================================================
+4. ĐOẠN POPULATE
+================================================================================
+
+── Volume ──
+
+function populateVolume(snapshot, volume):
+  snapshot.volume.volumeRatio1h = volume.volumeRatio1h
+  snapshot.volume.volumeRatio4h = volume.volumeRatio4h
+  snapshot.volume.lastVolume     = volume.lastVolume
+  snapshot.volume.avgVolume1h    = volume.avgVolume1h
+
+── CVD ──
+
+function populateCvd(snapshot, cvd):
+  snapshot.cvd.value           = cvd.value
+  snapshot.cvd.trend           = cvd.trend
+  snapshot.cvd.slope           = cvd.slope
+  snapshot.cvd.divergence      = cvd.divergence
+  snapshot.cvd.divergenceType  = cvd.divergenceType
+  snapshot.cvd.supportive      = cvd.supportive
+  snapshot.cvd.cvdMomentum24h  = cvd.cvdMomentum24h
+  snapshot.cvd.reason          = cvd.reason
+
+================================================================================
+5. SOURCE MAPPING — VOLUME (AI AUDIT TRACE)
+================================================================================
+
+Snapshot Field                    Input Field                       Runtime Source (caller)
+───────────────────────────────  ────────────────────────────────  ──────────────────────────────────
+snapshot.volume.volumeRatio1h  input.volume.volumeRatio1h        getVolumeRatio(klines1h)
+snapshot.volume.volumeRatio4h  input.volume.volumeRatio4h        getVolumeRatio(klines4h)
+snapshot.volume.lastVolume     input.volume.lastVolume           klines1h[last].volume
+snapshot.volume.avgVolume1h    input.volume.avgVolume1h          avg 20 nến trước bar cuối 1H*
+
+* getVolumeRatio() dùng avg nội bộ nhưng KHÔNG trả avg — caller tính riêng.
+
+Tổng Volume: 4 field.
+
+================================================================================
+6. SOURCE MAPPING — CVD (AI AUDIT TRACE)
+================================================================================
+
+Snapshot Field                    Input Field                       Runtime Source (caller)
+───────────────────────────────  ────────────────────────────────  ──────────────────────────────────
+snapshot.cvd.value               input.cvd.value                   cvdPoints[last].cvd | row.cvdValue
+snapshot.cvd.trend               input.cvd.trend                   cvdTrendFromPoints → UP|DOWN|FLAT
+snapshot.cvd.slope               input.cvd.slope                   analyzeCVD(points, direction).slope
+snapshot.cvd.divergence          input.cvd.divergence              analyzeCVD(...).divergence
+snapshot.cvd.divergenceType      input.cvd.divergenceType          detectCVDDivergence(...)[0]?.type | 'NONE'**
+snapshot.cvd.supportive          input.cvd.supportive              analyzeCVD(...).supportive
+snapshot.cvd.cvdMomentum24h      input.cvd.cvdMomentum24h          analyzeCVD(...).cvdMomentum24h
+snapshot.cvd.reason              input.cvd.reason                  analyzeCVD(...).reason
+
+** CVDAnalysis không có divergenceType — caller map từ detectCVDDivergence hoặc 'NONE'.
+
+Tổng CVD: 8 field.
+
+================================================================================
+7. KIỂM TRA DUPLICATE
+================================================================================
+
+  ✅ Populate KHÔNG gọi getVolumeRatio
+  ✅ Populate KHÔNG gọi analyzeCVD / buildCVDPointsFromKlines / detectCVDDivergence
+  ✅ Không double-compute — chỉ assign từ input
+  ✅ Analyzer chạy một lần tại caller trước populate
+
+================================================================================
+8. FIELD KHÔNG MAP — SCHEMA / RUNTIME THIẾU
+================================================================================
+
+| Field ví dụ task | Snapshot | Input | Runtime | Ghi chú |
+|------------------|----------|-------|---------|---------|
+| volume.h1.relativeVolume | ❌ | ❌ | — | Dùng volumeRatio1h |
+| cvd.h4.delta     | ❌       | ❌    | —       | Dùng value + cvdMomentum24h |
+| relativeVolume 4H only | — | volumeRatio4h | getVolumeRatio(4h) | OK |
+| avgVolume4h      | ❌       | ❌    | ❌      | Không có trên schema |
+
+================================================================================
+9. EVIDENCE COVERAGE
+================================================================================
+
+── AI đã biết app nhìn thấy Volume gì? (sau wire) ──
+
+  • Tỷ lệ volume 1H vs TB 20 nến (volumeRatio1h)
+  • Tỷ lệ volume 4H vs TB 20 nến (volumeRatio4h)
+  • Khối lượng nến cuối 1H (lastVolume)
+  • Trung bình volume 1H (avgVolume1h)
+
+── AI đã biết app nhìn thấy CVD gì? (sau wire) ──
+
+  • Giá trị CVD tích lũy (value)
+  • Xu hướng tổng UP/DOWN/FLAT (trend)
+  • Slope ngắn hạn up/down/flat (slope)
+  • Phân kỳ giá/CVD boolean (divergence)
+  • Loại phân kỳ BULLISH/BEARISH/NONE (divergenceType — wire caller)
+  • CVD thuận hướng setup (supportive — phụ thuộc direction)
+  • Delta momentum 24 nến 1H (cvdMomentum24h)
+  • Lý do text scorer (reason)
+
+── Còn thiếu evidence ──
+
+  • Volume: không có object MTF h1/h4; không avgVolume4h
+  • CVD: không per-timeframe h4; divergenceType không trên CVDAnalysis
+  • OI gộp L5b — nhóm riêng Task 06B+
+  • Chưa wire scan → ruleAuditSnapshot undefined tại runtime
+  • Chưa export CSV/TXT Evidence sections
+
+================================================================================
+10. WIRE DỰ KIẾN (SCAN — NGOÀI 06A)
+================================================================================
+
+  const cvdPoints = buildCVDPointsFromKlines(klines1h);
+  const cvdAnalysis = analyzeCVD(cvdPoints, directionV4);
+  const lastCvd = cvdPoints[cvdPoints.length - 1]?.cvd ?? 0;
+
+  populateRuleAuditSnapshot(snapshot, {
+  ...
+    volume: {
+      volumeRatio1h: getVolumeRatio(klines1h),
+      volumeRatio4h: getVolumeRatio(klines4h),
+      lastVolume: klines1h[klines1h.length - 1].volume,
+      avgVolume1h: /* caller avg 20 bars */,
+    },
+    cvd: {
+      value: lastCvd,
+      trend: cvdTrendFromPoints(cvdPoints, direction),
+      slope: cvdAnalysis.slope,
+      divergence: cvdAnalysis.divergence,
+      divergenceType: 'NONE', // hoặc detectCVDDivergence
+      supportive: cvdAnalysis.supportive,
+      cvdMomentum24h: cvdAnalysis.cvdMomentum24h,
+      reason: cvdAnalysis.reason,
+    },
+  });
+
+================================================================================
+11. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts, ruleAuditSnapshotBuilder.ts — không đổi
+  signalBoardScan.ts, exportService.ts — chưa wire
+  scorer*, v41/ — không đụng
+
+================================================================================
+12. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit — không lỗi mới từ populate file.
+
+================================================================================
+13. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Nhóm | Trạng thái |
+|------|------|------------|
+| 05A–05D | EMA, RSI, MACD, Bollinger | ✅ |
+| 06A  | Volume + CVD | ✅ |
+| 06B+ | OI, Funding, BTC, ADX, VWAP, ATR, Structure | ⏳ |
+| —    | Wire scan | ⏳ |
+| 06   | Export | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 06A: map Volume (4) + CVD (8) 1:1; không gọi analyzer; divergenceType
+wire caller; chưa scan/export.
+
+================================================================================

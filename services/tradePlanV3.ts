@@ -18,6 +18,7 @@ import {
   type TradePlan,
   type TradePlanV3,
   type EntryQuality,
+  type TradeDirection,
 } from '../constants/scoring';
 import type { EntryZoneType } from './indicators';
 
@@ -35,6 +36,7 @@ import {
 } from './tradePlanPresentation';
 import { srEntryFromLevel } from './tradePlanEntryBuffer';
 import { resolvePlanExpiryOutput } from './tradePlanExpiry';
+import { getVWAPEntrySignal, type VWAPResult } from './vwapService';
 
 export interface TpCalculationOptions {
   slDistanceOverride?: number;
@@ -704,6 +706,156 @@ export function calculateTradePlanV3(
     capitalTierName: capitalTier.tierName,
     ...expiryFields,
   };
+}
+
+export type TradePlanVwapExtension = TradePlanV3 & {
+  entryOptions?: number[];
+  entryNote?: string;
+};
+
+const VWAP_ENTRY_TIGHT_WARNING = 'VWAP entry gần SL — nguy cơ bị quét';
+
+function shouldShiftSlWithVwapEntry(slType: StopLossV3['type']): boolean {
+  return slType === 'ATR_BASED';
+}
+
+function inferAtrUnitFromStopLoss(
+  entry: number,
+  slPrice: number,
+  atrDistance: number,
+): number {
+  const slDist = Math.abs(entry - slPrice);
+  if (atrDistance > 0) return slDist / atrDistance;
+  const fallbackMult =
+    CFG.ATR_SL_MULTIPLIER.CO_THE_VAO * CFG.MARKET_MODE_FACTOR.RANGING.slFactor;
+  return fallbackMult > 0 ? slDist / fallbackMult : slDist;
+}
+
+function slQualityFromAtrDistance(atrDistance: number): StopLossV3['quality'] {
+  if (atrDistance < 1.2) return 'TIGHT';
+  if (atrDistance > 3) return 'WIDE';
+  return 'NORMAL';
+}
+
+/** Recalc SL/TP/maxLoss sau khi entry đổi (VWAP). */
+export function recalculatePlanAfterEntryChange(
+  plan: TradePlanV3,
+  newEntry: number,
+  options?: { shiftSlWithEntry?: boolean },
+): TradePlanV3 {
+  const originalEntry = plan.recommendedEntry;
+  const originalSL = plan.stopLoss.price;
+  const entryDelta = newEntry - originalEntry;
+  const shiftSl = options?.shiftSlWithEntry ?? shouldShiftSlWithVwapEntry(plan.stopLoss.type);
+
+  const newSL = shiftSl ? originalSL + entryDelta : originalSL;
+  const isLong = plan.direction === 'LONG';
+  const newSlDistance = isLong ? newEntry - newSL : newSL - newEntry;
+  if (newSlDistance <= 0) return plan;
+
+  const atrUnit = inferAtrUnitFromStopLoss(originalEntry, originalSL, plan.stopLoss.atrDistance);
+  const newAtrDistance = newSlDistance / atrUnit;
+  const newSlQuality = slQualityFromAtrDistance(newAtrDistance);
+  const newMaxLoss = computeTradeMaxLossUSDT(plan.notionalValue, newEntry, newSL);
+  const distancePct = (Math.abs(newEntry - newSL) / newEntry) * 100;
+
+  const leverage =
+    plan.positionSize > 0 ? plan.notionalValue / plan.positionSize : CFG.LEVERAGE;
+
+  const { tp1, tp2, tp3 } = calculateOptimalTPs(
+    plan.direction,
+    newEntry,
+    { ...plan.stopLoss, price: newSL },
+    plan.decision,
+    plan.marketMode,
+    plan.groupScores,
+    [],
+    [],
+    plan.positionSize,
+    leverage,
+    plan.winProbabilityEstimate,
+    {
+      slDistanceOverride: newSlDistance,
+      fixedRrTargets: RR_TARGETS,
+    },
+  );
+
+  const primaryRR = tp1.rrRatio;
+  const warnings = [...plan.warnings];
+  if (newSlQuality === 'TIGHT' && !warnings.includes(VWAP_ENTRY_TIGHT_WARNING)) {
+    warnings.push(VWAP_ENTRY_TIGHT_WARNING);
+  }
+
+  const blockReasons = [...plan.blockReasons];
+  let tradePlanValid = plan.tradePlanValid;
+  const vwapRrBlock = `R:R ${primaryRR.toFixed(2)}:1 sau VWAP entry < ${CFG.MIN_RR_TO_ENTER}:1 — không vào`;
+  if (primaryRR < CFG.MIN_RR_TO_ENTER) {
+    tradePlanValid = false;
+    if (!blockReasons.some((r) => r.includes('sau VWAP entry'))) {
+      blockReasons.push(vwapRrBlock);
+    }
+  }
+
+  return {
+    ...plan,
+    recommendedEntry: newEntry,
+    entryZone: {
+      ...plan.entryZone,
+      optimal: newEntry,
+    },
+    stopLoss: {
+      ...plan.stopLoss,
+      price: +newSL.toFixed(6),
+      maxLossUSDT: newMaxLoss,
+      quality: newSlQuality,
+      atrDistance: +newAtrDistance.toFixed(2),
+      distancePct: +distancePct.toFixed(4),
+    },
+    tp1,
+    tp2,
+    tp3,
+    primaryRR: +primaryRR.toFixed(2),
+    tradePlanValid,
+    warnings,
+    blockReasons,
+  };
+}
+
+/** Gợi ý entry VWAP + recalc SL/TP/maxLoss khi quality IDEAL/GOOD. */
+export function applyVWAPEntryToPlan(
+  plan: TradePlanV3 | null,
+  vwapData: VWAPResult | undefined,
+  direction: TradeDirection,
+): TradePlanV3 | null {
+  if (!plan || !vwapData || plan.direction !== direction) return plan;
+
+  const signal = getVWAPEntrySignal(vwapData, direction);
+  if (signal.quality !== 'IDEAL' && signal.quality !== 'GOOD') return plan;
+
+  const vwapEntry = vwapData.vwap;
+  if (!Number.isFinite(vwapEntry) || vwapEntry <= 0) return plan;
+  if (Math.abs(vwapEntry - plan.recommendedEntry) < 1e-9) {
+    const extended = plan as TradePlanVwapExtension;
+    return {
+      ...plan,
+      entryOptions: extended.entryOptions?.length
+        ? [...extended.entryOptions, vwapEntry]
+        : [vwapEntry],
+      entryNote: `VWAP ${vwapEntry.toFixed(2)} — ${signal.entryReason}`,
+    } as TradePlanV3;
+  }
+
+  const recalculated = recalculatePlanAfterEntryChange(plan, vwapEntry);
+  const extended = plan as TradePlanVwapExtension;
+  const entryOptions = extended.entryOptions?.length
+    ? [...extended.entryOptions, vwapEntry]
+    : [vwapEntry];
+
+  return {
+    ...recalculated,
+    entryOptions,
+    entryNote: `VWAP ${vwapEntry.toFixed(2)} — ${signal.entryReason}`,
+  } as TradePlanV3;
 }
 
 function entryZoneTypeFromV3(zone: EntryZoneV3): EntryZoneType {

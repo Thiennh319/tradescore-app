@@ -1,0 +1,460 @@
+TradeScore — V3/V4 Recommendations & Warnings Audit
+Generated: 2026-07-08
+Mode: READ-ONLY (no source files modified)
+
+Scope (V3/V4 only):
+  services/finalEntryStatus.ts
+  services/positionAdvisorV3.ts
+  services/positionAdvisorV4.ts
+  services/positionAdvisorExitTracking.ts
+  services/planHealth.ts
+  services/squeezeRiskEngine.ts
+  services/tradePlanPresentation.ts
+  services/tradePlanExpiry.ts
+  services/signalRowView.ts
+  services/signalBoardScan.ts
+  services/directionAmbiguity.ts
+  (+ related wire-up trong tradePlanV3.ts / adxGate.ts / vwapService.ts / types/* khi tham chiếu giá trị)
+
+Excluded: all v41/ and Market Intelligence / Exhaustion / Reversal / EarlyWarning / Visibility / EntryQuality / Momentum engines.
+
+Legend soft vs hard:
+  HARD BLOCK = chặn canEnter / FinalEntryStatus HARD_* / advisor CLOSE_URGENT từ hardBlocks
+  SOFT        = warning / badge / advisor action gợi ý, không nhất thiết chặn entry
+
+==================================================
+1. POSITION ADVISOR
+==================================================
+
+Giá trị RecommendationType thực tế trong code (positionAdvisorV3.ts:9-17):
+  HOLD | HOLD_MOVE_SL | PARTIAL_TP1 | PARTIAL_TP2 | PARTIAL_CLOSE_30 |
+  CLOSE_NOW | CLOSE_URGENT | CLOSE_REVERSE
+
+KHÔNG có enum EXIT_NOW / MOVE_SL / WAIT / HOLD_STRONG làm type —
+  HOLD_STRONG / HOLD_CONDITIONAL / MOVE_SL_BE là ruleName (triggeredBy).
+Journal exit mapping (PositionAdvisorActionAtExit): HOLD_STRONG | HOLD_CONDITIONAL |
+  PARTIAL_CLOSE_30 | PARTIAL_TP1 | CLOSE_NOW | CLOSE_URGENT | MOVE_SL_BE |
+  MOVE_SL_TIGHTER | FUNDING_REVERSAL | SQUEEZE_ALERT | PLAN_EXPIRED | NO_ACTIVE_ADVISOR
+
+Urgency: LOW | MEDIUM | HIGH | CRITICAL
+
+── Rule matrix V3 (thứ tự priority; first-match winner sau collect + grace) ──
+
+| Loại | Giá trị (type / ruleName) | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| PositionAdvisor | CLOSE_URGENT / HARD_BLOCK | hardBlocks.filter(b includesAny ['BTC','Funding','squeeze']).length > 0;
+  nếu currentPnlUSDT > 0 → label "Chốt lời ngay"; else "Đóng khẩn cấp"; urgency CRITICAL; priority 100 |
+  includesAny strings | positionAdvisorV3.ts:1616-1656 | Không (needle strings magic) | HARD-driven (từ hardBlocks scoring) | Có (positionAdvisorV3.test CLOSE_URGENT) |
+
+| PositionAdvisor | CLOSE_NOW / GROUP_BLOCK | groupBlocks.length > 0; pnl>0 → "Chốt lời" MEDIUM; else "Đóng lệnh"; priority 95 |
+  — | positionAdvisorV3.ts:1659-1690 | Không | Soft-ish close (group) | Có pipeline |
+
+| PositionAdvisor | CLOSE_URGENT / BTC_REVERSAL | getLayer(L8) != null AND l8 <= 0; pnl>0 → chốt; else đóng; urgency HIGH; priority 90 |
+  l8 > 0 → NO_MATCH | positionAdvisorV3.ts:1693-1731 | Không | Soft→close | Có |
+
+| PositionAdvisor | CLOSE_REVERSE / OPPOSITE_STRONG | oppositeDirectionScore.totalScore >= threshold
+  AND oppositeDirectionScore.hardBlocks.length === 0;
+  threshold = (lastRecommendationType === 'CLOSE_REVERSE') ? 10.0 : 11.0;
+  nếu pnl>0 → CLOSE_REVERSE HIGH;
+  else nếu lossAbs < (maxLossUSDT>0 ? maxLoss*0.3 : 0) → CLOSE_REVERSE HIGH;
+  else → CLOSE_NOW MEDIUM |
+  10.0 / 11.0 / 0.3×maxLoss | positionAdvisorV3.ts:1734-1806 | Không (magic) | Soft close | Có (__tests__/positionAdvisorV3 + V4) |
+
+| PositionAdvisor | PARTIAL_TP1 hoặc CLOSE_NOW / CVD_DIVERGENCE | warnings.find includesAny ['CVD phân kỳ','bull trap','bear trap']
+  AND l5 != null AND l5 <= 0;
+  canTrigger = lastCVDDivergenceActive===true OR distToTP1Pct < 70;
+  nếu !canTrigger → unmatched nhưng shouldSetCVDFlag;
+  nếu distToTP1Pct >= 70 → PARTIAL_TP1 HIGH;
+  else → CLOSE_NOW HIGH |
+  70% tới TP1; l5 <= 0 | positionAdvisorV3.ts:1809-1855 | Không | Soft | Có (CLOSE_NOW trap) |
+
+| PositionAdvisor | PARTIAL_TP2 / TP_HIT | distToTP1Pct >= 100 AND distToTP2Pct >= 80 → PARTIAL_TP2 MEDIUM |
+  100% / 80% | positionAdvisorV3.ts:1858-1880 | Không | Soft | Partial |
+
+| PositionAdvisor | PARTIAL_TP1 / TP_HIT | distToTP1Pct >= 100 AND distToTP2Pct < 80 → PARTIAL_TP1 MEDIUM;
+  nếu totalScore < 8 thêm reason score giảm |
+  100%; score < 8 | positionAdvisorV3.ts:1883-1898 | Không | Soft | Có PARTIAL_TP1 |
+
+| PositionAdvisor | PARTIAL_TP1 / SCORE_DROP_NEAR_TP1 | distToTP1Pct >= 50 AND ownDirectionScore.totalScore < 8 |
+  50%; score < 8 | positionAdvisorV3.ts:1901-1920 | Không | Soft | Partial |
+
+| PositionAdvisor | HOLD_MOVE_SL / MOVE_SL_BE (V3) | distToTP1Pct >= 60 AND currentPnlUSDT > 0 AND isBeyondOnePointFiveR
+  (currentPrice >= entry + 1.5*|entry-sl| LONG, hoặc <= entry - 1.5*|entry-sl| SHORT) |
+  60%; 1.5R | positionAdvisorV3.ts:1923-1953 | Không (1.5 magic) | Soft | Có |
+
+| PositionAdvisor | HOLD_MOVE_SL / MOVE_SL_BE (V4) | Cùng isBeyondOnePointFiveR + pnl>0;
+  minDistToTP1Pct = isAdxTrendingStrong(adx) ? 50 : 60
+  (isAdxTrendingStrong = regime==='TRENDING' && regimeStrength==='STRONG') |
+  50 hoặc 60; 1.5R | positionAdvisorV4.ts:211-243 | Không | Soft | Có V4 tests |
+
+| PositionAdvisor | HOLD / HOLD_STRONG (V3) | totalScore >= threshold AND hardBlocks.length===0 AND groupBlocks.length===0;
+  threshold = (lastRecommendationType==='HOLD') ? 8.5 : 9.0;
+  nếu totalScore >= 11 → confidence 85 (+ L5>=1.5 / TRENDING reasons); else confidence 72 |
+  8.5 / 9.0 / 11 / L5 1.5 | positionAdvisorV3.ts:1956-2001 | Không | Soft HOLD | Có hysteresis tests |
+
+| PositionAdvisor | HOLD / HOLD_STRONG (V4) | Cùng điều kiện; threshold = resolveHoldStrongThreshold:
+  base (last HOLD? 8.5 : 9.0);
+  nếu ADX TRENDING STRONG && !currentlyHold → 8.5;
+  nếu ADX CHOPPY → 9.5 |
+  8.5 / 9.0 / 9.5 | positionAdvisorV4.ts:150-208 | Không | Soft | Có |
+
+| PositionAdvisor | HOLD / HOLD_CONDITIONAL | totalScore >= threshold;
+  threshold = (last HOLD) ? 6.5 : 7.0;
+  reasons nếu L1<1 LONG / L3<1 / hoursHeld>8 |
+  6.5 / 7.0 / 8h | positionAdvisorV3.ts:2004-2040 | Không | Soft | Có hysteresis |
+
+| PositionAdvisor | HOLD / FALLBACK | luôn match priority 0 nếu không rule khác thắng |
+  — | positionAdvisorV3.ts:2043-2054 | Không | Soft | — |
+
+── Rules chỉ V4 ──
+
+| PositionAdvisor | HOLD (pending) rồi PARTIAL_CLOSE_30 / HOLD / CLOSE_NOW — FUNDING_REVERSAL |
+  Transition: LONG: lastFundingState===SHORT_SQUEEZE_BUILDING AND current===SHORT_EUPHORIA_FADING;
+  SHORT: last===EXTREME_LONG_EUPHORIA AND current===LONG_EUPHORIA_FADING;
+  Scan 1 (!lastFundingReversalPending): type HOLD, shouldSetFundingReversalPending, LOW;
+  Scan 2 confirmed: nếu pnl>0 → PARTIAL_CLOSE_30 HIGH;
+  else nếu lossAbs < (maxLoss>0 ? maxLoss*0.5 : 0) → HOLD MEDIUM;
+  else → CLOSE_NOW HIGH |
+  0.5×maxLoss | positionAdvisorV4.ts:263-361 | FundingState enum Có; 0.5 magic | Soft | Có |
+
+| PositionAdvisor | PARTIAL_CLOSE_30 / HOLD / HOLD_MOVE_SL — SQUEEZE_RISK_ALERT |
+  isSqueezeRiskEscalation: current.level==='EXTREME' AND lastLevel==='HIGH'
+  AND cùng hướng (LONG_SQUEEZE cho LONG position / SHORT_SQUEEZE cho SHORT);
+  nếu pnl>0 → PARTIAL_CLOSE_30 HIGH;
+  else nếu lossAbs < (maxLoss>0 ? maxLoss*0.4 : 0) → HOLD MEDIUM;
+  else → HOLD_MOVE_SL HIGH |
+  last HIGH→EXTREME; 0.4×maxLoss | positionAdvisorV4.ts:363-441 | Không (0.4 magic) | Soft | Có |
+
+── Thesis / Confidence layers (điều chỉnh recommendation sau rule) ──
+
+| ThesisState | HEALTHY | score >= THESIS_STATE_THRESHOLDS.HEALTHY_MIN (80) — với hysteresis ENTER/EXIT riêng |
+  80 | positionAdvisorV3.ts:174-182, 295-306 | Có THESIS_STATE_* | Soft state | Có (export) |
+
+| ThesisState | WARNING | score >= 60 (WARNING_MIN) |
+  60 | same | Có | Soft | — |
+
+| ThesisState | EXIT_RECOMMENDED | score >= 40 |
+  40 | same | Có | Soft→có thể force CLOSE_NOW | — |
+
+| ThesisState | THESIS_INVALID | score < 40 |
+  40 | same | Có | Soft→force CLOSE_NOW HIGH | — |
+
+| ConfidenceDelta | NEUTRAL / MINOR_DROP / MAJOR_DROP / COLLAPSE / MINOR_RISE / MAJOR_RISE / SURGE |
+  |delta|<=2 NEUTRAL; bands CONFIDENCE_DELTA_BANDS MINOR 3-5, MAJOR 6-12, >12 EXTREME |
+  2/3/6/12 | positionAdvisorV3.ts:209-242 | Có | Soft | Partial |
+
+Note: Grace period / recommendationStability có thể hạ priority close-family rules khi mới mở lệnh
+  (gracePeriod.ts — ngoài list nhưng wire vào evaluatePositionV3/V4).
+
+==================================================
+2. PLAN HEALTH
+==================================================
+
+Giá trị thực tế PlanHealthStatus (types/tradePlan.ts):
+  STRONG | NORMAL | WEAK | CRITICAL
+  (KHÔNG có GOOD / WARNING / OK như danh sách hỏi — mapping UI badge khác)
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| PlanHealth | start score 100 | healthScore = 100; penalties = [] | 100 | planHealth.ts:29 | Magic start | Soft | Có |
+
+| PlanHealth penalty | SQUEEZE_EXTREME −30 | (tradeSide==='LONG' AND squeeze.direction==='LONG_SQUEEZE' AND level==='EXTREME')
+  OR (SHORT AND SHORT_SQUEEZE AND EXTREME) | −30 | planHealth.ts:32-43 | Magic −30 | Soft (penalty) | Có |
+
+| PlanHealth penalty | CVD_DIVERGENCE −25 | (LONG AND cvdStrength < 0) OR (SHORT AND cvdStrength > 0);
+  cvdStrength = l5RawScore - 1 (deriveCvdStrength) | −25; cvdStrength vs 0 | planHealth.ts:45-52, 110-112 | Magic −25 | Soft | Có |
+
+| PlanHealth penalty | FUNDING_REVERSAL −20 | (LONG AND fundingState===LONG_EUPHORIA_FADING)
+  OR (SHORT AND SHORT_EUPHORIA_FADING) | −20 | planHealth.ts:54-61 | FundingState Có; −20 magic | Soft | Có |
+
+| PlanHealth penalty | MACD_REVERSAL −20 | macdHistogram != null AND
+  ((LONG AND h1<0 AND h4<0) OR (SHORT AND h1>0 AND h4>0));
+  từ SignalRow proxy: l3Score===0 → gán signs against trade | −20; L3==0 proxy | planHealth.ts:63-71, 131-141 | Magic | Soft | Có |
+
+| PlanHealth penalty | RSI_EXTREME −15 | rsi != null AND
+  ((LONG AND h1>70 AND h4>70) OR (SHORT AND h1<30 AND h4<30));
+  proxy: l2Score===0 → 75/75 hoặc 25/25 | −15; 70/30 | planHealth.ts:73-81, 143-147 | Magic | Soft | Có |
+
+| PlanHealth status | CRITICAL | healthScore <= 25 | 25 | planHealth.ts:83-84 | Magic | Soft→autoCancel | Có |
+
+| PlanHealth status | WEAK | healthScore <= 55 (và >25) | 55 | planHealth.ts:85 | Magic | Soft | Có |
+
+| PlanHealth status | NORMAL | healthScore <= 85 (và >55) | 85 | planHealth.ts:86 | Magic | Soft | Có |
+
+| PlanHealth status | STRONG | else (score > 85) | — | planHealth.ts:83 | — | Soft | Có |
+
+| PlanHealth | autoCancel=true | confirmedSignalsCount >= 3 OR status==='CRITICAL'
+  (count = số true trong 5 flags: squeeze, cvd, funding, macd, rsi) | >=3 | planHealth.ts:92-100 | Magic 3 | HARD cancel locked plan | Có (3 confirmations) |
+
+| PlanHealth badge | formatPlanHealthBadge | STRONG→null; NORMAL→"Plan ổn định"; WEAK→"⚠️ Plan yếu — …"; CRITICAL→"🚨 Hủy tự động — Multi-confirmation" | — | planHealth.ts:164-179 | — | Soft UI | Có |
+
+==================================================
+3. SQUEEZE RISK (L11 — không phải V4.1 EW)
+==================================================
+
+SqueezeLevel thực tế: LOW | MEDIUM | HIGH | EXTREME
+SqueezeDirection: LONG_SQUEEZE | SHORT_SQUEEZE | NONE
+(KHÔNG có level NONE — NONE là direction)
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| SqueezeLevel | EXTREME | score >= 9 | 9 | squeezeRiskEngine.ts:109-113 | Magic | Soft (info); EXTREME+ENTRY_VALID → warning; planHealth/−advisor escalate | Có |
+
+| SqueezeLevel | HIGH | score >= 6 | 6 | same | Magic | Soft | Có |
+
+| SqueezeLevel | MEDIUM | score >= 3 | 3 | same | Magic | Soft | Có |
+
+| SqueezeLevel | LOW | else | — | same | — | Soft | Có |
+
+| SqueezeDirection | NONE | longScore < 3 AND shortScore < 3; HOẶC tie điểm+funding không phân định | 3 | squeezeRiskEngine.ts:176-198 | Magic | Soft | Có |
+
+| SqueezeDirection | LONG_SQUEEZE / SHORT_SQUEEZE | max side score win; tie → so fundingCrowding | — | same | — | Soft | Có |
+
+Component scores (mỗi 0–2) — tất cả magic numbers trong squeezeRiskEngine.ts:
+
+| Component | LONG thresholds | SHORT thresholds |
+| fundingCrowding | fundingCurrent>0.01 && velocity>0 →2; >0.005 && vel>0 →1.5; >0.005 && vel<=0 →1 | <−0.01 && vel<0 →2; <−0.005 && vel<0 →1.5; <−0.005 && vel>=0 →1 | :11-25 |
+| oiExpansion | oiChange1h>5 && oiChange4h>10 →2; >3 && >5 →1.5; >1 →1; <=0 →0 | same both sides | :27-35 |
+| lsCrowding | LS>2.2→2; >1.8→1.5; >1.5→1 | LS<0.55→2; <0.7→1.5; <0.85→1 | :37-51 |
+| priceOiDivergence | OI↑ & price↑: |oi/price| >4→2; >2.5→1.5; >1.5→1 | OI↑ & price↓: same ratios | :53-73 |
+| whaleWall | ASK && distancePct<=1 →2; ASK <=3 →1 | BID && <=1 →2; BID <=3 →1 | :75-87 |
+
+Squeeze soft warning trên FinalEntry (không chặn ENTRY_VALID):
+
+| Soft warning | squeezeWarning string | finalStatus===ENTRY_VALID AND tradeSide===LONG AND direction===LONG_SQUEEZE AND level===EXTREME
+  (tương tự SHORT / SHORT_SQUEEZE) | EXTREME | finalEntryStatus.ts:152-176 | Không | Soft | Có finalEntryStatus.test |
+
+==================================================
+4. FINAL ENTRY STATUS
+==================================================
+
+Enum thực tế (types/scoring.ts): ENTRY_VALID | WAIT_ENTRY | SCORE_BLOCKED | GROUP_BLOCKED | HARD_BLOCKED
+KHÔNG có AMBIGUOUS_DIRECTION trong FinalEntryStatus —
+  direction ambiguous là flag riêng isAmbiguousDirection (Section 10).
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| FinalEntryStatus | HARD_BLOCKED | hardBlock === true (side.hardBlocks.length > 0) — check ĐẦU TIÊN | — | finalEntryStatus.ts:21; compute…:190 | — | HARD | Có |
+
+| FinalEntryStatus | GROUP_BLOCKED | !hardBlock AND groupBlock === true (groupBlocks.length > 0) | — | :22 | — | HARD | Có |
+
+| FinalEntryStatus | SCORE_BLOCKED | !hard && !group AND scoringDecision ∈ {KHONG_VAO, CHO_THEM, CHO_TAI_CHAM} | Set SCORE_BLOCKED_DECISIONS | :9-13, 23-24 | Local Set named | HARD (no enter) | Có |
+
+| FinalEntryStatus | WAIT_ENTRY | decision không score-blocked AND tradePlanValid===false | tradePlanValid từ resolveTradePlanValid | :26 | — | Soft-block entry (setup tốt chờ) | Có |
+
+| FinalEntryStatus | ENTRY_VALID | else | — | :27 | — | Can enter | Có |
+
+tradePlanValid=false khi (tradePlanPresentation.ts:49-76):
+  (FEATURE_FLAGS.TP_PROBABILITY_FILTER AND tp1.probability < TP_MIN_PROBABILITY=0.45)
+  OR primaryRr < minRrToEnter (default 2.0 = TRADE_PLAN_V3_CONFIG.MIN_RR_TO_ENTER)
+  OR (tierMaxLossPerTrade > 0 AND maxLossUSDT > tierMaxLossPerTrade + 0.01)
+
+ADX hard override trên snapshot (signalBoardScan.ts:967-974):
+  nếu adxGate.block → adxBlockReason='ADX_CHOPPY'; applyAdxBlockToSnapshot → FinalEntryStatus HARD_BLOCKED
+
+==================================================
+5. SL QUALITY
+==================================================
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| SL quality | TIGHT | actualAtrDistance < 1.2 (sau khi tính SL) | 1.2×ATR | tradePlanV3.ts:422-423, 735 | Magic | Soft warning nếu TIGHT | tradePlanV3 tests partial |
+
+| SL quality | WIDE | actualAtrDistance > 3 | 3×ATR | same | Magic | Soft | — |
+
+| SL quality | NORMAL | else | — | same | — | Soft | — |
+
+| Warning | "SL …×ATR = rất chặt…" | stopLoss.quality === 'TIGHT' | — | tradePlanV3.ts:646-649 | — | Soft | — |
+
+| Warning | VWAP_ENTRY_TIGHT_WARNING | applyVWAPEntryToPlan làm SL quality TIGHT | string local | tradePlanV3.ts:716, 788-789 | Local const string | Soft | — |
+
+==================================================
+6. ENTRY QUALITY
+==================================================
+
+Type EntryQuality (constants/scoring.ts): PERFECT | GOOD | ACCEPTABLE | RISKY | MISS
+Trong calculateEntryZone tradePlanV3.ts thực tế dùng chủ yếu GOOD / ACCEPTABLE / RISKY;
+MISS xuất hiện ở validate block (nếu quality==='MISS').
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| EntryQuality | GOOD / ACCEPTABLE / RISKY (LONG EMA pullback) | distToEMA > 0.5 AND distToEMA < 5;
+  quality = |dist| < 1 ? GOOD : |dist| < 2 ? ACCEPTABLE : RISKY
+  (dist = % optimal vs current) | 0.5/5; 1/2 | tradePlanV3.ts:191-195 | Magic | Soft | entryZone.test partial |
+
+| EntryQuality | GOOD / ACCEPTABLE (near support) | quality = |dist| < 1.5 ? GOOD : ACCEPTABLE | 1.5 | tradePlanV3.ts:228 | Magic | Soft | — |
+
+| EntryQuality | GOOD / ACCEPTABLE (patience fallback) | quality = decision==='SETUP_NGON' ? GOOD : ACCEPTABLE | — | :245 | — | Soft | — |
+
+| EntryQuality | tương tự SHORT nhánh EMA / resistance / patience | parallel | tradePlanV3.ts:252+ | Magic | Soft | — |
+
+| Warning soft | "Vùng entry xa tối ưu…" | entryZone.quality === 'RISKY' | — | tradePlanV3.ts:640-641 | — | Soft | — |
+
+| BlockReason hard-ish plan | "Giá đã bỏ lỡ vùng entry tối ưu" | entryZone.quality === 'MISS' | — | tradePlanV3.ts:643-644 | — | Plan blockReasons | — |
+
+==================================================
+7. VWAP ZONE / ENTRY SIGNAL
+==================================================
+
+VWAPZone (vwapService.ts): ABOVE_BAND2 | ABOVE_BAND1 | NEAR_VWAP | BELOW_BAND1 | BELOW_BAND2 | BETWEEN
+VWAPEntryQuality: IDEAL | GOOD | NEUTRAL | POOR  (không có RISKY trong enum này)
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| VWAPZone | NEAR_VWAP | isNearVwap = |priceVsVwap| <= VWAP_DEFAULTS.NEAR_THRESHOLD_PCT (0.5) — ưu tiên trước bands | 0.5% | vwapService.ts:53-67, 123 | Có VWAP_DEFAULTS | Soft | Có |
+
+| VWAPZone | ABOVE_BAND2 | price > upperBand2 | 2σ | same | sigma math | Soft | Có |
+
+| VWAPZone | BELOW_BAND2 | price < lowerBand2 | 2σ | same | — | Soft | Có |
+
+| VWAPZone | ABOVE_BAND1 | upperBand1 < price <= upperBand2 | 1σ | same | — | Soft | — |
+
+| VWAPZone | BELOW_BAND1 | lowerBand2 <= price < lowerBand1 | — | same | — | Soft | — |
+
+| VWAPZone | BETWEEN | else | — | same | — | Soft | — |
+
+| VWAPEntrySignal | IDEAL | isNearVwap | — | vwapService.ts:158-163, 186-191 | — | Soft | Có |
+
+| VWAPEntrySignal | GOOD | isPullingBackToVwap AND priceVsVwap đúng phía (LONG >0, SHORT <0);
+  pullback = abs trong (NEAR_THRESHOLD, PULLBACK_THRESHOLD=2.0] | 0.5–2% | :70-77, 165-170 | Có | Soft | Có |
+
+| VWAPEntrySignal | POOR | LONG zone===BELOW_BAND2 OR SHORT zone===ABOVE_BAND2 | — | :172-177, 200-205 | — | Soft | Có |
+
+| VWAPEntrySignal | NEUTRAL | else | — | :179-182, 207-210 | — | Soft | — |
+
+| VWAPBonus | +0.5 L5 (soft score bump) | isNearVwap AND cvd đúng hướng AND không BELOW/ABOVE_BAND2 forbidden AND L5 headroom | BONUS_AMOUNT=0.5 | vwapBonus.ts | Local | Soft | Có |
+
+Wire scan: signalBoardScan gắn vwapData / vwapSignal / vwapBonus; applyVWAPEntryToPlan khi IDEAL/GOOD.
+
+==================================================
+8. ADX SEVERITY
+==================================================
+
+ADXGateSeverity thực tế: BLOCK | WARNING | BONUS | OK
+(user hỏi BONUS/OK/WARNING — thêm BLOCK)
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| ADXGate | BLOCK | adxData.bothChoppy === true → allowed=false, block=true |
+  ADX cả 1H+4H < 15 (indicators) | adxGate.ts:41-50 | ADX thresholds local indicators | HARD (scan sets HARD_BLOCKED) | Có |
+
+| ADXGate | WARNING | (isChoppy1H !== isChoppy4H) → tp×0.9 sl×1.1 |
+  — | adxGate.ts:53-63 | Magic multipliers | Soft scale plan | Có |
+
+| ADXGate | WARNING | regime==='RANGING' → tp×0.85 sl×1.1 | — | :66-75 | Magic | Soft | Có |
+
+| ADXGate | BONUS | regime==='TRENDING' AND regimeStrength==='STRONG' → tp×1.2 sl×0.9 | ADX avg ≥35 | :78-87 | Magic mult | Soft | Có |
+
+| ADXGate | OK | TRENDING (không STRONG) hoặc fallback undefined adxData | — | :90-110 | — | Soft | Có |
+
+==================================================
+9. PLAN EXPIRY
+==================================================
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| PlanExpiry tier | HIGH | score >= PLAN_EXPIRY_CONFIG.HIGH.minScore (13.0) → 12h | 13.0 / 12h | tradePlanExpiry.ts:1-16 | Có PLAN_EXPIRY_CONFIG | Soft TTL | Có |
+
+| PlanExpiry tier | MEDIUM | score >= 11.0 → 8h | 11.0 / 8h | :18-19 | Có | Soft | Có |
+
+| PlanExpiry tier | LOW | else (kể cả score < 9 vẫn gán LOW 4h khi isValid) | 9.0 minScore trong config nhưng calculatePlanExpiry không check floor 9 — luôn LOW nếu <11 | 4h | :21 | Có | Soft | Có |
+
+| PlanExpiry attach | fields only if isValid | resolvePlanExpiryOutput: if (!isValid) return {}; else buildPlanExpiryFields | — | :37-44 | — | Soft | Có |
+
+| PlanExpiry expired | isPlanExpired | now >= expiresAtMs | — | :47-48 | — | HARD cancel pending | integration test |
+
+==================================================
+10. KHÁC — Ambiguity, warnings/blocks, thesis health
+==================================================
+
+── Direction Ambiguity (không phải FinalEntryStatus) ──
+
+| Loại | Giá trị | Điều kiện kích hoạt CHÍNH XÁC từ code |
+  Ngưỡng số | File:dòng | Có constant tên? | Soft/Hard | Có test? |
+
+| Ambiguity | CLEAR → AMBIGUOUS | |longScore−shortScore| < AMBIGUOUS_THRESHOLD (1.0)
+  trong ≥2 scan liên tiếp (hysteresis consecutiveAmbiguousCount >= 2);
+  scan đầu ambiguous vẫn CLEAR count=1 |
+  1.0; 2 scans | directionAmbiguity.ts:1-2, 36-80 | Có AMBIGUOUS_THRESHOLD | Soft (canEnter=false) | KHÔNG file test riêng |
+
+| Ambiguity | AMBIGUOUS → CLEAR | scoreDiff >= 1.0 trong ≥2 scan clear liên tiếp | 2 clears | :93-117 | Có | Soft | Không |
+
+| Ambiguity apply | isAmbiguousDirection=true, canEnter=false | ambiguity.status==='AMBIGUOUS' trên snapshot | — | signalBoardScan.ts:355-365 | — | Soft-block enter | — |
+
+── Scorer / plan warnings & blocks (tổng hợp wire) ──
+
+| Soft | scoringWarnings / side warnings[] | CVD divergence, L7 LS extreme, BTC pullback msgs, L1 chưa đủ 2đ, win-streak, v.v. từ scorerV3/V4 | varies | scorer + signalBoardScan | mixed | Soft | layer tests |
+
+| Hard | hardBlocks[] | L3 MACD vi phạm; Funding squeeze; L8 BTC extreme/±2%; L9 phiên xấu; L10 (đang tắt TODO); L5a CVD hard V4; ADX_CHOPPY overlay | varies | scorer → Final HARD_BLOCKED | mixed named+magic | HARD | Có |
+
+| Hard/group | groupBlocks[] | Group A/B/C dưới minRequired (2.5 / 2.0 / 2.0) sau convertToGroupScore | SCORING_GROUPS_* | scorer | Có | HARD → GROUP_BLOCKED | Có |
+
+| Soft | blockReasons[] V4 | vd L5a CVD chưa đủ 1đ (không hardBlocks) | raw < 1 | scorerV4 | — | Soft/score path | Có |
+
+| Soft | tp1LowProbabilityWarning | TP1 prob thấp khi filter bật | TP_MIN_PROBABILITY=0.45 | tradePlanPresentation.ts:44-47 | Có | Soft | Có |
+
+| Soft | R:R warning / block trong tradePlanV3 | primaryRR < MIN_RR_TO_ENTER → blockReasons; winProb < 0.65 → warnings | 2.0; 0.65 | tradePlanV3.ts:632-638 | Có CFG | Soft/blockReasons | — |
+
+── Thesis health classification (advisor metadata) ──
+
+| ThesisHealthClassification | STRONG / HEALTHY / WEAKENING / BROKEN | score>=80 / >=65 / >=40 / else | 80/65/40 | positionAdvisorV3.ts:970-973 | Magic (overlap STATE thresholds partially) | Soft | — |
+
+==================================================
+TỔNG HỢP
+==================================================
+
+Tổng số loại khuyến nghị / status groups tìm được (categories):
+  1. Position Advisor RecommendationType + ruleNames (~14 rule outcomes + thesis/confidence layers)
+  2. Plan Health status + 5 penalties + autoCancel
+  3. Squeeze Risk levels + directions + EXTREME entry warning
+  4. FinalEntryStatus (5 giá trị)
+  5. SL quality (3)
+  6. Entry quality (GOOD/ACCEPTABLE/RISKY/MISS/PERFECT type)
+  7. VWAP zone (6) + VWAPEntrySignal (4)
+  8. ADX severity (4)
+  9. Plan Expiry tiers (3) + expired
+ 10. Ambiguity AMBIGUOUS/CLEAR + hardBlocks/groupBlocks/warnings/blockReasons
+
+Ước lượng tổng “giá trị khuyến nghị/cảnh báo” discrete: ~70+
+
+Số có điều kiện rõ ràng (rõ if/AND/OR trong code): Gần như 100% có điều kiện đọc được
+
+Số dùng magic number (thiếu tên constant cho ngưỡng):
+  Cao ở: Position Advisor thresholds (8.5/9/6.5/7/10/11/50%/60%/70%/1.5R/0.3–0.5 maxLoss),
+  Plan Health penalties & status cutoffs (30/25/20/15/25/55/85/3),
+  Squeeze component & level (≥9/6/3 và funding/OI/LS ratios),
+  Entry/SL quality % và ATR 1.2/3,
+  Ambiguity hysteresis counts (2) — AMBIGUOUS_THRESHOLD có tên
+
+Số có named constants rõ:
+  PLAN_EXPIRY_CONFIG, AMBIGUOUS_THRESHOLD, SCORE_BLOCKED_DECISIONS (local),
+  TP_MIN_PROBABILITY, VWAP_DEFAULTS, FundingState / HARD_BLOCK_RULES (upstream),
+  THESIS_STATE_THRESHOLDS / HYSTERESIS / CONFIDENCE_DELTA_BANDS,
+  TRADE_PLAN_V3_CONFIG.MIN_RR_TO_ENTER / MIN_WIN_PROBABILITY_TO_ENTER,
+  FinalEntryStatus enum, PlanHealthStatus type, SqueezeLevel type
+
+Số có vitest tương đối:
+  Có: finalEntryStatus, planHealth, squeezeRiskEngine, tradePlanExpiry,
+      positionAdvisorV3/V4 (+ __tests__), tradePlanPresentation, vwap*, adxGate,
+      entryZone partial
+  Không / mỏng: directionAmbiguity (không thấy *.test.ts riêng),
+      vài rule advisor edge (SCORE_DROP_NEAR_TP1, FALLBACK),
+      đầy đủ mọi nhánh EntryQuality/MISS
+
+V3 vs V4 khác khuyến nghị:
+  V4 thêm FUNDING_REVERSAL + SQUEEZE_RISK_ALERT
+  V4 chỉnh HOLD_STRONG / MOVE_SL_BE bằng ADX thresholds
+  V4 Plan Health / Squeeze / FinalEntry squeezeWarning gắn L11 V4
+  Ambiguity áp riêng store V3 và V4 trên cùng symbol
+  FinalEntryStatus + SL/Entry quality / Plan Expiry / VWAP zone logic chung cho cả hai khi dùng cùng plan pipeline
+
+── End of report ──

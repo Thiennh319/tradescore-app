@@ -1,0 +1,202 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 07C)
+================================================================================
+Ngày: 2026-07-10
+Task:   Populate Trade Context — ATR, VWAP, Structure SL
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: atr + vwap + structure MAP LIVE — plan/RR/expiry DỪNG
+
+Tiền đề:
+  Task 07A–07B — btcContext, adx
+  Task 07C — Trade Context (ATR, VWAP, Structure)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Map Trade Context đã có sẵn — không tính ATR, không calculateStructureSL,
+không gọi tradePlan, không tính RR.
+
+Implement: snapshot.atr (2), snapshot.vwap (14), snapshot.structure (8)
+DỪNG:     Entry plan, TP, RR, expiry, SL quality, support/resistance
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 07C)
+================================================================================
+
+export type RuleAuditAtrPopulateSource = RuleAuditAtrInput;
+export type RuleAuditVwapPopulateSource = RuleAuditVwapInput;
+export type RuleAuditStructurePopulateSource = RuleAuditStructureInput;
+
+export interface RuleAuditPopulateInput {
+  ema … adx  (05A–07B)
+  atr: RuleAuditAtrPopulateSource;
+  vwap: RuleAuditVwapPopulateSource;
+  structure: RuleAuditStructurePopulateSource;
+}
+
+Required: 14 nhóm. Thiếu atr/vwap/structure → throw Error.
+
+================================================================================
+3. POPULATE
+================================================================================
+
+populateAtr:     atr1h, atr1hPct
+populateVwap:    vwap, bands, zone, session, entryQuality, suggestedEntry, entryReason (14)
+populateStructure: swingPrice, swingTime, slPrice, slSource, bufferPct,
+                   distanceFromEntry, candlesBack, lookbackCandles (8)
+
+================================================================================
+4. SOURCE MAPPING — ATR
+================================================================================
+
+Snapshot Field          Input Field             Runtime Source (caller)
+──────────────────────  ──────────────────────  ──────────────────────────────
+snapshot.atr.atr1h      input.atr.atr1h         row.atr1h | computeAtr1hFromKlines
+snapshot.atr.atr1hPct   input.atr.atr1hPct      (atr1h/price)*100 (caller)
+
+Tổng: 2 field.
+
+================================================================================
+5. SOURCE MAPPING — VWAP
+================================================================================
+
+Snapshot Field                  Input Field                     Runtime Source (caller)
+──────────────────────────────  ──────────────────────────────  ──────────────────────────
+snapshot.vwap.vwap              input.vwap.vwap                 vwapData.vwap (calculateVWAP)
+snapshot.vwap.upperBand1        input.vwap.upperBand1           vwapData.upperBand1
+snapshot.vwap.lowerBand1        input.vwap.lowerBand1           vwapData.lowerBand1
+snapshot.vwap.upperBand2        input.vwap.upperBand2           vwapData.upperBand2
+snapshot.vwap.lowerBand2        input.vwap.lowerBand2           vwapData.lowerBand2
+snapshot.vwap.priceVsVwap       input.vwap.priceVsVwap          vwapData.priceVsVwap
+snapshot.vwap.zone              input.vwap.zone                 vwapData.zone
+snapshot.vwap.isNearVwap        input.vwap.isNearVwap           vwapData.isNearVwap
+snapshot.vwap.isPullingBackToVwap input.vwap.isPullingBackToVwap vwapData.isPullingBackToVwap
+snapshot.vwap.sessionStart      input.vwap.sessionStart         vwapData.sessionStart
+snapshot.vwap.candleCount       input.vwap.candleCount          vwapData.candleCount
+snapshot.vwap.entryQuality      input.vwap.entryQuality         vwapSignal.quality (getVWAPEntrySignal)
+snapshot.vwap.suggestedEntry    input.vwap.suggestedEntry       vwapSignal.suggestedEntry
+snapshot.vwap.entryReason       input.vwap.entryReason          vwapSignal.entryReason
+
+Tổng: 14 field.
+
+================================================================================
+6. SOURCE MAPPING — STRUCTURE
+================================================================================
+
+Snapshot Field                      Input Field                         Runtime Source (caller)
+──────────────────────────────────  ──────────────────────────────────  ──────────────────────────────
+snapshot.structure.swingPrice       input.structure.swingPrice          structureSL.swingPrice
+snapshot.structure.swingTime        input.structure.swingTime           structureSL.swingTime
+snapshot.structure.slPrice          input.structure.slPrice             structureSL.slPrice
+snapshot.structure.slSource         input.structure.slSource            structureSL.slSource
+snapshot.structure.bufferPct        input.structure.bufferPct           structureSL.bufferPct
+snapshot.structure.distanceFromEntry input.structure.distanceFromEntry  structureSL.distanceFromEntry
+snapshot.structure.candlesBack      input.structure.candlesBack         structureSL.candlesBack
+snapshot.structure.lookbackCandles  input.structure.lookbackCandles     resolveStructureSlLookback(adxAvg)
+
+Tổng: 8 field.
+
+================================================================================
+7. SOURCE MAPPING — DỪNG (SCHEMA THIẾU)
+================================================================================
+
+Yêu cầu task          Snapshot    Input    Runtime
+────────────────────  ──────────  ───────  ──────────────────────────────
+Nearest Support       ❌          ❌       tradePlan / key levels
+Nearest Resistance    ❌          ❌       tradePlan / key levels
+Structure TP          ❌          ❌       plan.tp1/2/3.price
+Entry (plan)          ❌          ❌       plan.recommendedEntry
+Entry Zone            ❌          ❌       plan.entryZone
+SL Quality            ❌          ❌       plan.stopLoss.quality
+Primary RR            ❌          ❌       plan.primaryRR
+Secondary RR          ❌          ❌       plan.tp2/3.rrRatio
+Plan Expiry           ❌          ❌       plan.expiryTier / expiresAt
+
+Đề xuất Task sau: RuleAuditTradePlanInput trên schema + populate.
+
+================================================================================
+8. KIỂM TRA DUPLICATE
+================================================================================
+
+  ✅ Không tính ATR / RR / Entry / Structure trong populate
+  ✅ Không gọi tradePlanV3/V4, calculateStructureSL, calculateVWAP
+  ✅ Chỉ assign từ input
+
+================================================================================
+9. EVIDENCE COVERAGE
+================================================================================
+
+Vì sao Entry ở đây?
+  Một phần — vwap.suggestedEntry, entryQuality, entryReason
+  Thiếu plan.recommendedEntry, entryZone
+
+Vì sao SL ở đây?
+  Một phần — structure.slPrice, slSource, swingPrice, distanceFromEntry
+  Thiếu plan.stopLoss.quality, sl_atr_distance
+
+Vì sao RR như vậy?
+  KHÔNG — primaryRR / tp rr không có snapshot
+
+Vì sao Entry Quality GOOD?
+  Một phần — vwap.entryQuality (IDEAL|GOOD|NEUTRAL|POOR)
+  Thiếu plan.entryZone.quality (PERFECT|GOOD|…)
+
+Còn thiếu Trade Context evidence:
+  - Full trade plan (entry, SL, TP1-3, RR)
+  - Plan expiry tier
+  - Support/resistance nearest
+  - Wire scan → ruleAuditSnapshot
+  - Export CSV/TXT Evidence
+
+================================================================================
+10. WIRE DỰ KIẾN (SCAN — NGOÀI 07C)
+================================================================================
+
+  populateRuleAuditSnapshot(snapshot, {
+    ...
+    atr: { atr1h: row.atr1h, atr1hPct: (row.atr1h/price)*100 },
+    vwap: { ...vwapData, entryQuality: vwapSignal.quality, ... },
+    structure: { ...structureSL, lookbackCandles: resolveStructureSlLookback(adxAvg) },
+  });
+
+================================================================================
+11. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — không đổi
+  ruleAuditSnapshotBuilder.ts         — không đổi
+  signalBoardScan.ts, tradePlan*      — chưa wire
+  exportService.ts, scorer*, v41/     — không đụng
+
+================================================================================
+12. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit — không lỗi mới từ ruleAuditSnapshotPopulate.ts
+
+================================================================================
+13. TIẾN ĐỘ EVIDENCE EXPORT — POPULATE HOÀN TẤT 14/14 NHÓM SCHEMA
+================================================================================
+
+| Nhóm snapshot | Task | Trạng thái |
+|---------------|------|------------|
+| ema, rsi, macd, bollinger | 05A–05D | ✅ |
+| volume, cvd | 06A | ✅ |
+| oi, funding, longShortRatio | 06B | ✅ |
+| btcContext | 07A | ✅ |
+| adx | 07B | ✅ |
+| atr, vwap, structure | 07C | ✅ |
+| Trade plan fields | — | ❌ schema |
+| Liquidation | — | ❌ schema |
+| Wire scan | — | ⏳ |
+| Export | — | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 07C: map atr(2)+vwap(14)+structure(8); plan/RR/expiry/support DỪNG;
+14 nhóm schema đã populate — chưa wire scan/export.
+
+================================================================================

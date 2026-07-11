@@ -894,35 +894,28 @@ export function SignalBoardV41({
                 : ''}
             </Text>
           </View>
-          <View style={styles.scanBtnWrap}>
-            <Pressable
-              onPress={() => onRequestScan?.()}
-              disabled={scanBusy}
-              style={({ pressed }) => [
-                styles.scanBtn,
-                scanBusy && styles.scanBtnDisabled,
-                pressed && !scanBusy && styles.scanBtnPressed,
-                webPointer,
-              ]}
-            >
-              {scanBusy ? (
-                <ActivityIndicator size="small" color={COLORS.background} />
-              ) : (
-                <Text style={styles.scanBtnText}>Quét lại</Text>
-              )}
-            </Pressable>
-            {isScanning ? (
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: COLORS.textMuted,
-                  textAlign: 'center',
-                  marginTop: 4,
-                }}
+          <View style={styles.headerActions}>
+            <View style={styles.scanBtnWrap}>
+              <Pressable
+                onPress={() => onRequestScan?.()}
+                disabled={scanBusy}
+                style={({ pressed }) => [
+                  styles.scanBtn,
+                  scanBusy && styles.scanBtnDisabled,
+                  pressed && !scanBusy && styles.scanBtnPressed,
+                  webPointer,
+                ]}
               >
-                Đang quét...
-              </Text>
-            ) : null}
+                {scanBusy ? (
+                  <ActivityIndicator size="small" color={COLORS.background} />
+                ) : (
+                  <Text style={styles.scanBtnText}>Quét lại</Text>
+                )}
+              </Pressable>
+              {isScanning ? (
+                <Text style={styles.scanStatusText}>Đang quét...</Text>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -970,6 +963,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textMuted,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
   scanBtn: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
@@ -981,6 +979,12 @@ const styles = StyleSheet.create({
   scanBtnWrap: {
     alignItems: 'center',
     gap: SPACING.xs,
+  },
+  scanStatusText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
   },
   scanBtnDisabled: {
     opacity: 0.65,

@@ -1,0 +1,112 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 09A)
+================================================================================
+Ngày: 2026-07-10
+Task:   Export RAW RuleAuditSnapshot → CSV
+File:   services/exportService.ts (sửa duy nhất)
+
+================================================================================
+1. API MỚI
+================================================================================
+
+export const RULE_AUDIT_EVIDENCE_CSV_COLUMNS
+buildRuleAuditEvidenceExportRow(row, exportTimestamp?)
+formatRuleAuditEvidenceCSV(rows)
+exportRuleAuditEvidenceCSV(rows)
+
+Nguồn: row.ruleAuditSnapshot — không stringify toàn snapshot.
+
+================================================================================
+2. CSV HEADER (125 cột)
+================================================================================
+
+symbol,ema.h1.ema20,ema.h1.ema50,ema.h1.ema200,ema.h1.slope20,ema.h1.slope50,
+ema.h1.priceVsEma20Pct,ema.h1.priceVsEma50Pct,ema.h1.priceAboveEma20,
+ema.h1.priceAboveEma50,ema.h4.ema20,ema.h4.ema50,ema.h4.ema200,ema.h4.slope20,
+ema.h4.slope50,ema.h4.priceVsEma20Pct,ema.h4.priceVsEma50Pct,
+ema.h4.priceAboveEma20,ema.h4.priceAboveEma50,ema.alignment,ema.pullback,
+rsi.rsi1h,rsi.rsi4h,rsi.divergence1h,rsi.divergence4h,
+macd.h1.macd,macd.h1.signal,macd.h1.histogram,macd.h1.isTurningUp,
+macd.h1.isTurningDown,macd.h1.crossedZeroRecentlyUp,macd.h1.crossedZeroRecentlyDown,
+macd.h4.macd,macd.h4.signal,macd.h4.histogram,macd.h4.isTurningUp,
+macd.h4.isTurningDown,macd.h4.crossedZeroRecentlyUp,macd.h4.crossedZeroRecentlyDown,
+bollinger.h1.percentB,bollinger.h1.bandwidth,bollinger.h1.bandwidthSlope,
+bollinger.h1.marketMode,bollinger.h1.upper,bollinger.h1.middle,bollinger.h1.lower,
+bollinger.h4.percentB,bollinger.h4.bandwidth,bollinger.h4.bandwidthSlope,
+bollinger.h4.marketMode,bollinger.h4.upper,bollinger.h4.middle,bollinger.h4.lower,
+volume.volumeRatio1h,volume.volumeRatio4h,volume.lastVolume,volume.avgVolume1h,
+cvd.value,cvd.trend,cvd.slope,cvd.divergence,cvd.divergenceType,cvd.supportive,
+cvd.cvdMomentum24h,cvd.reason,
+oi.current,oi.previous,oi.delta,oi.change1hPct,oi.change4hPct,
+funding.ratePct,funding.avg8,funding.avg16,funding.velocity,funding.acceleration,
+funding.state,
+longShortRatio.topRatio,longShortRatio.globalRatio,longShortRatio.topHistory,
+btcContext.change24hPct,btcContext.change1hPct,btcContext.trend,
+btcContext.regimeConfidence,
+adx.adx1h,adx.adx4h,adx.adxAvg,adx.regime,adx.regimeStrength,adx.isChoppy1h,
+adx.isChoppy4h,adx.bothChoppy,adx.gateAllowed,adx.gateBlock,adx.gateSeverity,
+adx.gateTpMultiplier,adx.gateSlMultiplier,adx.gateMessage,
+vwap.vwap,vwap.upperBand1,vwap.lowerBand1,vwap.upperBand2,vwap.lowerBand2,
+vwap.priceVsVwap,vwap.zone,vwap.isNearVwap,vwap.isPullingBackToVwap,
+vwap.sessionStart,vwap.candleCount,vwap.entryQuality,vwap.suggestedEntry,
+vwap.entryReason,
+atr.atr1h,atr.atr1hPct,
+structure.swingPrice,structure.swingTime,structure.slPrice,structure.slSource,
+structure.bufferPct,structure.distanceFromEntry,structure.candlesBack,
+structure.lookbackCandles,
+evidence_version,snapshot_version,rule_version,export_timestamp
+
+================================================================================
+3. MẪU DÒNG BTC (verify)
+================================================================================
+
+BTCUSDT,95000.123456789,0,,FLAT,FLAT,0,0,false,false,0,0,,FLAT,FLAT,0,0,
+false,false,Gia tren EMA,false,55.3,0,NONE,NONE,0,0,0,false,false,false,false,
+0,0,0,false,false,false,false,0,0,FLAT,RANGING,0,0,0,0,0,FLAT,RANGING,0,0,0,
+0,0,0,0,0,FLAT,flat,true,NONE,false,0,,0,0,0,0,0,0,0,0,0,0,,0,0,"[1.1,1.2]",
+0,0,UP,0,0,0,0,CHOPPY,WEAK,false,false,false,false,false,OK,0,0,,0,0,0,0,0,0,
+NEAR_VWAP,false,false,0,0,NEUTRAL,,,0,0,0,0,0,STRUCTURE,0,0,0,0,1.0.0,1.0.0,
+TradeScore V4,<ISO8601>
+
+================================================================================
+4. SỐ LƯỢNG CỘT
+================================================================================
+
+Tổng:     125
+  symbol:           1
+  snapshot fields:  120 (14 nhóm RuleAuditSnapshot)
+  metadata:         4
+
+================================================================================
+5. FIELD CHƯA EXPORT (không có trong schema)
+================================================================================
+
+Trade plan: entry, SL, TP, RR, expiry, entry zone
+Liquidation
+Session / Fear&Greed / News
+btcContext.momentum / riskMode
+Trade Context mở rộng (Task 07C DỪNG)
+
+→ Đúng phạm vi schema hiện tại — không thiếu leaf field.
+
+================================================================================
+6. FORMAT
+================================================================================
+
+boolean  → true / false
+number   → String(value) — không làm tròn
+string   → giữ nguyên
+null     → rỗng
+array    → JSON.stringify (vd. longShortRatio.topHistory)
+
+================================================================================
+7. VERIFY
+================================================================================
+
+BTC / ETH / NEAR — vitest verify pass
+  - 125 cột header
+  - 95000.123456789 không bị làm tròn
+  - [1.1,1.2] chỉ stringify array con
+  - Không stringify toàn snapshot
+
+================================================================================

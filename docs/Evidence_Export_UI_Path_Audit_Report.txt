@@ -1,0 +1,120 @@
+================================================================================
+TRADESCORE — UI EXPORT PATH AUDIT REPORT
+================================================================================
+Ngày: 2026-07-10
+Phạm vi: Kiểm tra đường đi Export trên UI (read-only, không sửa code)
+
+================================================================================
+1. NÚT EXPORT TRÊN UI — HÀM ĐƯỢC GỌI
+================================================================================
+
+Tab V4 (SignalBoard.tsx):
+  handleExport()
+    → exportSignalData(rows, 'txt')
+    → exportSignalData(rows, 'csv')
+
+Tab V4.1 (SignalBoardV41.tsx):
+  handleExport()
+    → exportV41SignalReport(rows, quotes)
+      → exportSignalDataV41(rows, quotes, 'txt')
+      → exportSignalDataV41(rows, quotes, 'csv')
+
+Tab Unified (SignalBoardUnified.tsx):
+  Không có nút Export.
+
+================================================================================
+2. CÁC HÀM KIỂM TRA — TỒN TẠI HAY KHÔNG
+================================================================================
+
+exportMarketCSV              — KHÔNG TỒN TẠI
+exportSignalCSV              — KHÔNG TỒN TẠI
+exportRuleAuditEvidenceCSV   — CÓ (services/exportService.ts) — KHÔNG GỌI TỪ UI
+exportSignalData             — CÓ — GỌI TỪ UI TAB V4
+exportSignalDataV41          — CÓ — GỌI TỪ UI TAB V4.1 (qua exportV41SignalReport)
+
+================================================================================
+3. CHUỖI GỌI CSV THỰC TẾ (TAB V4)
+================================================================================
+
+SignalBoard.tsx handleExport
+  → exportSignalData(rows, 'csv')
+    → rows.map(buildExportRow)
+    → formatAsCSV(exportRows)
+      → header: CSV_COLUMNS.join(',')
+
+File output: tradescore-signal-{timestamp}.csv
+
+================================================================================
+4. CHUỖI GỌI CSV THỰC TẾ (TAB V4.1)
+================================================================================
+
+SignalBoardV41.tsx handleExport
+  → exportV41SignalReport(rows, quotes)
+    → exportSignalDataV41(rows, quotes, 'csv')
+      → header: CSV_COLUMNS (V41).join(',')
+
+File output: tradescore-v41-signal-{timestamp}.csv
+
+================================================================================
+5. SỐ CỘT CSV THỰC TẾ
+================================================================================
+
+UI Tab V4:
+  Nguồn header: CSV_COLUMNS (exportService.ts)
+  Số cột: 80
+  Cột đầu: timestamp,symbol,price,priceChange24h,scoreTotal,...
+
+UI Tab V4.1:
+  Nguồn header: CSV_COLUMNS (exportServiceV41.ts)
+  Số cột: 61
+  Cột đầu: timestamp,symbol,price,priceChange24h,visibilityMode,...
+
+Evidence contract (không qua UI):
+  Nguồn header: RULE_AUDIT_EVIDENCE_CSV_COLUMNS (exportService.ts)
+  Số cột: 125
+  Cột đầu: symbol,ema.h1.ema20,ema.h1.ema50,...
+
+================================================================================
+6. SO SÁNH VỚI RULE_AUDIT_EVIDENCE_CSV_COLUMNS (125)
+================================================================================
+
+RULE_AUDIT_EVIDENCE_CSV_COLUMNS = symbol (1)
+  + RULE_AUDIT_SNAPSHOT_CSV_COLUMNS (120)
+  + RULE_AUDIT_EVIDENCE_METADATA_COLUMNS (4)
+  = 125 cột
+
+Metadata:
+  evidence_version, snapshot_version, rule_version, export_timestamp
+
+================================================================================
+7. VÌ SAO FILE CSV UI KHÔNG CÓ 125 CỘT
+================================================================================
+
+Nguyên nhân:
+  Nút Export trên UI vẫn dùng export legacy (exportSignalData / exportSignalDataV41).
+  exportRuleAuditEvidenceCSV đã implement 125 cột nhưng CHƯA được wire vào UI.
+  exportRuleAuditEvidenceCSV chỉ được gọi nội bộ trong exportService.ts
+    (validateCsvExportAcceptance — acceptance probe).
+
+Hai schema CSV hoàn toàn khác:
+
+  UI V4 (80 cột):
+    timestamp, scoreTotal, l1_ema, finalDecision, entry, sl, tp1, ...
+
+  Evidence (125 cột):
+    symbol, ema.h1.ema20, rsi.rsi1h, funding.ratePct, evidence_version, ...
+
+================================================================================
+8. KẾT LUẬN
+================================================================================
+
+Hàm UI đang gọi (V4):     exportSignalData
+Hàm UI đang gọi (V4.1):   exportSignalDataV41 (qua exportV41SignalReport)
+Header thực tế V4:        80 cột (CSV_COLUMNS)
+Header thực tế V4.1:      61 cột (CSV_COLUMNS V41)
+Header Evidence contract: 125 cột (RULE_AUDIT_EVIDENCE_CSV_COLUMNS)
+Trạng thái wire:          UI ≠ Evidence export — chưa kết nối
+
+================================================================================
+END OF REPORT
+================================================================================

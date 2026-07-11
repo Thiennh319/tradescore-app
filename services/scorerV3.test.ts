@@ -77,14 +77,96 @@ describe('scorerV3 L1-L5', () => {
     expect(r.group).toBe('A');
   });
 
+  it('scoreL1V3 LONG mâu thuẫn 1H/4H hiển thị 1đ', () => {
+    const ema1hAbove = ema({ priceAboveEma20: true, priceAboveEma50: true, priceVsEma20Pct: 3 });
+    const ema4hBelow = ema({
+      priceAboveEma20: false,
+      priceAboveEma50: false,
+      priceVsEma20Pct: -3,
+      slope20: 'DOWN',
+    });
+    const r = scoreL1V3('LONG', ema1hAbove, ema4hBelow);
+    expect(r.reason).toContain('Mâu thuẫn 1H vs 4H');
+    const [display] = scoringLayersToDisplayV3([r]);
+    expect(display.score).toBe(1);
+  });
+
+  it('scoreL1V3 SHORT mâu thuẫn 1H/4H hiển thị 1đ', () => {
+    const ema1hBelow = ema({
+      priceAboveEma20: false,
+      priceAboveEma50: false,
+      priceVsEma20Pct: -3,
+      slope20: 'DOWN',
+    });
+    const ema4hAbove = ema({ priceAboveEma20: true, priceAboveEma50: true, priceVsEma20Pct: 3 });
+    const r = scoreL1V3('SHORT', ema1hBelow, ema4hAbove);
+    expect(r.reason).toContain('Mâu thuẫn 1H vs 4H');
+    const [display] = scoringLayersToDisplayV3([r]);
+    expect(display.score).toBe(1);
+  });
+
   it('scoreL3V3 SHORT negative histogram', () => {
     const r = scoreL3V3('SHORT', macd(-0.5), macd(-0.3));
     expect(r.score).toBe(2);
+    expect(r.reason).toContain('Histogram âm cả 1H & 4H');
+  });
+
+  it('scoreL3V3 SHORT both negative with turning down still gets 2', () => {
+    const r = scoreL3V3(
+      'SHORT',
+      macd(-0.5, { isTurningDown: true }),
+      macd(-0.3, { isTurningDown: true }),
+    );
+    expect(r.score).toBe(2);
+  });
+
+  it('scoreL3V3 SHORT both positive histogram VI PHẠM', () => {
+    const r = scoreL3V3('SHORT', macd(0.5), macd(0.3));
+    expect(r.score).toBe(0);
+    expect(r.reason).toContain('VI PHẠM');
+  });
+
+  it('scoreL3V3 LONG h1 negative h4 positive gets 1 khung thuận', () => {
+    const r = scoreL3V3('LONG', macd(-42.29), macd(145.61));
+    expect(r.score).toBe(1);
+    expect(r.reason).toContain('1 khung thuận');
+  });
+
+  it('scoreL3V3 LONG h1 positive h4 negative gets 1 khung thuận', () => {
+    const r = scoreL3V3('LONG', macd(0.5), macd(-0.3));
+    expect(r.score).toBe(1);
+    expect(r.reason).toContain('1 khung thuận');
   });
 
   it('scoreL4V3 LONG ranging mid band', () => {
     const r = scoreL4V3('LONG', bb(45, 'RANGING'));
     expect(r.score).toBe(2);
+  });
+
+  it('scoreL4V3 SHORT ranging %B=17 giá đáy dải → 0đ', () => {
+    const r = scoreL4V3('SHORT', bb(17, 'RANGING'));
+    expect(r.score).toBe(0);
+    expect(r.reason).toContain('đáy dải');
+  });
+
+  it('scoreL4V3 SHORT ranging %B=50 vùng giữa → 2đ', () => {
+    const r = scoreL4V3('SHORT', bb(50, 'RANGING'));
+    expect(r.score).toBe(2);
+  });
+
+  it('scoreL4V3 SHORT ranging %B=35 nửa dải → 1đ', () => {
+    const r = scoreL4V3('SHORT', bb(35, 'RANGING'));
+    expect(r.score).toBe(1);
+  });
+
+  it('scoreL4V3 SHORT trending %B=17 ride band → 2đ', () => {
+    const r = scoreL4V3('SHORT', bb(17, 'TRENDING'));
+    expect(r.score).toBe(2);
+  });
+
+  it('scoreL4V3 SHORT trending %B=75 → 0đ', () => {
+    const r = scoreL4V3('SHORT', bb(75, 'TRENDING'));
+    expect(r.score).toBe(0);
   });
 
   it('scoreL5V3 rejects CVD divergence against LONG', () => {

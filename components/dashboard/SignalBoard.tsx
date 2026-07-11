@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
   COLORS,
   HARD_BLOCK_RULES_V4,
@@ -54,8 +57,24 @@ import {
   explainSL,
   explainTP,
 } from '../../services/tradePlanExplainer';
+import { exportTradeScoreAuditPackage } from '../../services/exportService';
+import {
+  ENTRY_SLTP_AUDIT_PACKAGE_FILENAME,
+  exportEntrySltpAuditPackage,
+} from '../../services/exportEntrySltpAuditPackage';
 import { TradePlanModal } from './TradePlanModal';
 import { formatUsdPrice } from '../../utils/formatPrice';
+
+type AuditExportMode = 'full' | 'entrySltp';
+
+const AUDIT_EXPORT_OPTIONS: { id: AuditExportMode; label: string }[] = [
+  { id: 'full', label: 'Full Audit (L1-L11 Scoring)' },
+  { id: 'entrySltp', label: 'Entry / SL / TP Audit' },
+];
+
+function auditExportLabel(mode: AuditExportMode): string {
+  return AUDIT_EXPORT_OPTIONS.find((opt) => opt.id === mode)?.label ?? mode;
+}
 
 const CARD_DANGER = '#EF4444';
 const CARD_SUCCESS = '#22C55E';
@@ -589,6 +608,35 @@ function isNearLockedPlanEntry(
   return Math.abs(currentPrice - plan.limitOrderPrice) < GRACE_ATR_MULTIPLIER * atr;
 }
 
+function downloadTextFileWeb(filename: string, content: string, mime: string): void {
+  if (typeof document === 'undefined') return;
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function saveAndShareNativeFile(
+  filename: string,
+  content: string,
+  mimeType: string,
+): Promise<void> {
+  const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+  if (!baseDir) throw new Error('Không có thư mục lưu file');
+  const fileUri = `${baseDir}${filename}`;
+  await FileSystem.writeAsStringAsync(fileUri, content, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(fileUri, { mimeType, dialogTitle: filename });
+    return;
+  }
+  throw new Error('Sharing không khả dụng');
+}
+
 export function SignalBoard({
   rows,
   loading,
@@ -606,6 +654,12 @@ export function SignalBoard({
   lockedPlanMonitor,
 }: SignalBoardProps) {
   const [planSymbol, setPlanSymbol] = useState<AppTradeSymbol | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [auditExportMode, setAuditExportMode] = useState<AuditExportMode>('full');
+  const [auditMenuOpen, setAuditMenuOpen] = useState(false);
+  const [auditMenuPos, setAuditMenuPos] = useState({ top: 0, right: 0, width: 220 });
+  const auditMenuTriggerRef = useRef<View>(null);
+  const [exportToast, setExportToast] = useState<string | null>(null);
   const scorerVersion = useTradeStore((s) => s.scorerVersion);
   const setScorerVersion = useTradeStore((s) => s.setScorerVersion);
   const boardStrategySource =
@@ -618,6 +672,49 @@ export function SignalBoard({
     autoTriggeredAt != null &&
     lastScannedAt != null &&
     Math.abs(lastScannedAt - autoTriggeredAt) < 120_000;
+
+  const showExportToast = useCallback((message: string) => {
+    setExportToast(message);
+    setTimeout(() => setExportToast(null), 4000);
+  }, []);
+
+  const handleExportAuditPackage = useCallback(async () => {
+    if (exporting || rows.length === 0) return;
+    setExporting(true);
+    try {
+      const isEntrySltp = auditExportMode === 'entrySltp';
+      const content = isEntrySltp
+        ? exportEntrySltpAuditPackage(rows, scorerVersion)
+        : exportTradeScoreAuditPackage(rows, scorerVersion);
+      const filename = isEntrySltp
+        ? ENTRY_SLTP_AUDIT_PACKAGE_FILENAME
+        : 'TradeScore_Audit_Package.txt';
+
+      if (Platform.OS === 'web') {
+        downloadTextFileWeb(filename, content, 'text/plain;charset=utf-8');
+      } else {
+        await saveAndShareNativeFile(filename, content, 'text/plain');
+      }
+
+      showExportToast(`✅ Audit Package — ${rows.length} coin — ${filename}`);
+    } catch {
+      showExportToast('❌ Xuất Audit Package thất bại');
+    } finally {
+      setExporting(false);
+    }
+  }, [auditExportMode, exporting, rows, scorerVersion, showExportToast]);
+
+  const openAuditExportMenu = useCallback(() => {
+    auditMenuTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      setAuditMenuPos({ top: y + height + 4, right: x + width, width: Math.max(width, 220) });
+      setAuditMenuOpen(true);
+    });
+  }, []);
+
+  const pickAuditExportMode = useCallback((mode: AuditExportMode) => {
+    setAuditExportMode(mode);
+    setAuditMenuOpen(false);
+  }, []);
 
   return (
     <View style={styles.panel}>
@@ -662,22 +759,60 @@ export function SignalBoard({
               })}
             </View>
           </View>
-          <Pressable
-            onPress={onScan}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.scanBtn,
-              loading && styles.scanBtnDisabled,
-              pressed && !loading && styles.scanBtnPressed,
-              webPointer,
-            ]}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color={COLORS.background} />
-            ) : (
-              <Text style={styles.scanBtnText}>{vi.signalBoard.rescan}</Text>
-            )}
-          </Pressable>
+          <View style={styles.headerActions}>
+            <View style={styles.auditExportWrap}>
+              <View ref={auditMenuTriggerRef} collapsable={false}>
+                <Pressable
+                  onPress={openAuditExportMenu}
+                  disabled={exporting || rows.length === 0}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: auditMenuOpen }}
+                  style={({ pressed }) => [
+                    styles.auditModeBtn,
+                    (exporting || rows.length === 0) && styles.exportBtnDisabled,
+                    pressed && !exporting && rows.length > 0 && styles.exportBtnPressed,
+                    webPointer,
+                  ]}
+                >
+                  <Text style={styles.auditModeBtnText} numberOfLines={1}>
+                    {auditExportLabel(auditExportMode)}
+                  </Text>
+                  <Text style={styles.auditModeChevron}>▾</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={() => void handleExportAuditPackage()}
+                disabled={exporting || rows.length === 0}
+                accessibilityLabel="TradeScore Audit Package"
+                style={({ pressed }) => [
+                  styles.exportBtn,
+                  (exporting || rows.length === 0) && styles.exportBtnDisabled,
+                  pressed && !exporting && rows.length > 0 && styles.exportBtnPressed,
+                  webPointer,
+                ]}
+              >
+                <Text style={styles.exportBtnText}>
+                  {exporting ? '⏳ Đang xuất...' : '📄 Audit Package'}
+                </Text>
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={onScan}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.scanBtn,
+                loading && styles.scanBtnDisabled,
+                pressed && !loading && styles.scanBtnPressed,
+                webPointer,
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.background} />
+              ) : (
+                <Text style={styles.scanBtnText}>{vi.signalBoard.rescan}</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <Text style={styles.scannedAt}>
@@ -739,6 +874,50 @@ export function SignalBoard({
               ))}
         </View>
       </View>
+      <Modal
+        visible={auditMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAuditMenuOpen(false)}
+      >
+        <Pressable style={styles.auditMenuBackdrop} onPress={() => setAuditMenuOpen(false)}>
+          <Pressable
+            style={[
+              styles.auditMenu,
+              {
+                top: auditMenuPos.top,
+                left: auditMenuPos.right - auditMenuPos.width,
+                minWidth: auditMenuPos.width,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {AUDIT_EXPORT_OPTIONS.map((opt) => {
+              const active = opt.id === auditExportMode;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => pickAuditExportMode(opt.id)}
+                  style={[styles.auditMenuOption, active && styles.auditMenuOptionActive]}
+                >
+                  <Text
+                    style={[styles.auditMenuOptionText, active && styles.auditMenuOptionTextActive]}
+                    numberOfLines={2}
+                  >
+                    {opt.label}
+                  </Text>
+                  {active ? <Text style={styles.auditMenuCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+      {exportToast ? (
+        <View style={styles.exportToast}>
+          <Text style={styles.exportToastText}>{exportToast}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1164,7 +1343,11 @@ function SignalCard({
           {isAmbiguous && snap.ambiguousMessage ? (
             <Text style={styles.ambiguousMessage}>⚠️ {snap.ambiguousMessage}</Text>
           ) : null}
+            </>
+          )}
 
+          {false && (
+            <>
           {snap.layers.length > 0 ? (
             <>
               <Pressable
@@ -1551,6 +1734,102 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: SPACING.md,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  auditExportWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  auditModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    maxWidth: 160,
+  },
+  auditModeBtnText: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  auditModeChevron: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+  },
+  auditMenuBackdrop: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  auditMenu: {
+    position: 'absolute',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 16,
+  },
+  auditMenuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  auditMenuOptionActive: {
+    backgroundColor: 'rgba(240, 185, 11, 0.08)',
+  },
+  auditMenuOptionText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  auditMenuOptionTextActive: {
+    color: COLORS.accent,
+    fontWeight: '800',
+  },
+  auditMenuCheck: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.accent,
+  },
+  exportBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+  },
+  exportBtnDisabled: {
+    opacity: 0.5,
+  },
+  exportBtnPressed: {
+    opacity: 0.85,
+  },
+  exportBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
   headerText: {
     flex: 1,
   },
@@ -1628,6 +1907,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: COLORS.background,
+  },
+  exportToast: {
+    position: 'absolute',
+    bottom: SPACING.lg,
+    left: SPACING.lg,
+    right: SPACING.lg,
+    backgroundColor: '#111827',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  exportToastText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   scannedAt: {
     fontSize: 10,

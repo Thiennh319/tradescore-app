@@ -1,0 +1,104 @@
+================================================================================
+TRADESCORE — AUDIT PACKAGE (GĐ2 - TASK 01)
+================================================================================
+Ngày: 2026-07-10
+Task:   Loại bỏ Export khỏi V4.1 (chỉ UI)
+File:   components/dashboard/SignalBoardV41.tsx (sửa duy nhất)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+GĐ2 chỉ áp dụng TradeScore V3/V4.
+V4.1 tách khỏi GĐ2 — không còn chức năng Export trên UI.
+
+================================================================================
+2. ĐÃ GỠ KHỎI SignalBoardV41.tsx
+================================================================================
+
+UI:
+  - Nút 📊 Xuất ▼
+  - Nút 📋 Evidence ▼
+  - Menu Export Evidence CSV / TXT
+  - Export toast
+  - Evidence Modal dropdown
+
+Handlers:
+  - handleExport()
+  - openEvidenceMenu()
+  - handleEvidenceExportCsv()
+  - handleEvidenceExportTxt()
+  - showExportToast()
+
+State:
+  - exporting
+  - exportToast
+  - evidenceMenuOpen
+  - evidenceMenuPos
+  - evidenceTriggerRef
+
+Imports đã xóa:
+  - exportV41SignalReport (exportShareV41)
+  - exportRuleAuditEvidenceCSV (exportService)
+  - exportRuleAuditHumanEvidenceTXT (exportService)
+  - SignalRow (signalBoardScan)
+  - Modal (react-native)
+  - FileSystem (expo-file-system)
+  - Sharing (expo-sharing)
+
+Helpers đã xóa:
+  - evidenceExportTimestamp()
+  - downloadTextFileWeb()
+  - saveAndShareNativeFile()
+
+Styles đã xóa:
+  - exportBtn, exportBtnDisabled, exportBtnPressed, exportBtnText
+  - evidenceMenuBackdrop, evidenceMenu, evidenceMenuItem, evidenceMenuItemLast, evidenceMenuItemText
+  - exportToast, exportToastText
+
+================================================================================
+3. TOOLBAR SAU THAY ĐỔI
+================================================================================
+
+Tab V3/V4 (SignalBoard.tsx) — KHÔNG ĐỔI:
+
+  [ 📊 Xuất ▼ ]   [ 📋 Evidence ▼ ]   [ Quét lại ]
+
+Tab V4.1 (SignalBoardV41.tsx):
+
+  [ Quét lại ]
+
+================================================================================
+4. KHÔNG SỬA
+================================================================================
+
+SignalBoard.tsx
+SignalBoardUnified.tsx
+services/exportService.ts
+services/v41/exportServiceV41.ts
+services/v41/exportShareV41.ts
+scorer*
+tradePlan*
+ruleAuditSnapshot*
+builder*
+populate*
+
+================================================================================
+5. VERIFY
+================================================================================
+
+[PASS] Tab V3/V4 — vẫn còn nút Export + Evidence
+[PASS] Tab V4.1 — không còn nút Export
+[PASS] Chỉ sửa SignalBoardV41.tsx
+[PASS] Không sửa Rule / logic / scorer / snapshot / tradePlan
+
+================================================================================
+6. KẾT QUẢ
+================================================================================
+
+Export chỉ tồn tại ở V3/V4.
+V4.1 hoàn toàn tách khỏi GĐ2 Audit Package.
+
+================================================================================
+END OF REPORT
+================================================================================

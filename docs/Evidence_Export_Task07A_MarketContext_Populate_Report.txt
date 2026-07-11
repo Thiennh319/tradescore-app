@@ -1,0 +1,169 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 07A)
+================================================================================
+Ngày: 2026-07-10
+Task:   Populate Market Context — BTC / bối cảnh thị trường
+File:   services/ruleAuditSnapshotPopulate.ts (sửa duy nhất)
+Trạng thái: btcContext MAP LIVE — nhiều field Market Context DỪNG (schema thiếu)
+
+Tiền đề:
+  Task 05A–06B — indicator + volume + derivatives populate
+  Task 07A — Market Context (không phải indicator)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Map bối cảnh thị trường đã có sẵn — không tính, không gọi API, không scorer.
+
+Implement: snapshot.btcContext (4 field)
+DỪNG:     BTC Momentum/Direction, Market Regime label, Session, Risk, Fear, News
+
+Schema nhóm Market Context hiện có: btcContext (không wrapper marketContext.*)
+Market Regime label nằm ở adx.regime — chưa populate Task 07A
+
+================================================================================
+2. RuleAuditPopulateInput (SAU 07A)
+================================================================================
+
+export type RuleAuditBtcContextPopulateSource = RuleAuditBtcContextInput;
+
+export interface RuleAuditPopulateInput {
+  ema, rsi, macd, bollinger, volume, cvd, oi, funding, longShortRatio  (05A–06B)
+  btcContext: RuleAuditBtcContextPopulateSource;
+}
+
+Required: 10 nhóm. Thiếu btcContext → throw Error.
+
+================================================================================
+3. POPULATE
+================================================================================
+
+function populateBtcContext(snapshot, btcContext):
+  snapshot.btcContext.change24hPct    = btcContext.change24hPct
+  snapshot.btcContext.change1hPct     = btcContext.change1hPct
+  snapshot.btcContext.trend           = btcContext.trend
+  snapshot.btcContext.regimeConfidence = btcContext.regimeConfidence
+
+================================================================================
+4. SOURCE MAPPING — btcContext (SCHEMA CÓ)
+================================================================================
+
+Snapshot Field                      Input Field                           Runtime Source (caller)
+──────────────────────────────────  ────────────────────────────────────  ──────────────────────────────
+snapshot.btcContext.change24hPct    input.btcContext.change24hPct         fetchBtcChange24hPct() |
+                                                                      analysisInput.btc24hChangePct
+snapshot.btcContext.change1hPct     input.btcContext.change1hPct          getBTCAnalysisV3(btcKlines1h,
+                                                                      btc24h).change1h
+snapshot.btcContext.trend           input.btcContext.trend                analysis.smc.trend | row.trend
+snapshot.btcContext.regimeConfidence input.btcContext.regimeConfidence    analysis.regime.confidence |
+                                                                      row.regimeConfidence
+
+Tổng: 4 field.
+
+================================================================================
+5. SOURCE MAPPING — DỪNG (SCHEMA THIẾU)
+================================================================================
+
+Yêu cầu task          Snapshot    Input    Runtime (có sẵn ngoài populate)
+────────────────────  ──────────  ───────  ──────────────────────────────────────
+BTC Momentum          ❌          ❌       getBTCAnalysisV3().momentum
+BTC Direction         ❌          ❌       —
+Market Regime (label) ❌*         ❌       adxData.regime | adxGate.regime (*adx.regime chưa populate)
+Session               ❌          ❌       inferSessionType / L9 session scoring
+Risk On/Off           ❌          ❌       getBTCAnalysisV3().riskMode
+Fear & Greed          ❌          ❌       —
+News Summary          ❌          ❌       —
+News Bias             ❌          ❌       —
+
+Đề xuất Task sau: mở rộng RuleAuditBtcContextInput hoặc thêm RuleAuditMarketContextInput
+(momentum, riskMode, sessionType, regimeLabel, …) — cần sửa schema + builder.
+
+================================================================================
+6. KIỂM TRA DUPLICATE
+================================================================================
+
+  ✅ Không gọi getBTCAnalysisV3 / fetchBtcChange24hPct trong populate
+  ✅ Không gọi Market Intelligence / v41
+  ✅ Chỉ assign từ input.btcContext
+
+================================================================================
+7. EVIDENCE COVERAGE
+================================================================================
+
+1. AI biết BTC thế nào? (sau wire)
+   change24hPct, change1hPct, trend string, regimeConfidence (0–100)
+
+2. AI biết Regime gì?
+   CHỈ regimeConfidence — không có regime label (CHOPPY/RANGING/TRENDING)
+   Label ở adx.regime — nhóm ADX chưa populate
+
+3. AI biết Session gì?
+   KHÔNG — schema thiếu sessionType / hourVN
+
+4. AI biết News gì?
+   KHÔNG — runtime không wire Evidence Export
+
+5. AI biết Risk gì?
+   KHÔNG — getBTCAnalysisV3().riskMode có runtime, schema thiếu
+
+Thiếu evidence Market Context:
+  - BTC momentum (ACCELERATING/DECELERATING/NEUTRAL)
+  - BTC direction
+  - Market regime enum
+  - Session GOOD/MEDIUM/BAD
+  - Risk On/Off/Neutral
+  - Fear & Greed, News
+  - Wire scan, export TXT/CSV
+
+================================================================================
+8. WIRE DỰ KIẾN (SCAN — NGOÀI 07A)
+================================================================================
+
+  const btc = getBTCAnalysisV3(analysisInputV4.btcKlines1h ?? [], btcChange24h);
+  populateRuleAuditSnapshot(snapshot, {
+    ...
+    btcContext: {
+      change24hPct: btcChange24h,
+      change1hPct: btc.change1h,
+      trend: analysis.smc.trend,
+      regimeConfidence: analysis.regime.confidence,
+    },
+  });
+
+================================================================================
+9. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — không đổi
+  ruleAuditSnapshotBuilder.ts         — không đổi
+  signalBoardScan.ts                  — chưa wire
+  exportService.ts, scorer*, v41/     — không đụng
+
+================================================================================
+10. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit — không lỗi mới từ ruleAuditSnapshotPopulate.ts
+
+================================================================================
+11. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Nhóm | Trạng thái |
+|------|------|------------|
+| 05A–06B | Indicator + Volume + Derivatives | ✅ |
+| 07A  | btcContext (partial Market Context) | ✅ |
+| 07A  | Session, Risk, News, Fear, Regime label | ❌ schema |
+| 07B+ | ADX, VWAP, ATR, Structure | ⏳ |
+| —    | Wire scan | ⏳ |
+| 08   | Export | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 07A: map btcContext 4 field; momentum/risk/session/news/regime label DỪNG
+— schema thiếu; runtime getBTCAnalysisV3 có momentum/riskMode chưa wire.
+
+================================================================================

@@ -1,0 +1,84 @@
+================================================================================
+TP RR PATH B FIX — COMPLETION REPORT
+================================================================================
+Ngày: 2026-07-11
+Task: PATH B (VWAP recalc) dùng capitalManagement.RR_TARGETS 2/3/4.5 + rrConfigPath
+
+================================================================================
+1. DIFF ÁP DỤNG
+================================================================================
+
+services/tradePlanV3.ts (~764-783)
+  TRƯỚC: fixedRrTargets: CFG.RR_TARGETS[plan.decision] ?? CFG.CO_THE_VAO
+  SAU:   fixedRrTargets: RR_TARGETS  (capitalManagement 2.0/3.0/4.5)
+
+services/exportService.ts
+  + rr_config_path: 'baseplan' | 'vwap_recalc'
+  + resolveRrConfigPath(row, plan) — VWAP IDEAL/GOOD + entryNote chứa 'VWAP'
+  rr_config_source: giữ 'fixed_RR_TARGETS' (đúng sau fix)
+  CSV + AUDIT FIELDS: thêm rrConfigPath
+
+services/exportEntrySltpAuditPackage.ts
+  AUDIT FIELDS: thêm rrConfigPath
+
+services/tradePlanV3.vwap.test.ts
+  + it.each 5 decision bands → TP2=3.0 TP3=4.5 sau recalculate
+  + audit 4 coins simulation qua applyVWAPEntryToPlan
+
+KHÔNG sửa: TRADE_PLAN_V3_CONFIG.RR_TARGETS trong scoring.ts
+KHÔNG sửa: calculateOptimalTPs fallback khi fixedRrTargets=null (vẫn dùng CFG)
+
+Chỗ khác dùng CFG.RR_TARGETS[decision]:
+  - tradePlanV3.ts:464 — calculateOptimalTPs khi KHÔNG truyền fixedRrTargets
+    (dead path production — PATH A/B luôn truyền fixedRrTargets)
+
+================================================================================
+2. TEST
+================================================================================
+
+npx vitest run services/tradePlanV3.test.ts services/tradePlanV4.test.ts
+  services/tradePlanV3.vwap.test.ts
+  → 26 passed (vwap: +6 tests mới, tất cả pass)
+
+npx vitest run services/exportService.test.ts
+  → 3 failed (pre-existing: exportJournalToCSV / generateTextReport missing)
+
+services/signalBoardScan.test.ts — KHÔNG TỒN TẠI trong repo
+
+Test cũ assert TP2=2.5/TP3=3.5 qua VWAP recalc: KHÔNG CÓ — không cần sửa.
+
+npx tsc --noEmit (filter file đổi): 0 lỗi mới
+
+================================================================================
+3. BẢNG 4 COIN — SAU FIX (VWAP RECALC PATH)
+================================================================================
+
+Simulation applyVWAPEntryToPlan + recalculatePlanAfterEntryChange
+(cùng geometry test: entry 100→101, SL 96, VWAP NEAR_VWAP):
+
+Coin | Decision Band | TP1 RR | TP2 RR (trước) | TP2 RR (sau) | TP3 RR (trước) | TP3 RR (sau)
+-----|---------------|--------|----------------|--------------|----------------|-------------
+BTC  | CO_THE_VAO    | 2.00   | 2.50           | 3.00         | 3.50           | 4.50
+NEAR | VAO_TU_TIN    | 2.00   | 3.00           | 3.00         | 4.50           | 4.50
+SOL  | KHONG_VAO     | 2.00   | 2.50           | 3.00         | 3.50           | 4.50
+BNB  | CO_THE_VAO    | 2.00   | 2.50           | 3.00         | 3.50           | 4.50
+
+Lưu ý production:
+  - Cả 4 coin audit có VWAP IDEAL/GOOD → path vwap_recalc
+  - Sau fix: TP2/TP3 target RR = 3.0/4.5 mọi band
+  - applyStructureSLToPlans có thể đổi rrRatio hiển thị (tính lại từ giá TP
+    + SL structure mới) — không phải decision-band RR nữa
+  - Cần re-scan live để xác nhận giá trị export thực tế sau Structure SL
+
+================================================================================
+4. rrConfigSource / rrConfigPath
+================================================================================
+
+rr_config_source:  fixed_RR_TARGETS     (capitalManagement — cả PATH A & B)
+rr_config_path:    baseplan | vwap_recalc
+  baseplan     — không VWAP overlay IDEAL/GOOD
+  vwap_recalc  — VWAP overlay + entryNote chứa 'VWAP'
+
+================================================================================
+END
+================================================================================

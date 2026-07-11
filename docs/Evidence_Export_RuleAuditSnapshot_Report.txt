@@ -1,0 +1,291 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT ARCHITECTURE REPORT (Step 1)
+================================================================================
+Ngày: 2026-07-09
+Task:   Thiết kế kiến trúc RuleAuditSnapshot — bước đầu Evidence Export
+File:   types/ruleAuditSnapshot.ts (MỚI)
+Trạng thái: TYPE-ONLY — chưa wire, chưa populate, chưa export
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+RuleAuditSnapshot là object duy nhất chứa toàn bộ dữ liệu ĐẦU VÀO của
+Rule Engine (V3/V4), phục vụ AI Audit / Evidence Export trong tương lai.
+
+Nguyên tắc bước 1:
+  ✅ Khai báo interface + union types
+  ❌ Chưa sử dụng ở bất kỳ đâu
+  ❌ Chưa populate
+  ❌ Chưa export CSV/TXT
+  ❌ Chưa thêm vào SignalRow
+  ❌ Chưa import vào scorer / signalBoardScan / exportService
+
+================================================================================
+2. PHẠM VI SỬA
+================================================================================
+
+Được phép:
+  types/ruleAuditSnapshot.ts  (file mới)
+
+Không sửa:
+  scorerV3.ts, scorerV4.ts, signalBoardScan.ts, exportService.ts
+  tradePlan*, finalEntryStatus*, marketIntelligence*, reversalFSM*
+  earlyWarning*, v41/
+
+Không tạo:
+  helper, function, logic, refactor file khác
+
+================================================================================
+3. CẤU TRÚC RuleAuditSnapshot
+================================================================================
+
+Top-level — 14 nhóm (key → interface):
+
+| Key              | Interface                    | Layer / module tham chiếu |
+|------------------|------------------------------|---------------------------|
+| ema              | RuleAuditEmaInput            | L1 — EMAAnalysisV3        |
+| rsi              | RuleAuditRsiInput            | L2 — getRSI + divergence  |
+| macd             | RuleAuditMacdInput           | L3 — MACDAnalysisV3       |
+| bollinger        | RuleAuditBollingerInput      | L4 — BollingerAnalysisV3  |
+| volume           | RuleAuditVolumeInput         | L5 — volume ratio         |
+| cvd              | RuleAuditCvdInput            | L5a — CVDAnalysis         |
+| oi               | RuleAuditOiInput             | L5b — OI delta / %        |
+| funding          | RuleAuditFundingInput        | L6 — FundingMetricsPct    |
+| longShortRatio   | RuleAuditLongShortRatioInput | L7 — top/global L/S       |
+| btcContext       | RuleAuditBtcContextInput     | L8 — BTC 24h / trend      |
+| adx              | RuleAuditAdxInput            | ADX gate (ngoài 10 lớp)   |
+| vwap             | RuleAuditVwapInput           | VWAP service + entry      |
+| atr              | RuleAuditAtrInput            | Trade plan / structure    |
+| structure        | RuleAuditStructureInput      | StructureSLResult         |
+
+Interface gốc:
+
+  export interface RuleAuditSnapshot {
+    ema: RuleAuditEmaInput;
+    rsi: RuleAuditRsiInput;
+    macd: RuleAuditMacdInput;
+    bollinger: RuleAuditBollingerInput;
+    volume: RuleAuditVolumeInput;
+    cvd: RuleAuditCvdInput;
+    oi: RuleAuditOiInput;
+    funding: RuleAuditFundingInput;
+    longShortRatio: RuleAuditLongShortRatioInput;
+    btcContext: RuleAuditBtcContextInput;
+    adx: RuleAuditAdxInput;
+    vwap: RuleAuditVwapInput;
+    atr: RuleAuditAtrInput;
+    structure: RuleAuditStructureInput;
+  }
+
+================================================================================
+4. CHI TIẾT TỪNG NHÓM
+================================================================================
+
+── EMA (RuleAuditEmaInput) ──────────────────────────────────────────────────
+
+  h1, h4: RuleAuditEmaTimeframe
+    ema20, ema50, ema200
+    slope20, slope50          → RuleAuditSlope
+    priceVsEma20Pct, priceVsEma50Pct
+    priceAboveEma20, priceAboveEma50
+  alignment: string           → schema tự do (wire sau — enum L1)
+  pullback: boolean           → flag pullback EMA
+
+  Map tương lai: EMAAnalysisV3 (indicators.ts) × 2 TF + L1 derive flags
+
+── RSI (RuleAuditRsiInput) ──────────────────────────────────────────────────
+
+  rsi1h, rsi4h: number
+  divergence1h, divergence4h: RuleAuditDivergence (BULLISH|BEARISH|NONE)
+
+  Map: getRSI + detectRSIDivergenceV3
+
+── MACD (RuleAuditMacdInput) ────────────────────────────────────────────────
+
+  h1, h4: RuleAuditMacdTimeframe
+    macd, signal, histogram
+    isTurningUp, isTurningDown
+    crossedZeroRecentlyUp, crossedZeroRecentlyDown
+
+  Map: MACDAnalysisV3
+
+── Bollinger (RuleAuditBollingerInput) ───────────────────────────────────────
+
+  h1, h4: RuleAuditBollingerTimeframe
+    percentB, bandwidth, bandwidthSlope, marketMode
+    upper, middle, lower (giá band cuối)
+
+  Map: BollingerAnalysisV3 + band prices
+
+── Volume (RuleAuditVolumeInput) ────────────────────────────────────────────
+
+  volumeRatio1h, volumeRatio4h
+  lastVolume, avgVolume1h
+
+  Map: getVolumeRatio
+
+── CVD (RuleAuditCvdInput) ──────────────────────────────────────────────────
+
+  value, trend (UP|DOWN|FLAT), slope (up|down|flat)
+  divergence, divergenceType, supportive
+  cvdMomentum24h, reason
+
+  Map: CVDAnalysis + analyzeCVD + latest CVDPoint
+
+── OI (RuleAuditOiInput) ────────────────────────────────────────────────────
+
+  current, previous, delta
+  change1hPct, change4hPct
+
+  Map: AnalysisInputV4.oiChange* + oiEngine
+
+── Funding (RuleAuditFundingInput) ──────────────────────────────────────────
+
+  ratePct, avg8, avg16, velocity, acceleration, state
+
+  Map: FundingMetricsPct + FundingState label
+
+── LongShortRatio (RuleAuditLongShortRatioInput) ───────────────────────────
+
+  topRatio, globalRatio, topHistory[]
+
+  Map: topLongShortRatios history
+
+── BTC Context (RuleAuditBtcContextInput) ───────────────────────────────────
+
+  change24hPct, change1hPct, trend, regimeConfidence
+
+  Map: btc24hChangePct + analysis.smc.trend
+
+── ADX (RuleAuditAdxInput) ──────────────────────────────────────────────────
+
+  Phân tích: adx1h, adx4h, adxAvg, regime, regimeStrength
+             isChoppy1h, isChoppy4h, bothChoppy
+  Gate:      gateAllowed, gateBlock, gateSeverity
+             gateTpMultiplier, gateSlMultiplier, gateMessage
+
+  Map: ADXAnalysis + ADXGateResult (gộp 1 nhóm — tránh 2 key riêng)
+
+── VWAP (RuleAuditVwapInput) ────────────────────────────────────────────────
+
+  vwap, bands (1/2), priceVsVwap, zone, isNearVwap, isPullingBackToVwap
+  sessionStart, candleCount
+  entryQuality, suggestedEntry, entryReason
+
+  Map: VWAPResult + VWAPEntrySignal
+
+── ATR (RuleAuditAtrInput) ─────────────────────────────────────────────────
+
+  atr1h, atr1hPct
+
+  Map: row.atr1h / computeAtr1hFromKlines
+
+── Structure (RuleAuditStructureInput) ──────────────────────────────────────
+
+  swingPrice, swingTime, slPrice, slSource (STRUCTURE|ATR_FALLBACK)
+  bufferPct, distanceFromEntry, candlesBack, lookbackCandles
+
+  Map: StructureSLResult + resolveStructureSlLookback config
+
+================================================================================
+5. UNION TYPES HỖ TRỢ (14 type aliases)
+================================================================================
+
+RuleAuditSlope, RuleAuditDivergence, RuleAuditMarketMode,
+RuleAuditBandwidthSlope, RuleAuditAdxRegime, RuleAuditAdxRegimeStrength,
+RuleAuditAdxGateSeverity, RuleAuditVwapZone, RuleAuditVwapEntryQuality,
+RuleAuditCvdTrend, RuleAuditCvdSlope, RuleAuditStructureSlSource
+
+Prefix RuleAudit* — tách biệt khỏi types runtime (EMAAnalysisV3, v.v.)
+để types/ không import services/indicators.ts.
+
+================================================================================
+6. THIẾT KẾ — QUYẾT ĐỊNH KIẾN TRÚC
+================================================================================
+
+6.1 Self-contained types layer
+  - File types/ruleAuditSnapshot.ts KHÔNG import từ services/
+  - Populate step sau sẽ map EMAAnalysisV3 → RuleAuditEmaTimeframe
+  - Tránh dependency types → services
+
+6.2 MTF pattern (h1 / h4)
+  - EMA, RSI, MACD, Bollinger dùng nhóm theo timeframe
+  - Khớp scorer V3/V4 (klines1h + klines4h)
+
+6.3 ADX gộp analysis + gate
+  - Một nhóm adx thay vì tách adxData / adxGate
+  - Evidence export cần cả input lẫn kết quả gate
+
+6.4 alignment / funding.state / btcContext.trend = string
+  - Chưa khóa enum — wire step sẽ chốt schema từ scorer labels
+
+6.5 Chưa có metadata top-level
+  - symbol, price, direction, capturedAt — thêm ở bước 2 nếu cần
+  - Bước 1 chỉ 14 nhóm input theo yêu cầu
+
+================================================================================
+7. LIÊN HỆ TASK TRƯỚC (EMA/RSI Export — Task 6c)
+================================================================================
+
+Task 6c (exportService only) → DỪNG vì SignalRow không có field.
+
+RuleAuditSnapshot giải quyết gốc vấn đề:
+  Step 1 (này):     Định nghĩa schema đầy đủ
+  Step 2 (tương lai): buildRuleAuditSnapshot() trong signalBoardScan
+  Step 3 (tương lai): SignalRow.ruleAudit?: RuleAuditSnapshot
+  Step 4 (tương lai): exportService đọc snapshot → CSV/TXT Evidence
+
+Cột export Task 6c map vào snapshot:
+  ema20_1h  → snapshot.ema.h1.ema20
+  ema50_1h  → snapshot.ema.h1.ema50
+  ema20_4h  → snapshot.ema.h4.ema20
+  ema50_4h  → snapshot.ema.h4.ema50
+  ema_alignment → snapshot.ema.alignment
+  ema_pullback  → snapshot.ema.pullback
+  rsi_1h    → snapshot.rsi.rsi1h
+  rsi_4h    → snapshot.rsi.rsi4h
+
+================================================================================
+8. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit
+  - Không có lỗi mới từ types/ruleAuditSnapshot.ts
+  - File chưa được import → zero impact build graph
+
+vitest: không chạy (không cần — không logic)
+
+================================================================================
+9. BƯỚC TIẾP THEO (CHƯA LÀM)
+================================================================================
+
+| Bước | Mô tả                              | File dự kiến              |
+|------|------------------------------------|---------------------------|
+| 2    | buildRuleAuditSnapshot(input)      | signalBoardScan hoặc mới  |
+| 3    | Gắn ruleAudit?: RuleAuditSnapshot  | SignalRow interface       |
+| 4    | Populate khi scan (1 lần compute)  | signalBoardScan.ts        |
+| 5    | Evidence export CSV/TXT sections   | exportService.ts          |
+| 6    | Vitest fixture + assert header     | exportService.test.ts     |
+
+Lưu ý populate: tránh double-compute EMA/RSI — cache từ scorer hoặc
+return sidecar từ scoreAnalysisV4 (cần mở rộng scope scorer).
+
+================================================================================
+10. THỐNG KÊ FILE
+================================================================================
+
+types/ruleAuditSnapshot.ts
+  - 202 dòng
+  - 12 union types
+  - 15 interfaces (14 input + 1 root RuleAuditSnapshot)
+  - 5 interfaces timeframe con (Ema, Macd, Bollinger)
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Evidence Export Step 1: RuleAuditSnapshot — 14 nhóm input Rule Engine,
+type-only tại types/ruleAuditSnapshot.ts; chưa wire pipeline.
+
+================================================================================

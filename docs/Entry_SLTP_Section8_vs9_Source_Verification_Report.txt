@@ -1,0 +1,115 @@
+================================================================================
+ENTRY / SL / TP — SECTION 8 vs SECTION 9 SOURCE VERIFICATION
+================================================================================
+Ngày: 2026-07-11
+Yêu cầu: Xác minh Section 8 (EXPECTED CALCULATION) vs Section 9 (ACTUAL TRADE PLAN)
+          có chung hay độc lập nguồn — trước khi code Option A
+Kết luận: CHUNG 1 NGUỒN — DỪNG, CHỜ QUYẾT ĐỊNH THIẾT KẾ
+
+================================================================================
+1. KẾT LUẬN
+================================================================================
+
+CHUNG 1 NGUỒN (cùng data đã cache trên SignalRow sau scan).
+
+Nếu Section 8 Option A pre-fill từ:
+  resolveTradePlanV3(row, scorerVersion)
+  + row.adxGate
+  + row.structureSL
+  + row.vwapSignal
+  (+ ruleAuditSnapshot fallback)
+
+→ Section 8 và Section 9 đọc CÙNG object / CÙNG field → khớp 100%
+→ Không có giá trị so sánh audit (trừ khác format text).
+
+KHÔNG tìm thấy trong codebase:
+  - resolveExpectedTradePlan / expectedPlan*
+  - Re-run calculateTradePlanV3/V4 tại export time
+  - Code path độc lập thứ 2 cho "expected" entry/SL/TP
+
+Pipeline chỉ chạy 1 lần trong signalBoardScan.ts (~1206–1304):
+  calculateTradePlan → ADX scale → VWAP → Structure SL → RR check
+  → ghi vào row.tradePlansByScorer + row.adxGate + row.structureSL
+  → wireRuleAuditSnapshot (cùng input scan)
+
+================================================================================
+2. BẰNG CHỨNG CODE
+================================================================================
+
+resolveTradePlanV3 — chỉ đọc cache, không tính lại:
+  services/signalRowView.ts:56–63
+    row.tradePlansByScorer?.[version] ?? row.tradePlanV3
+
+Section 8 hiện tại (exportEntrySltpAuditPackage.ts:236–305):
+  resolveSignalRow + resolveTradePlanV3 + row.adxGate + structureSL + vwapSignal
+  + snapshot fallback
+
+Section 9 hiện tại (exportEntrySltpAuditPackage.ts:307–349):
+  resolveSignalRow + resolveTradePlanV3 + row.adxGate + structureSL + vwapSignal
+
+→ Cùng hàm, cùng row, cùng scorerVersion → cùng giá trị plan/gate/structure/vwap.
+
+Section 10 (buildExportRow → exportService.ts:394–551):
+  resolveTradePlanV3(row, scorerVersion) + row.adxGate + structureSL + vwapSignal
+  → Bản sao thứ 3 cùng nguồn (format TXT khác).
+
+ruleAuditSnapshot:
+  Không chứa Entry / TP1-3 / primaryRR từ plan.
+  Chỉ có: adx gate fields, vwap fields, structure slPrice/slSource, atr.
+  Được populate từ CÙNG adxGate/structureSL/vwapSignal lúc scan
+  (signalBoardScan.ts wireRuleAuditSnapshot ~1265–1286).
+
+================================================================================
+3. SO VỚI PATTERN CŨ (tại sao cũ có audit value)
+================================================================================
+
+Package cũ — Section 8 vs Section 9 ĐỘC LẬP nội dung:
+
+  Section 8 "RULE DECISION":
+    resolveSignalRow — scoring (decision, score, Layer L1–L11)
+    resolveFinalEntryStatus
+    KHÔNG dùng resolveTradePlanV3
+
+  Section 9 "TRADE PLAN":
+    resolveTradePlanV3 — 4 field trade (entry quality, SL quality, ATR dist, lookback)
+    snapshot fallback
+
+  → 2 subsystem khác nhau (scoring vs trade plan)
+  → Có thể lệch nếu bug wiring scoring ↔ plan
+
+Entry/SL/TP Option A (pre-fill plan từ pipeline):
+  → KHÔNG có subsystem thứ 2 tương đương resolveSignalRow cho entry/SL/TP
+  → Chỉ có 1 bản final plan trên row
+
+================================================================================
+4. HÀM Ý NGHĨA
+================================================================================
+
+Option A như mô tả "pre-filled từ pipeline thật" = đọc output đã cache
+  → Section 8 ≡ Section 9 về giá trị
+  → Vô nghĩa để AI so Expected vs Actual trong cùng package
+
+Để có audit value (pattern cũ), cần 1 trong:
+
+  B1) Section 8 = worksheet trống — AI tự tính từ Rule Book + Section 7
+  B2) Section 8 = nguồn khác subsystem:
+        ví dụ ruleAuditSnapshot-only (inputs/evidence, không plan prices)
+        + resolveSignalRow (decision band) — analog RULE block
+        Section 9 = resolveTradePlanV3 (final output)
+        Có thể so inputs+rules → expected vs actual plan
+  B3) Re-run calculateTradePlan* tại export (chưa có, cần implement mới)
+  B4) Chấp nhận Section 8 = Section 9 duplicate, audit chỉ dùng Sec 7 vs 9/10
+
+================================================================================
+5. TRẠNG THÁI TASK
+================================================================================
+
+DỪNG Bước 3–6 theo chỉ thị user.
+Chờ quyết định: B1 / B2 / B3 / B4 (hoặc phương án khác).
+
+Section 1–5: không sửa.
+exportTradeScoreAuditPackage(): không động.
+
+================================================================================
+END
+================================================================================

@@ -1,0 +1,169 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 08)
+================================================================================
+Ngày: 2026-07-10
+Task:   Wire RuleAuditSnapshot vào pipeline scan
+File:   services/signalBoardScan.ts (sửa duy nhất)
+Trạng thái: WIRE LIVE — 1 snapshot / row, chưa export
+
+Tiền đề:
+  Task 01–07C — schema, builder, populate 14 nhóm
+  Task 08 — gọi builder + populate sau TradePlan, gắn SignalRow
+
+================================================================================
+1. PIPELINE TRƯỚC → SAU
+================================================================================
+
+TRƯỚC (Task 07C):
+
+  Scan Row
+      ↓
+  Indicator (trong scorer / analysisInput)
+      ↓
+  Scorer V3 + V4
+      ↓
+  TradePlan V3 + V4
+      ↓
+  ADX Gate + Structure SL + VWAP plan
+      ↓
+  SignalRow (ruleAuditSnapshot = undefined)
+
+SAU (Task 08):
+
+  Scan Row
+      ↓
+  Indicator (analysisInputV4 + klines đã fetch)
+      ↓
+  Scorer V3 + V4
+      ↓
+  TradePlan V3 + V4
+      ↓
+  ADX Gate + Structure SL + VWAP plan
+      ↓
+  RuleAuditSnapshotBuilder   ← buildRuleAuditSnapshot() ×1
+      ↓
+  RuleAuditSnapshotPopulate  ← populateRuleAuditSnapshot() ×1
+      ↓
+  snapshot
+      ↓
+  attach → SignalRow.ruleAuditSnapshot
+      ↓
+  applySnapshotToRow (giữ nguyên snapshot trên row)
+
+================================================================================
+2. ĐOẠN CODE WIRE
+================================================================================
+
+Import (đầu file):
+
+  buildRuleAuditSnapshot          ← ruleAuditSnapshotBuilder.ts
+  populateRuleAuditSnapshot       ← ruleAuditSnapshotPopulate.ts
+  RuleAuditPopulateInput
+  getEMAAnalysisV3, getRSI, getMACDAnalysisV3, getBollingerAnalysisV3,
+  getVolumeRatio, detectRSIDivergenceV3, detectCVDDivergence,
+  getBTCAnalysisV3, analyzeCVD
+  resolveStructureSlLookback, getFundingStateLabel
+
+Helper (file-local):
+
+  buildRuleAuditPopulateInput(ctx)  — map 14 nhóm từ biến scan đã có
+  wireRuleAuditSnapshot(ctx)      — build + populate đúng 1 lần
+
+Gọi trong scanSignalSymbol() (sau ADX block, trước baseRow):
+
+  const l1Layer = v4Final.layers.find((layer) => layer.layer === 1);
+  const ruleAuditSnapshot = wireRuleAuditSnapshot({
+    analysisInputV4, directionV4, klines1h, klines4h, cvdPoints,
+    cvdValue, cvdTrend, topLSRatio, trend, regimeConfidence, btcChange24h,
+    atr1h, price, l6Detail, adxData, adxGate, vwapData, vwapSignal,
+    structureSL, l1Reason: l1Layer?.reason ?? '',
+  });
+
+Populate input — 14 nhóm:
+
+  ema         ← getEMAAnalysisV3(h1/h4) + L1 reason (alignment/pullback)
+  rsi         ← getRSI + detectRSIDivergenceV3
+  macd        ← getMACDAnalysisV3(h1/h4)
+  bollinger   ← getBollingerAnalysisV3(h1/h4)
+  volume      ← getVolumeRatio + avgVolumeBeforeLast
+  cvd         ← analyzeCVD + detectCVDDivergence + cvdTrendFromPoints
+  oi          ← analysisInputV4 oiCurrent/previous/change*
+  funding     ← scoringV4WithBonus.l6Detail + fundingMetrics
+  longShortRatio ← topLongShortRatios + globalLongShortRatios
+  btcContext  ← getBTCAnalysisV3 + trend + regimeConfidence
+  adx         ← adxData + adxGate
+  atr         ← scoringV4WithBonus.atr1h + price
+  vwap        ← vwapData + vwapSignal
+  structure   ← structureSL + resolveStructureSlLookback(adxAvg)
+
+================================================================================
+3. VỊ TRÍ ATTACH SNAPSHOT
+================================================================================
+
+File:   services/signalBoardScan.ts
+Hàm:    scanSignalSymbol()
+Dòng:   sau ADX block (~1277), trong object baseRow (~1318)
+
+  const baseRow: SignalRow = {
+    ...
+    vwapBonus,
+    ruleAuditSnapshot,   // ← attach trực tiếp, không clone/stringify
+  };
+
+  return applySnapshotToRow(baseRow, v4Final);
+  // applySnapshotToRow spread ...row → ruleAuditSnapshot được giữ nguyên
+
+Truy cập runtime:
+
+  row.ruleAuditSnapshot?.ema.h1.ema20
+  row.ruleAuditSnapshot?.adx.regime
+  (resolveSignalRow trả scorer snapshot — ruleAuditSnapshot nằm trên SignalRow gốc)
+
+================================================================================
+4. XÁC NHẬN LIFECYCLE (1 ROW = 1 SNAPSHOT)
+================================================================================
+
+  ✅ buildRuleAuditSnapshot()     — gọi 1 lần / row (trong wireRuleAuditSnapshot)
+  ✅ populateRuleAuditSnapshot()  — gọi 1 lần / row (cùng hàm)
+  ✅ ruleAuditSnapshot attach     — 1 lần trên baseRow
+  ✅ Không build lại, không populate lần 2
+  ✅ Không stringify, không deep copy — cùng object reference
+
+================================================================================
+5. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — không đổi
+  ruleAuditSnapshotBuilder.ts         — không đổi
+  ruleAuditSnapshotPopulate.ts        — không đổi
+  exportService.ts                    — không đổi
+  scorerV3.ts, scorerV4.ts            — không đổi
+  tradePlanV3.ts, tradePlanV4.ts      — không đổi
+  v41/                                — không đổi
+
+================================================================================
+6. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit
+  - Không lỗi mới từ signalBoardScan.ts / ruleAuditSnapshot*
+  - Lỗi pre-existing: App.tsx, SignalBoard, v41 tests, …
+
+================================================================================
+7. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Task | Trạng thái |
+|------|------|------------|
+| 01–07C | Schema, builder, populate 14 nhóm | ✅ |
+| 08   | Wire scan → SignalRow.ruleAuditSnapshot | ✅ |
+| 09+  | exportService Evidence CSV/TXT       | ⏳ |
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 08: scanSignalSymbol gọi wireRuleAuditSnapshot() một lần sau TradePlan,
+gắn ruleAuditSnapshot lên SignalRow — chưa export.
+
+================================================================================

@@ -213,6 +213,7 @@ const FUNDING_STATE_ORDER: FundingState[] = [
   FundingState.SHORT_EUPHORIA_FADING,
   FundingState.NEUTRAL,
   FundingState.LONG_EUPHORIA_FADING,
+  FundingState.LONG_FUNDING_ELEVATED,
   FundingState.EXTREME_LONG_EUPHORIA,
 ];
 

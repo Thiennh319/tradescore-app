@@ -57,6 +57,7 @@ function mockDirectional(
     referenceTotalScore: total,
     officialTotalScore: total,
     hardBlocks: [],
+    blockReasons: [],
     groupBlocks: [],
     warnings: [],
     decision,

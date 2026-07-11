@@ -146,6 +146,10 @@ describe('runMarketIntelligenceLayer', () => {
 
     expect(snap.btcAlignmentFactor).toBe(1.0);
     expect(snap.marketConfidence).toBe(60);
+    expect(snap.detail?.trend.emaAlignmentScore).toBe(40);
+    expect(snap.detail?.trend.adxScore).toBe(25);
+    expect(snap.detail?.trend.slopeScore).toBe(15);
+    expect(snap.detail?.confidence.exhaustionMultiplier).toBeCloseTo(0.75);
   });
 
   it('btcAlignmentFactor matrix via orchestrator', () => {

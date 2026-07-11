@@ -53,6 +53,7 @@ const FUNDING_FILTER_TABS: Array<{ id: FundingStateWinrateFilter; label: string 
   { id: FundingState.SHORT_EUPHORIA_FADING, label: 'Short hạ nhiệt' },
   { id: FundingState.NEUTRAL, label: 'Cân bằng' },
   { id: FundingState.LONG_EUPHORIA_FADING, label: 'Long hạ nhiệt' },
+  { id: FundingState.LONG_FUNDING_ELEVATED, label: 'Funding dương vừa' },
   { id: FundingState.EXTREME_LONG_EUPHORIA, label: 'Long hưng phấn' },
 ];
 

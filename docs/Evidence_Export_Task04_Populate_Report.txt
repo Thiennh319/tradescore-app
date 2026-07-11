@@ -1,0 +1,161 @@
+================================================================================
+TRADESCORE — EVIDENCE EXPORT REPORT (Task 04)
+================================================================================
+Ngày: 2026-07-09
+Task:   Tạo populateRuleAuditSnapshot() — lớp ghi dữ liệu vào snapshot
+File:   services/ruleAuditSnapshotPopulate.ts (MỚI)
+Trạng thái: STUB ONLY — body trống, chưa đọc indicator, chưa wire
+
+Tiền đề:
+  Task 01 — types/ruleAuditSnapshot.ts (schema)
+  Task 02 — SignalRow.ruleAuditSnapshot?: RuleAuditSnapshot
+  Task 03 — services/ruleAuditSnapshotBuilder.ts (skeleton)
+
+================================================================================
+1. MỤC TIÊU
+================================================================================
+
+Tách Builder khỏi Populate:
+
+  buildRuleAuditSnapshot()     → tạo skeleton typed (Task 03)
+  populateRuleAuditSnapshot()  → ghi dữ liệu thật vào snapshot (Task 04+)
+
+Task 04 chỉ dựng khung populate — chưa ghi field indicator.
+
+Nguyên tắc Task 04:
+  ✅ File populate riêng
+  ✅ Chữ ký (snapshot, input) → void
+  ✅ RuleAuditPopulateInput — interface stub mở rộng sau
+  ❌ Body trống — không đọc EMA/RSI/MACD/Funding/OI/BTC
+  ❌ Không sửa builder, schema, signalBoardScan
+  ❌ Không gọi từ pipeline
+  ❌ Không export CSV/TXT
+
+================================================================================
+2. FILE MỚI
+================================================================================
+
+services/ruleAuditSnapshotPopulate.ts
+  - 13 dòng
+  - Export:
+      RuleAuditPopulateInput   (interface rỗng)
+      populateRuleAuditSnapshot()
+  - Import: chỉ type RuleAuditSnapshot từ types/
+
+================================================================================
+3. CHỮ KÝ
+================================================================================
+
+export interface RuleAuditPopulateInput {}
+
+export function populateRuleAuditSnapshot(
+  snapshot: RuleAuditSnapshot,
+  input: RuleAuditPopulateInput,
+): void
+
+Tham số:
+  snapshot — object mutable từ buildRuleAuditSnapshot()
+  input    — placeholder Task 05+ (analysisInput, direction, adxGate, …)
+
+Return: void (mutate snapshot in-place — populate Task 05+)
+
+Body hiện tại:
+  void snapshot;
+  void input;
+
+================================================================================
+4. KIẾN TRÚC BUILDER / POPULATE
+================================================================================
+
+Luồng dự kiến (Task 05+):
+
+  const snapshot = buildRuleAuditSnapshot();
+  populateRuleAuditSnapshot(snapshot, {
+    // analysisInputV4, direction, structureSL, vwap, adxGate, …
+  });
+  row.ruleAuditSnapshot = snapshot;
+
+Trách nhiệm tách bạch:
+
+| Lớp      | File                              | Vai trò                    |
+|----------|-----------------------------------|----------------------------|
+| Schema   | types/ruleAuditSnapshot.ts        | Định nghĩa 14 nhóm field   |
+| Builder  | ruleAuditSnapshotBuilder.ts       | Skeleton mặc định          |
+| Populate | ruleAuditSnapshotPopulate.ts      | Map input → snapshot       |
+| Wire     | signalBoardScan.ts (Task 05)      | Gán row.ruleAuditSnapshot  |
+| Export   | exportService.ts (Task 06)        | CSV/TXT Evidence           |
+
+================================================================================
+5. RuleAuditPopulateInput — MỞ RỘNG DỰ KIẾN (Task 05+)
+================================================================================
+
+Chưa khai báo field — interface rỗng {}.
+
+Gợi ý field tương lai (KHÔNG implement trong Task 04):
+
+  symbol, currentPrice, direction
+  klines1h, klines4h
+  analysisInputV4 / adxData, vwapData, vwapSignal
+  structureSL, adxGate
+  cvdPoints, fundingMetrics, oiChange1h/4h
+  btcChange24hPct, trend, regimeConfidence
+  topLongShortRatios
+
+Mục tiêu Task 05: mở rộng RuleAuditPopulateInput + implement từng nhóm
+trong populateRuleAuditSnapshot mà không đổi chữ ký public.
+
+================================================================================
+6. PHẠM VI KHÔNG SỬA (XÁC NHẬN)
+================================================================================
+
+  types/ruleAuditSnapshot.ts          — schema giữ nguyên
+  services/ruleAuditSnapshotBuilder.ts — builder giữ nguyên
+  services/signalBoardScan.ts       — chưa gọi populate
+  exportService.ts                  — không đụng
+  scorerV3.ts, scorerV4.ts          — không đụng
+  tradePlan*, finalEntryStatus*     — không đụng
+  marketIntelligence*, reversalFSM*, earlyWarning* — không đụng
+  v41/                              — không đụng
+
+================================================================================
+7. KIỂM TRA
+================================================================================
+
+npx tsc --noEmit
+  - Không có lỗi mới từ ruleAuditSnapshotPopulate.ts
+  - File chưa được import → zero runtime impact
+
+vitest: không chạy (stub only)
+
+================================================================================
+8. TIẾN ĐỘ EVIDENCE EXPORT
+================================================================================
+
+| Bước | Task | Trạng thái |
+|------|------|------------|
+| 01   | RuleAuditSnapshot schema        | ✅ DONE |
+| 02   | Wire optional vào SignalRow     | ✅ DONE |
+| 03   | buildRuleAuditSnapshot()        | ✅ DONE |
+| 04   | populateRuleAuditSnapshot() stub | ✅ DONE |
+| 05   | Implement populate + wire scan  | ⏳ CHƯA |
+| 06   | exportService Evidence export   | ⏳ CHƯA |
+
+================================================================================
+9. LIÊN HỆ TASK 6c (EMA/RSI CSV)
+================================================================================
+
+Sau Task 05 populate EMA/RSI:
+
+  populate: snap.ema.h1.ema20 ← getEMAAnalysisV3(klines1h).ema20
+  export:   row.ruleAuditSnapshot.ema.h1.ema20 → CSV ema20_1h
+
+Một nguồn dữ liệu — không parse layer note, không tính lại tại export.
+
+================================================================================
+TÓM TẮT 1 DÒNG
+================================================================================
+
+Task 04: ruleAuditSnapshotPopulate.ts — populateRuleAuditSnapshot(snapshot,
+input) stub; tách populate khỏi builder; chưa ghi dữ liệu thật.
+
+================================================================================

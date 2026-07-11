@@ -1,0 +1,136 @@
+================================================================================
+TRADESCORE — L6 FUNDING STATE REFERENCE REPORT
+================================================================================
+
+Ngày        : 2026-07-11
+Loại        : Tổng hợp dữ liệu (read-only)
+Nguồn       : constants/scoring.ts, services/scorerV4.ts, test suite
+
+================================================================================
+1. classifyFundingState() — FundingState VÀ NGƯỠNG
+================================================================================
+
+File: constants/scoring.ts — classifyFundingState() dòng 834–865
+Đơn vị: % (0.01 = 0.01%)
+Thứ tự kiểm tra: trên → dưới (return ngay khi khớp)
+
+| # | FundingState              | fundingCurrent        | fundingVelocity       | Ghi chú                          |
+|---|---------------------------|-----------------------|-----------------------|----------------------------------|
+| 1 | EXTREME_LONG_EUPHORIA     | > 0.01                | > 0                   | strict > cả hai                  |
+| 2 | LONG_EUPHORIA_FADING      | > 0.005               | < 0                   | strict > current, strict < vel   |
+| 3 | NEUTRAL (nhánh rõ)        | |current| ≤ 0.005     | |velocity| ≤ 0.002    | cả hai phải thỏa                 |
+| 4 | SHORT_EUPHORIA_FADING     | < -0.005              | > 0                   |                                  |
+| 5 | SHORT_SQUEEZE_BUILDING    | < -0.005              | < 0                   |                                  |
+| 6 | NEUTRAL (fallback)        | mọi TH còn lại        | mọi TH còn lại        | return dòng 864                  |
+
+Hằng số FUNDING_STATE_THRESHOLDS (dòng 786–792):
+
+| Key                         | Giá trị  |
+|-----------------------------|----------|
+| EXTREME_LONG_CURRENT_PCT    | 0.01     |
+| LONG_FADING_CURRENT_PCT     | 0.005    |
+| NEUTRAL_CURRENT_ABS_PCT     | 0.005    |
+| NEUTRAL_VELOCITY_ABS_PCT    | 0.002    |
+| SHORT_FADING_CURRENT_PCT    | -0.005   |
+
+fundingAcceleration: có tham số, không dùng trong phân loại.
+
+Dải (0.005, 0.01] ví dụ current=0.0095%, velocity≈0:
+  không khớp #1–#5 → fallback NEUTRAL (#6).
+
+================================================================================
+2. RAW SCORE — LONG_L6_BY_STATE vs SHORT_L6_BY_STATE
+================================================================================
+
+File: services/scorerV4.ts dòng 631–645
+L6_RAW_MAX = 2
+Display: (raw / maxScore) × LAYER_MAX_POINTS  (LAYER_MAX_POINTS = 1.5)
+
+| FundingState              | LONG raw | SHORT raw | Đối xứng?   |
+|---------------------------|----------|-----------|-------------|
+| SHORT_SQUEEZE_BUILDING    | 2        | 0         | Phân biệt   |
+| SHORT_EUPHORIA_FADING     | 1.5      | 0.5       | Phân biệt   |
+| NEUTRAL                   | 1        | 1         | Đối xứng    |
+| LONG_EUPHORIA_FADING      | 0.5      | 1.5       | Phân biệt   |
+| EXTREME_LONG_EUPHORIA     | 0        | 2         | Phân biệt   |
+
+Display NEUTRAL (raw=1, max=2): (1/2)×1.5 = 0.75đ — cả LONG và SHORT.
+
+================================================================================
+3. scoreL6V4Legacy() — LOGIC CŨ (max raw = 1)
+================================================================================
+
+File: services/scorerV4.ts dòng 704–754
+Input: currentRate (%), trend (RISING/FALLING/STABLE từ delta history)
+Chỉ chạy khi fundingMetrics == null (V4_LEGACY path).
+
+trend: RISING nếu delta > 0.002; FALLING nếu delta < -0.002; else STABLE
+
+--- LONG ---
+
+| Điều kiện                                      | Raw   | Reason suffix                    |
+|------------------------------------------------|-------|----------------------------------|
+| currentRate < 0 && trend === 'FALLING'         | 1     | âm & giảm — lý tưởng Long        |
+| currentRate < 0                                | 0.75  | âm — tốt cho Long                |
+| currentRate ≤ 0.005 && trend === 'FALLING'     | 0.75  | thấp & giảm — tốt                |
+| currentRate ≤ 0.005                            | 0.5   | chấp nhận được                   |
+| currentRate ≤ 0.01 && trend !== 'RISING'       | 0.25  | hơi cao — cẩn thận               |
+| else                                           | 0     | cao — không thuận Long           |
+
+--- SHORT ---
+
+| Điều kiện                                      | Raw   | Reason suffix                    |
+|------------------------------------------------|-------|----------------------------------|
+| currentRate > 0 && trend === 'RISING'          | 1     | dương & tăng — lý tưởng Short    |
+| currentRate > 0                                | 0.75  | dương — tốt cho Short             |
+| currentRate ≥ -0.005 && trend === 'RISING'     | 0.75  | gần 0 & tăng — tốt               |
+| currentRate ≥ -0.005                           | 0.5   | chấp nhận được                   |
+| currentRate ≥ -0.01 && trend !== 'FALLING'     | 0.25  | hơi thấp — cẩn thận              |
+| else                                           | 0     | thấp — không thuận Short         |
+
+--- Dải 0.005%–0.01% funding dương: Legacy vs V4_STATE ---
+
+| Hướng | Legacy (funding dương)                         | V4_STATE (fallback NEUTRAL) |
+|-------|--------------------------------------------------|-----------------------------|
+| LONG  | 0.25 (≤0.01, trend≠RISING) hoặc 0 (>0.01)      | raw 1                       |
+| SHORT | 0.75 (>0) hoặc 1 (>0 + RISING)                 | raw 1                       |
+| Phân biệt hướng | Có                                       | Không (khi NEUTRAL)         |
+| max raw       | 1                                            | 2                           |
+
+V4_STATE path: scoreL6V4() dòng 790–802 khi fundingMetrics != null.
+
+================================================================================
+4. TEST SUITE — Dải 0.005%–0.01% VÀ NEUTRAL FALLBACK
+================================================================================
+
+--- (0.005, 0.01] — phụ thuộc NEUTRAL fallback (#6) ---
+
+| File                        | Dòng    | Input                          | Kỳ vọng        |
+|-----------------------------|---------|--------------------------------|----------------|
+| constants/scoring.test.ts   | 208–209 | current=0.01, velocity=0.001   | NEUTRAL fallback |
+
+Tổng: 1 test case gắn trực tiếp NEUTRAL fallback trong dải (0.005, 0.01].
+
+--- (0.005, 0.01] — KHÔNG dùng fallback ---
+
+| File                        | Dòng    | Input                          | Kỳ vọng                |
+|-----------------------------|---------|--------------------------------|------------------------|
+| constants/scoring.test.ts   | 182–185 | current=0.008, velocity=-0.001 | LONG_EUPHORIA_FADING     |
+
+--- NEUTRAL nhánh rõ (|current| ≤ 0.005) — ngoài dải fallback ---
+
+| File                        | Dòng    | Input                |
+|-----------------------------|---------|----------------------|
+| constants/scoring.test.ts   | 188–189 | 0.003, 0.001         |
+| constants/scoring.test.ts   | 204–205 | 0.005, 0             |
+| constants/scoring.test.ts   | 212–213 | 0.004, 0.002         |
+| services/scorerV4.test.ts   | 312–324 | fundingCurrent=0.003 |
+
+--- Không có test ---
+
+  - current ∈ (0.005, 0.01) với velocity ≥ 0 (vd 0.0095, 0) trong scorerV4.test.ts
+  - BTCUSDT / NEARUSDT cụ thể trong test suite
+
+================================================================================
+END OF REPORT
+================================================================================

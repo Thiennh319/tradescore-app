@@ -20,6 +20,37 @@ export type TrendDirection = 'BULL' | 'BEAR' | 'NEUTRAL';
 /** Hướng lệnh mở (Bước 2 — position_state). */
 export type OpenDirection = 'LONG' | 'SHORT';
 
+/** Sub-scores từ Engine 1–4 — chỉ để debug/export, không đổi công thức. */
+export interface MarketIntelligenceDetail {
+  trend: {
+    emaAlignmentScore: number;
+    adxScore: number;
+    slopeScore: number;
+    trendStrength: number;
+    trendDirection: TrendDirection;
+  };
+  exhaustion: {
+    rsiExtremeScore: number;
+    distanceEMA20Score: number;
+    volumeDivergencePts: 0 | 20;
+    candleStreakScore: number;
+    trendExhaustion: number;
+  };
+  confidence: {
+    trendStrengthBase: number;
+    exhaustionMultiplier: number;
+    btcAlignmentFactor: number;
+    altDirection: TrendDirection;
+    btcDirection: TrendDirection;
+    marketConfidence: number;
+  };
+  reversal: {
+    reversalProbability: number;
+    rsiDivergenceScore: number;
+    cvdDivergenceScore: number;
+  };
+}
+
 /**
  * Gói output Bước 1 — Market Intelligence Layer.
  * Theo V4.1_ARCHITECTURE.md § Bước 1 (Engine 1–4 + Market State).
@@ -49,6 +80,8 @@ export interface MarketIntelligenceSnapshot {
   marketState: MarketState;
   /** Unix ms — thời điểm scan (scan_timestamp). Theo V4.1_ARCHITECTURE.md Bước 1. */
   scanTimestamp: number;
+  /** Breakdown Engine 1–4 — optional, cho export debug. */
+  detail?: MarketIntelligenceDetail;
 }
 
 /**

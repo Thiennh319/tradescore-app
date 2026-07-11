@@ -50,6 +50,35 @@ function createNeutralSnapshot(scanTimestamp = Date.now()): MarketIntelligenceSn
     btcDirection: 'NEUTRAL',
     marketState: 'Transition',
     scanTimestamp,
+    detail: {
+      trend: {
+        emaAlignmentScore: 0,
+        adxScore: 0,
+        slopeScore: 0,
+        trendStrength: 0,
+        trendDirection: 'NEUTRAL',
+      },
+      exhaustion: {
+        rsiExtremeScore: 0,
+        distanceEMA20Score: 0,
+        volumeDivergencePts: 0,
+        candleStreakScore: 0,
+        trendExhaustion: 0,
+      },
+      confidence: {
+        trendStrengthBase: 0,
+        exhaustionMultiplier: 1,
+        btcAlignmentFactor: 0.75,
+        altDirection: 'NEUTRAL',
+        btcDirection: 'NEUTRAL',
+        marketConfidence: 0,
+      },
+      reversal: {
+        reversalProbability: 0,
+        rsiDivergenceScore: 0,
+        cvdDivergenceScore: 0,
+      },
+    },
   };
 }
 
@@ -88,6 +117,8 @@ function runMarketIntelligenceLayerInternal(
     volumeDivergencePts,
   });
 
+  const exhaustionMultiplier = 1 - trendExhaustion / 100;
+
   return {
     trendStrength,
     trendDirection,
@@ -101,6 +132,35 @@ function runMarketIntelligenceLayerInternal(
     btcDirection,
     marketState,
     scanTimestamp,
+    detail: {
+      trend: {
+        emaAlignmentScore: engine1.emaAlignmentScore,
+        adxScore: engine1.adxScore,
+        slopeScore: engine1.slopeScore,
+        trendStrength,
+        trendDirection,
+      },
+      exhaustion: {
+        rsiExtremeScore: engine2.rsiExtremeScore,
+        distanceEMA20Score: engine2.distanceEMA20Score,
+        volumeDivergencePts: engine2.volumeDivergencePts,
+        candleStreakScore: engine2.candleStreakScore,
+        trendExhaustion,
+      },
+      confidence: {
+        trendStrengthBase: trendStrength,
+        exhaustionMultiplier,
+        btcAlignmentFactor,
+        altDirection: trendDirection,
+        btcDirection,
+        marketConfidence,
+      },
+      reversal: {
+        reversalProbability: engine3.reversalProbability,
+        rsiDivergenceScore: engine3.rsiDivergenceScore,
+        cvdDivergenceScore: engine3.cvdDivergenceScore,
+      },
+    },
   };
 }
 
