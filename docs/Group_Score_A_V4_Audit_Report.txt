@@ -1,0 +1,164 @@
+================================================================================
+TRADESCORE V1.0.5 — GROUP SCORE A (V4) AUDIT REPORT
+================================================================================
+Task:        Read-only audit — Group A scoring formula (scorerV4)
+Date:        2026-07-12
+Type:        Code analysis only — no file changes
+Trigger:     Audit Package 2026-07-12 — SOL SHORT Group A = 5.0/5
+================================================================================
+
+TÓM TẮT
+-------
+Group A dùng RAW layer scores (0–2 mỗi layer), KHÔNG dùng display scores (×0.75).
+SOL SHORT với L1–L4 display = 1.5 mỗi layer → raw = 2.0 mỗi layer → rawA = 8
+→ Group A = (8/8)×5 = 5.0/5. Khớp audit.
+
+Nhầm lẫn phổ biến: cộng display 1.5×4 = 6, chia rawMax=6 → 5.0 (tình cờ đúng
+nhưng sai công thức). rawMax=6 là Group C, không phải Group A.
+
+================================================================================
+PHẦN 1 — BỐI CẢNH AUDIT
+================================================================================
+
+Audit Package 2026-07-12 — SOL SHORT:
+
+  L1 display = 1.5
+  L2 display = 1.5
+  L3 display = 1.5
+  L4 display = 1.5
+  Group A actual = 5.0/5
+
+Tính tay sai (dùng display, rawMax=8):
+  (1.5+1.5+1.5+1.5) / 8 × 5 = 3.75/5  — KHÔNG khớp
+
+Tính tay tình cờ (dùng display, rawMax=6):
+  (1.5+1.5+1.5+1.5) / 6 × 5 = 5.0/5  — khớp nhưng SAI công thức
+
+Tính đúng (dùng raw, rawMax=8):
+  raw mỗi layer = 2.0 → rawA = 8 → (8/8)×5 = 5.0/5  — KHỚP
+
+================================================================================
+PHẦN 2 — SCORING_GROUPS_V4.GROUP_A_TREND
+================================================================================
+
+File: constants/scoring.ts
+
+  GROUP_A_TREND: {
+    layers: [1, 2, 3, 4]     // L1 EMA, L2 RSI, L3 MACD, L4 Bollinger
+    rawMax: 8                 // 4 layers × max 2đ raw mỗi layer
+    groupMax: 5                // thang hiển thị nhóm
+    minRequired: 2.5           // ngưỡng group block (sau quy đổi)
+    description: 'Xu hướng kỹ thuật'
+  }
+
+L4 THUỘC Group A — layers [1,2,3,4], khớp Rule Book L1–L4.
+
+So sánh Group C (không nhầm):
+  GROUP_C_CONTEXT: layers [8,9,10], rawMax: 6  ← đây là nguồn rawMax=6
+
+================================================================================
+PHẦN 3 — HÀM TÍNH GROUP A
+================================================================================
+
+File: services/scorerV4.ts — buildDirectional() trong scoreAnalysisV4()
+
+3.1 Collect raw scores
+----------------------
+  const l1 = scoreL1V4(...)
+  const l2 = scoreL2V4(...)
+  const l3 = scoreL3V4(...)
+  const l4 = scoreL4V4(...)
+  const rawA = l1.score + l2.score + l3.score + l4.score
+
+Dùng layer.score RAW (0–2), KHÔNG qua scoringLayersToDisplayV4.
+
+3.2 Scale về 5đ
+---------------
+File: constants/scoring.ts — convertToGroupScoreV4()
+
+  Group A = min(groupMax, (rawScore / rawMax) × groupMax)
+          = min(5, (rawA / 8) × 5)
+
+3.3 Group block
+---------------
+  if (groupA < SCORING_GROUPS_V4.GROUP_A_TREND.minRequired)  // < 2.5
+    → groupBlocks.push("Nhóm A (Xu hướng) ... < 2.5đ")
+
+================================================================================
+PHẦN 4 — DISPLAY vs RAW (×0.75)
+================================================================================
+
+LAYER_MAX_POINTS = 1.5
+Mỗi layer V4 group A: maxScore = 2 (raw)
+
+scoringLayersToDisplayV4():
+  display = (raw / maxScore) × LAYER_MAX_POINTS
+          = (raw / 2) × 1.5
+          = raw × 0.75
+
+Ví dụ:
+  raw = 2.0  →  display = 1.5  (max display per layer)
+  raw = 1.5  →  display = 1.125
+  raw = 1.0  →  display = 0.75
+
+Group score KHÔNG dùng display — chỉ dùng raw khi gọi convertToGroupScoreV4.
+
+================================================================================
+PHẦN 5 — TRACE SOL SHORT (Group A = 5.0/5)
+================================================================================
+
+Audit display mỗi layer = 1.5 (max display):
+
+  Layer | Display | Raw (= display ÷ 0.75)
+  ------|---------|------------------------
+  L1    | 1.5     | 2.0
+  L2    | 1.5     | 2.0
+  L3    | 1.5     | 2.0
+  L4    | 1.5     | 2.0
+
+  rawA = 2 + 2 + 2 + 2 = 8
+  Group A = (8 / 8) × 5 = 5.0/5  ✓
+
+Tất cả layer đạt raw max (2đ) → Group A đạt group max (5đ).
+
+================================================================================
+PHẦN 6 — CÔNG THỨC THAM CHIẾU NHANH
+================================================================================
+
+Per-layer:
+  raw ∈ [0, 2]
+  display = raw × 0.75  (max 1.5)
+
+Group A:
+  rawA = sum(raw L1..L4)
+  Group A = min(5, (rawA / 8) × 5)
+  Block nếu Group A < 2.5
+
+Group B (tham khảo):
+  layers [5, 52(L5b), 6, 7], rawMax = 8
+
+Group C (tham khảo):
+  layers [8, 9, 10], rawMax = 6  ← KHÔNG dùng cho Group A
+
+================================================================================
+PHẦN 7 — KẾT LUẬN
+================================================================================
+
+  ✓ Code nhất quán với audit SOL Group A = 5.0/5
+  ✓ L4 thuộc Group A (layers 1–4, rawMax 8)
+  ✓ Display 1.5 ≠ raw 1.5 — display 1.5 = raw 2.0
+  ✗ Tính (sum display)/6×5 đúng tình cờ, không phản ánh code
+  ✗ Tính (sum display)/8×5 = 3.75 — sai vì nhầm display với raw
+
+Không cần sửa scorer — audit reader cần dùng raw scores khi đối chiếu Group.
+
+================================================================================
+PHẦN 8 — FILES ĐỌC (KHÔNG SỬA)
+================================================================================
+
+  constants/scoring.ts   — SCORING_GROUPS_V4, convertToGroupScoreV4, LAYER_MAX_POINTS
+  services/scorerV4.ts   — scoreAnalysisV4, buildDirectional, scoringLayersToDisplayV4
+
+================================================================================
+END GROUP SCORE A (V4) AUDIT REPORT
+================================================================================

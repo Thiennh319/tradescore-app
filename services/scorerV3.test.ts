@@ -105,6 +105,42 @@ describe('scorerV3 L1-L5', () => {
     expect(display.score).toBe(1);
   });
 
+  it('scoreL1V3 SHORT partial bearish — dưới EMA20, trên EMA50 (1H)', () => {
+    const ema1hPartial = ema({
+      priceAboveEma20: false,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const ema4hAbove = ema({
+      priceAboveEma20: true,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const r = scoreL1V3('SHORT', ema1hPartial, ema4hAbove);
+    expect(r.score).toBe(1.0);
+    expect(r.reason).toContain('chưa qua EMA50');
+  });
+
+  it('scoreL1V3 SHORT else — cả 2 khung trên EMA20 và EMA50', () => {
+    const ema1hAbove = ema({
+      priceAboveEma20: true,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const ema4hAbove = ema({
+      priceAboveEma20: true,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const r = scoreL1V3('SHORT', ema1hAbove, ema4hAbove);
+    expect(r.score).toBe(0);
+    expect(r.reason).toContain('EMA chưa đồng thuận');
+  });
+
   it('scoreL3V3 SHORT negative histogram', () => {
     const r = scoreL3V3('SHORT', macd(-0.5), macd(-0.3));
     expect(r.score).toBe(2);

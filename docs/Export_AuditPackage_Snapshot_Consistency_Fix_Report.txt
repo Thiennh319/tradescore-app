@@ -1,0 +1,170 @@
+================================================================================
+TRADESCORE V1.0.5 — EXPORT AUDIT PACKAGE SNAPSHOT CONSISTENCY FIX REPORT
+================================================================================
+Task:        Fix race / snapshot drift — Executive Summary vs Actual Result
+Date:        2026-07-12
+Module:      services/exportService.ts
+Type:        Bug fix — export consistency only
+Prerequisite: UL-04.2 — Staging Validation (v1.0.5-ul-freeze)
+================================================================================
+
+TÓM TẮT
+-------
+Sửa lỗi Audit Package Section 6 (Executive Summary) và Section 10 (Actual Result)
+hiển thị score / decision band khác nhau cho cùng một symbol trong một lần export.
+
+Nguyên nhân: hai section đọc snapshot khác thời điểm / khác scorer version.
+Giải pháp: freeze snapshot tại đầu export + truyền scorerVersion thống nhất.
+
+File sửa: services/exportService.ts (only)
+Format output: UNCHANGED
+Score logic: UNCHANGED
+
+================================================================================
+PHẦN 1 — BUG ĐÃ XÁC NHẬN
+================================================================================
+
+Audit Package 2026-07-12T08:10:42:
+
+| Symbol | Executive Summary      | Actual Result          |
+|--------|------------------------|------------------------|
+| BTC    | score=10, VAO_TU_TIN   | score=9.17, CO_THE_VAO |
+| NEAR   | score=10.42            | score=9.90             |
+| BNB    | score=10               | score=9.58             |
+| SOL    | khớp                   | khớp                   |
+
+Pattern: Executive cao hơn / band mạnh hơn Actual — không phải lỗi tính score
+mà lỗi đọc dữ liệu từ hai nguồn khác nhau trong cùng một package.
+
+================================================================================
+PHẦN 2 — ROOT CAUSE
+================================================================================
+
+exportTradeScoreAuditPackage() trước fix:
+
+  1. Section 6 — formatRuleAuditHumanEvidenceTXT(rows, ..., scorerVersion)
+     → humanEvidenceExecutiveSummaryLines → resolveSignalRow(row, scorerVersion)
+
+  2. Section 10 — exportSignalData(rows, 'txt')
+     → buildExportRow(row)  // DEFAULT_SCORER = 'v4', KHÔNG nhận scorerVersion
+
+Hai vấn đề:
+
+A) SCORER VERSION DRIFT
+   Executive dùng scorerVersion từ UI (v3 / v4).
+   Actual luôn dùng DEFAULT_SCORER ('v4') khi export qua Audit Package.
+   → Lệch khi user export tab V3.
+
+B) ROW SNAPSHOT DRIFT (race / stale top-level)
+   SignalRow có cả top-level fields (score, decisionLabel) VÀ v4/v3 snapshot.
+   Sau scan, top-level có thể cập nhật trước khi v4 sync (hoặc ngược lại).
+   Executive đọc row.v4.score = 10; Actual path có thể đọc row.score = 9.17
+   khi resolve fallback hoặc khi row mutate giữa hai lần đọc.
+
+SOL không bị: top-level và v4 snapshot đồng bộ tại thời điểm export.
+
+================================================================================
+PHẦN 3 — FIX
+================================================================================
+
+services/exportService.ts
+
+1. cloneSignalRowScorerSnapshot()
+   Deep-clone layers / violations / block arrays.
+
+2. freezeAuditExportRow(row, scorerVersion)
+   Tại đầu export:
+   - resolve snap + plan + finalStatus một lần
+   - sync top-level row fields từ snap
+   - gán frozen snap vào row.v4 hoặc row.v3
+   - clone ruleAuditSnapshot (structuredClone)
+
+3. freezeAuditExportRows(rows, scorerVersion)
+   Map toàn bộ rows trước khi build package.
+
+4. exportTradeScoreAuditPackage()
+   const frozenRows = freezeAuditExportRows(rows, scorerVersion);
+   - Section 6–9: dùng frozenRows
+   - Section 10: exportSignalData(frozenRows, 'txt', scorerVersion)
+
+5. exportSignalData()
+   Thêm tham số scorerVersion → buildExportRow(row, scorerVersion)
+
+================================================================================
+PHẦN 4 — FLOW SAU FIX
+================================================================================
+
+```
+exportTradeScoreAuditPackage(rows, scorerVersion)
+        │
+        ▼
+freezeAuditExportRows(rows, scorerVersion)   ← single snapshot SSOT
+        │
+        ├── formatRuleAuditHumanEvidenceTXT(frozenRows) → Section 6–9
+        │
+        └── exportSignalData(frozenRows, 'txt', scorerVersion) → Section 10
+```
+
+Mọi section trong cùng package đọc cùng frozen row — không drift.
+
+================================================================================
+PHẦN 5 — VALIDATION
+================================================================================
+
+Internal acceptance (exportService.ts):
+
+  validateAuditPackageExecutiveActualConsistency()
+    - freeze row → compare snap.score vs buildExportRow().scoreTotal
+    - compare decisionBand vs exportRow.decision_band
+
+  validateAuditPackageSnapshotFreezeAcceptance()
+    - Probe: top-level score=9.17, v4.score=10, bands lệch
+    - Sau freeze: cả Executive path và Actual path → 10 / VAO_TU_TIN
+
+Tests chạy:
+
+  npx vitest run services/exportEntrySltpAuditPackage.test.ts
+  → 8/8 PASS
+
+  npx vitest run services/productionEsmBridge/ul042StagingValidation.test.ts -t "Full Audit"
+  → PASS
+
+================================================================================
+PHẦN 6 — KIỂM TRA SAU FIX (MANUAL)
+================================================================================
+
+Export 1 Audit Package từ Signal Board:
+
+  ✓ Executive Summary score == Actual Result score (mỗi symbol)
+  ✓ Executive Summary Decision Band == Actual decisionBand
+  ✓ SOL WAIT_ENTRY không bị ảnh hưởng (snapshot đồng bộ vẫn khớp)
+  ✓ Format section / header không đổi
+
+================================================================================
+PHẦN 7 — FILES
+================================================================================
+
+SỬA:
+  services/exportService.ts
+
+MỚI:
+  docs/Export_AuditPackage_Snapshot_Consistency_Fix_Report.txt
+
+KHÔNG SỬA:
+  scorer / tradePlan / signalBoardScan / v41
+  SignalBoard.tsx (đã truyền scorerVersion đúng vào exportTradeScoreAuditPackage)
+  UI layout / RuleBook / ESM / PA
+
+================================================================================
+ACCEPTANCE
+================================================================================
+
+✓ Executive và Actual dùng cùng frozen snapshot
+✓ scorerVersion thống nhất toàn package
+✓ Không đổi format output
+✓ Không sửa logic tính score
+✓ Regression tests PASS
+
+================================================================================
+END REPORT
+================================================================================

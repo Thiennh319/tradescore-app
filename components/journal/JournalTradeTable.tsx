@@ -338,6 +338,7 @@ export function JournalTradeTable({
   markBySymbol,
   unrealizedById,
   pnlBreakdownById,
+  advisorLabelById,
   onDetail,
   onStopTrade,
   onConfirmFill,

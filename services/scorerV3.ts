@@ -196,7 +196,12 @@ export function scoreL1V3(
   if (both1h || both4h) {
     return layer(1, L1_MTF_CONFLICT_RAW, 'Mâu thuẫn 1H vs 4H', 'A');
   }
-  return layer(1, 0, 'Giá trên tất cả EMA — không vào Short', 'A');
+  const partial1h = ema1h.priceAboveEma20 === false && ema1h.priceAboveEma50 === true;
+  const partial4h = ema4h.priceAboveEma20 === false && ema4h.priceAboveEma50 === true;
+  if (partial1h || partial4h) {
+    return layer(1, 1, 'Giá dưới EMA20 nhưng chưa qua EMA50 — Short chưa đủ mạnh', 'A');
+  }
+  return layer(1, 0, 'EMA chưa đồng thuận Short — cần giá dưới EMA20 & EMA50', 'A');
 }
 
 // ─────────────────────────────────────────

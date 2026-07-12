@@ -1,0 +1,140 @@
+================================================================================
+TRADESCORE V1.0.5 — UL-03.3 REPORT
+================================================================================
+Task:        UL-03.3 — UI Fix: Recommendation + ESM Hint (inline badge)
+Date:        2026-07-12
+Type:        UI rendering only — no business logic changes
+Prerequisite: UL-03.2 — Final UI Architecture Cleanup
+================================================================================
+
+TÓM TẮT
+-------
+Sửa layout cột Recommendation trong Journal: ESM hint badge hiển thị **inline bên phải**
+Position Adviser recommendation, đúng thiết kế UL đã duyệt.
+
+Trước: badge nằm dưới recommendation (column layout).
+Sau:  `Tiếp tục giữ    ⓘ READY` — cùng một hàng.
+
+File sửa: components/journal/EsmRecommendationCell.tsx (only)
+
+================================================================================
+PHẦN 1 — VẤN ĐỀ
+================================================================================
+
+Current UI (sai thiết kế):
+
+  Recommendation
+  Tiếp tục giữ
+  ⓘ READY          ← badge xuống dòng dưới
+
+Approved UI (UL-03):
+
+  Tiếp tục giữ    ⓘ READY
+
+Ví dụ đầy đủ:
+
+  Tiếp tục giữ    ⓘ READY
+  Giữ lệnh        ⓘ WATCH
+  Chờ thêm        ⓘ BLOCKED
+  Huỷ lệnh        ⓘ LOCKED
+
+Nguyên nhân: `EsmRecommendationCell` dùng layout column (`gap: 2`) — Text recommendation
+và hint badge xếp dọc thay vì ngang.
+
+================================================================================
+PHẦN 2 — FIX
+================================================================================
+
+components/journal/EsmRecommendationCell.tsx
+
+1. recommendationRow
+   - flexDirection: 'row'
+   - alignItems: 'center'
+   - flexWrap: 'nowrap'   ← badge không xuống dòng mới
+
+2. recommendation Text
+   - flexShrink: 1        ← PA label co khi cột hẹp
+
+3. EsmHintBadge (component mới, cùng file)
+   - flexShrink: 0
+   - Hiển thị khi resolveEsmHintBadge(...) != null
+   - Tooltip chỉ on hover badge (web)
+   - tooltipLines từ resolveEsmTooltipLines (max 4 dòng, không pipeline text)
+
+Cấu trúc render:
+
+```
+<View style={recommendationRow}>
+  <Text>Position Adviser recommendation</Text>
+  <EsmHintBadge />
+</View>
+```
+
+================================================================================
+PHẦN 3 — KHÔNG THAY ĐỔI
+================================================================================
+
+  ✓ Position Adviser — vẫn primary recommendation
+  ✓ ESM — vẫn secondary hint only
+  ✓ resolveEsmHintBadge / resolveEsmTooltipLines — không sửa
+  ✓ store / esmBridge / production bridge
+  ✓ RuleBook / Pipeline / PA logic
+  ✓ JournalTradeTable column layout — không thêm cột
+  ✓ SignalBoard — không đụng
+
+================================================================================
+PHẦN 4 — BUG FIX LIÊN QUAN (cùng phiên build)
+================================================================================
+
+JournalTradeTable.tsx — khôi phục prop `advisorLabelById` bị thiếu trong destructuring
+→ fix ReferenceError `advisorLabelById is not defined` khi mở Journal.
+
+================================================================================
+PHẦN 5 — REGRESSION
+================================================================================
+
+Command:
+  npx vitest run utils/esmUiDisplay.test.ts
+
+Result: 11/11 PASS
+
+Manual check:
+  ✓ Recommendation text unchanged (PA label)
+  ✓ Badge visible khi có ESM snapshot
+  ✓ Badge inline bên phải
+  ✓ Tooltip chỉ trên badge (web hover)
+  ✓ Không cột mới
+  ✓ Không layout regression các cột khác
+
+================================================================================
+PHẦN 6 — FILES
+================================================================================
+
+SỬA:
+  components/journal/EsmRecommendationCell.tsx   — UL-03.3 inline layout + EsmHintBadge
+  components/journal/JournalTradeTable.tsx     — advisorLabelById prop restore (crash fix)
+
+MỚI:
+  docs/UL_03_3_Report.txt                        — this report
+
+KHÔNG SỬA:
+  utils/esmUiDisplay.ts
+  store/** / productionEsmBridge/**
+  services/entryStateManager/**
+
+================================================================================
+ACCEPTANCE CHECKLIST
+================================================================================
+
+✓ Recommendation unchanged (PA primary)
+✓ Badge visible
+✓ Badge inline (right of text, never below)
+✓ Tooltip on badge only
+✓ No new column
+✓ No layout regression
+✓ No business logic changes
+✓ Regression PASS (esmUiDisplay 11/11)
+
+================================================================================
+END UL-03.3 REPORT
+================================================================================

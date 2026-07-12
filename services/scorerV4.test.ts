@@ -162,6 +162,42 @@ describe('scorerV4 L1 EMA mâu thuẫn', () => {
     const [display] = scoringLayersToDisplayV4([r]);
     expect(display.score).toBe(1);
   });
+
+  it('SHORT partial bearish — dưới EMA20, trên EMA50 (1H)', () => {
+    const ema1hPartial = ema({
+      priceAboveEma20: false,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const ema4hAbove = ema({
+      priceAboveEma20: true,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const r = scoreL1V4('SHORT', ema1hPartial, ema4hAbove);
+    expect(r.score).toBe(1.0);
+    expect(r.reason).toContain('chưa qua EMA50');
+  });
+
+  it('SHORT else — cả 2 khung trên EMA20 và EMA50', () => {
+    const ema1hAbove = ema({
+      priceAboveEma20: true,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const ema4hAbove = ema({
+      priceAboveEma20: true,
+      priceAboveEma50: true,
+      slope20: 'FLAT',
+      slope50: 'FLAT',
+    });
+    const r = scoreL1V4('SHORT', ema1hAbove, ema4hAbove);
+    expect(r.score).toBe(0);
+    expect(r.reason).toContain('EMA chưa đồng thuận');
+  });
 });
 
 describe('scorerV4 L3 MACD SHORT', () => {

@@ -202,6 +202,78 @@ const CSV_COLUMNS: (keyof SignalExportRow)[] = [
 
 const DEFAULT_SCORER: ScorerVersion = 'v4';
 
+/** Clone scorer snapshot — freeze at audit export start (UL snapshot consistency). */
+function cloneSignalRowScorerSnapshot(snap: SignalRowScorerSnapshot): SignalRowScorerSnapshot {
+  return {
+    ...snap,
+    layers: snap.layers.map((layer) => ({ ...layer })),
+    mandatoryViolations: [...snap.mandatoryViolations],
+    groupBlocks: snap.groupBlocks ? [...snap.groupBlocks] : undefined,
+    longLayers: snap.longLayers?.map((layer) => ({ ...layer })),
+    shortLayers: snap.shortLayers?.map((layer) => ({ ...layer })),
+    longGroupBlocks: snap.longGroupBlocks ? [...snap.longGroupBlocks] : undefined,
+    shortGroupBlocks: snap.shortGroupBlocks ? [...snap.shortGroupBlocks] : undefined,
+    longHardBlocks: snap.longHardBlocks ? [...snap.longHardBlocks] : undefined,
+    shortHardBlocks: snap.shortHardBlocks ? [...snap.shortHardBlocks] : undefined,
+    longBlockReasons: snap.longBlockReasons ? [...snap.longBlockReasons] : undefined,
+    shortBlockReasons: snap.shortBlockReasons ? [...snap.shortBlockReasons] : undefined,
+    longWarnings: snap.longWarnings ? [...snap.longWarnings] : undefined,
+    shortWarnings: snap.shortWarnings ? [...snap.shortWarnings] : undefined,
+    scoringWarnings: snap.scoringWarnings ? [...snap.scoringWarnings] : undefined,
+  };
+}
+
+/**
+ * Freeze row scorer snapshot at export start — Executive Summary and Actual Result
+ * must read the same snap/plan (avoids top-level row vs v4/v3 drift).
+ */
+function freezeAuditExportRow(row: SignalRow, scorerVersion: ScorerVersion): SignalRow {
+  const snap = cloneSignalRowScorerSnapshot(resolveSignalRow(row, scorerVersion));
+  const plan = resolveTradePlanV3(row, scorerVersion);
+  const finalStatus = resolveFinalEntryStatus(row, scorerVersion);
+  const frozenPlan = plan != null ? { ...plan } : null;
+
+  const frozen: SignalRow = {
+    ...row,
+    score: snap.score,
+    longScore: snap.longScore,
+    shortScore: snap.shortScore,
+    direction: snap.direction,
+    decisionLabel: snap.decisionLabel,
+    decisionDisplay: snap.decisionDisplay,
+    winrate: snap.winrate,
+    canEnter: snap.canEnter,
+    layers: snap.layers.map((layer) => ({ ...layer })),
+    mandatoryViolations: [...snap.mandatoryViolations],
+    hardBlocked: snap.hardBlocked,
+    finalEntryStatus: finalStatus ?? snap.finalEntryStatus ?? row.finalEntryStatus,
+    isAmbiguousDirection: snap.isAmbiguousDirection,
+    ambiguousMessage: snap.ambiguousMessage,
+    ruleAuditSnapshot: row.ruleAuditSnapshot
+      ? structuredClone(row.ruleAuditSnapshot)
+      : row.ruleAuditSnapshot,
+    tradePlanV3: frozenPlan,
+    tradePlansByScorer: frozenPlan
+      ? { ...row.tradePlansByScorer, [scorerVersion]: frozenPlan }
+      : row.tradePlansByScorer,
+  };
+
+  if (scorerVersion === 'v4') {
+    frozen.v4 = snap;
+  } else {
+    frozen.v3 = snap;
+  }
+
+  return frozen;
+}
+
+function freezeAuditExportRows(
+  rows: readonly SignalRow[],
+  scorerVersion: ScorerVersion,
+): SignalRow[] {
+  return rows.map((row) => freezeAuditExportRow(row, scorerVersion));
+}
+
 function vnTimestamp(): string {
   return new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 }
@@ -678,8 +750,9 @@ export function formatAsTXT(rows: SignalExportRow[]): string {
 export function exportSignalData(
   rows: SignalRow[],
   format: 'csv' | 'txt',
+  scorerVersion: ScorerVersion = DEFAULT_SCORER,
 ): string {
-  const exportRows = rows.map((row) => buildExportRow(row));
+  const exportRows = rows.map((row) => buildExportRow(row, scorerVersion));
   return format === 'csv' ? formatAsCSV(exportRows) : formatAsTXT(exportRows);
 }
 
@@ -1388,8 +1461,9 @@ export function exportTradeScoreAuditPackage(
   scorerVersion: ScorerVersion = DEFAULT_SCORER,
 ): string {
   const generatedTime = new Date().toISOString();
+  const frozenRows = freezeAuditExportRows(rows, scorerVersion);
   const evidenceTxt = formatRuleAuditHumanEvidenceTXT(
-    rows,
+    frozenRows,
     generatedTime,
     scorerVersion,
   );
@@ -1411,7 +1485,7 @@ export function exportTradeScoreAuditPackage(
     formatAuditPackageSection(7, 'MARKET EVIDENCE', marketEvidence),
     formatAuditPackageSection(8, 'RULE DECISION', ruleDecision),
     formatAuditPackageSection(9, 'TRADE PLAN', tradePlan),
-    formatAuditPackageSection(10, 'ACTUAL RESULT', exportSignalData(rows, 'txt')),
+    formatAuditPackageSection(10, 'ACTUAL RESULT', exportSignalData(frozenRows, 'txt', scorerVersion)),
     formatAuditPackageSection(11, 'BASELINE', buildEvidenceBaselineReport().reportText),
   ].join('\n\n');
 }
@@ -1546,6 +1620,63 @@ function validateTxtExportAcceptance(row: SignalRow): boolean {
     'STRUCTURE',
   ];
   return requiredSections.every((section) => txt.includes(section));
+}
+
+/** Audit package — Executive Summary and Actual Result must share frozen snapshot. */
+function validateAuditPackageExecutiveActualConsistency(
+  rows: SignalRow[],
+  scorerVersion: ScorerVersion = DEFAULT_SCORER,
+): boolean {
+  return rows.every((row) => {
+    const frozen = freezeAuditExportRow(row, scorerVersion);
+    const snap = resolveSignalRow(frozen, scorerVersion);
+    const plan = resolveTradePlanV3(frozen, scorerVersion);
+    const exportRow = buildExportRow(frozen, scorerVersion);
+    const decisionBand = snap.decisionLabel ?? plan?.decision ?? '';
+    return (
+      String(snap.score) === String(exportRow.scoreTotal) &&
+      decisionBand === exportRow.decision_band
+    );
+  });
+}
+
+function buildAuditSnapshotDriftProbeRow(): SignalRow {
+  const v4Snap: SignalRowScorerSnapshot = {
+    score: 10,
+    longScore: 10,
+    shortScore: 6,
+    direction: 'LONG',
+    decisionLabel: 'VAO_TU_TIN',
+    decisionDisplay: 'VÀO TỰ TIN',
+    winrate: '62%',
+    canEnter: true,
+    layers: [],
+    mandatoryViolations: [],
+    hardBlocked: false,
+    finalEntryStatus: FinalEntryStatus.ENTRY_VALID,
+  };
+  return {
+    ...buildEvidenceAcceptanceProbeRow(),
+    score: 9.17,
+    longScore: 9.17,
+    shortScore: 6,
+    decisionLabel: 'CO_THE_VAO',
+    decisionDisplay: 'CÓ THỂ VÀO',
+    v4: v4Snap,
+  };
+}
+
+function validateAuditPackageSnapshotFreezeAcceptance(): boolean {
+  const driftRow = buildAuditSnapshotDriftProbeRow();
+  const frozen = freezeAuditExportRow(driftRow, 'v4');
+  const snap = resolveSignalRow(frozen, 'v4');
+  const exportRow = buildExportRow(frozen, 'v4');
+  return (
+    snap.score === 10 &&
+    snap.decisionLabel === 'VAO_TU_TIN' &&
+    exportRow.scoreTotal === 10 &&
+    exportRow.decision_band === 'VAO_TU_TIN'
+  );
 }
 
 function validateExecutiveSummaryAcceptance(row: SignalRow): boolean {
@@ -1737,7 +1868,10 @@ export function buildEvidenceAcceptanceReport(): EvidenceAcceptanceReport {
 
   const csvExportPass = validateCsvExportAcceptance(probeRow);
   const txtExportPass = validateTxtExportAcceptance(probeRow);
-  const executiveSummaryPass = validateExecutiveSummaryAcceptance(probeRow);
+  const executiveSummaryPass =
+    validateExecutiveSummaryAcceptance(probeRow) &&
+    validateAuditPackageExecutiveActualConsistency([probeRow], 'v4') &&
+    validateAuditPackageSnapshotFreezeAcceptance();
   const metadataPass = validateMetadataAcceptance(probeRow);
   const tradeContextPass = validateTradeContextAcceptance();
   const decisionContextPass = validateDecisionContextAcceptance(probeRow);

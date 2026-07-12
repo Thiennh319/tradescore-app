@@ -35,7 +35,7 @@ Chỉ tính khi **không** bị hard block / group block (V3) hoặc hard block 
 
 ### L1 — Giá & EMA (Slope)
 
-**File:** `scorerV3.ts:159-200` / `scorerV4.ts:217-258`  
+**File:** `scorerV3.ts:159-205` / `scorerV4.ts:217-263`  
 **V3 vs V4:** **GIỐNG** (copy-identical logic)  
 **Điểm raw:** min=0 max=2  
 **Điều kiện (LONG):**
@@ -45,7 +45,14 @@ Chỉ tính khi **không** bị hard block / group block (V3) hoặc hard block 
 - `L1_MTF_CONFLICT_RAW` (≈1.333): mâu thuẫn 1H vs 4H
 - 0đ: giá dưới tất cả EMA
 
-**Điều kiện (SHORT):** đối xứng (dưới EMA, slope DOWN, v.v.)
+**Điều kiện (SHORT)** — đối xứng LONG với các mức sau:
+- 2đ raw: giá dưới EMA20/50 cả 2 khung, slope DOWN ≥ 1 khung
+- 1.5đ raw: giá dưới EMA20/50 cả 2 khung, slope chưa rõ
+- `L1_MTF_CONFLICT_RAW` (≈1.0đ raw): 1 khung fully below, 1 khung không — mâu thuẫn TF
+- 1.0đ raw: partial bearish — 1 khung dưới EMA20 nhưng chưa dưới EMA50 (sau fix v1.0.5)
+- 0đ: EMA chưa đồng thuận — không có khung nào dưới EMA20+EMA50
+
+⚠️ **NOTE:** SHORT partial bearish (1.0đ) là bổ sung v1.0.5. V3/V4 cũ: partial bearish → 0đ (else).
 
 **Ngưỡng có tên constant:** `L1_MTF_CONFLICT_RAW = 2 / LAYER_MAX_POINTS` (`LAYER_MAX_POINTS=1.5` → raw ≈1.333)  
 **Ngưỡng magic number:** `2` (% pullback EMA — `Math.abs(ema.priceVsEma20Pct) < 2`)  
