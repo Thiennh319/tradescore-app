@@ -746,7 +746,7 @@ export default function App() {
         >
           {activeTab === 'journal' ? (
             <View style={styles.section}>
-              <JournalScreen signalRows={signalBoard.rows} />
+              <JournalScreen signalRows={signalBoard.rows} v41Rows={v41Rows} />
             </View>
           ) : activeTab === 'insights' ? (
             <View style={styles.section}>
@@ -862,7 +862,7 @@ export default function App() {
 
           {signalBoardTab === 'v4' ? (
             <View style={styles.section}>
-              <ActiveTradesPanel signalRows={signalBoard.rows} />
+              <ActiveTradesPanel signalRows={signalBoard.rows} v41Rows={v41Rows} />
             </View>
           ) : null}
 

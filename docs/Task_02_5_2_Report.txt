@@ -1,0 +1,180 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.5.2 REPORT
+================================================================================
+Task:        02.5.2 — Priority Resolver (Scaffold)
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.7.0 → 0.7.1
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng Priority Resolver Scaffold — validate TriggerAggregateResult, đọc
+priority từ TRIGGER_TYPE_CATALOG, chuẩn bị priorityGroups placeholder.
+Không sort runtime, conflict, decision, transition, state machine, hay production
+wiring. TriggerAggregateResult không thay đổi.
+
+Tests: 95/95 PASS (10 files — 85 existing + 10 priority resolver)
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/priorityResolverTypes.ts
+  services/entryStateManager/priorityResolver.ts
+  services/entryStateManager/priorityResolver.test.ts
+  docs/Task_02_5_2_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (MODULE_VERSION = 0.7.1)
+
+KHÔNG SỬA:
+  Detection Layer (FROZEN v0.6.2)
+  triggerAggregatorTypes.ts / triggerAggregator.ts (AggregateResult API unchanged)
+
+================================================================================
+PHẦN 2 — PRIORITY RESOLVER CONTEXT
+================================================================================
+
+interface PriorityResolverContext {
+  aggregateResult: TriggerAggregateResult
+  scanId?: string
+}
+
+Chỉ đọc output từ Trigger Aggregator — không mutate.
+
+================================================================================
+PHẦN 3 — PRIORITY RESOLVER RESULT
+================================================================================
+
+interface PriorityResolverResult {
+  aggregateResult       // passthrough — không thay đổi
+  priorityGroups        // placeholder — fixed slot order
+  highestPriority       // max catalog priority | null
+  halted
+  message
+  context
+}
+
+priorityGroups:
+  - Mỗi present slot → một PriorityGroupPlaceholder
+  - catalogPriority đọc từ TRIGGER_TYPE_CATALOG
+  - Thứ tự cố định: HardBlock → Recovery → Unlock → Confirmation → Noise
+  - KHÔNG sort runtime theo priority value
+
+highestPriority:
+  - Đọc max catalog priority trong các slot present
+  - null khi triggerCount=0
+
+================================================================================
+PHẦN 4 — VALIDATION
+================================================================================
+
+validatePriorityResolverContext()
+
+Kiểm tra:
+  [✓] context là object hợp lệ
+  [✓] aggregateResult tồn tại và đúng cấu trúc
+  [✓] triggerCount khớp số slot present
+  [✓] aggregateResult.context pass validateTriggerAggregatorContext()
+  [✓] triggerId / priority / sourceModule / auditLabel khớp catalog từng slot
+  [✓] aggregateResult.halted → validation fail
+  [✓] scanId là string khi có
+
+================================================================================
+PHẦN 5 — RESOLVE FLOW
+================================================================================
+
+  validatePriorityResolverContext()
+        ↓
+  collect priority metadata (catalog only)
+        ↓
+  return PriorityResolverResult
+
+KHÔNG:
+  [✓] sort runtime
+  [✓] conflict resolution
+  [✓] decision
+  [✓] transition
+  [✓] state machine
+
+================================================================================
+PHẦN 6 — CATALOG PRIORITY REFERENCE
+================================================================================
+
+| Trigger      | Catalog Priority |
+|--------------|------------------|
+| HardBlock    | 100              |
+| Recovery     | 70               |
+| Unlock       | 70               |
+| Confirmation | 60               |
+| Noise        | 50               |
+
+Nguồn: TRIGGER_TYPE_CATALOG / TRANSITION_CATEGORY_PRIORITY
+
+================================================================================
+PHẦN 7 — UNIT TESTS
+================================================================================
+
+priorityResolver.test.ts — 10 tests:
+
+  1. valid context passes validation
+  2. invalid context — missing aggregateResult
+  3. empty aggregate — highestPriority=null
+  4. priority metadata from TRIGGER_TYPE_CATALOG
+  5. highestPriority = max catalog (HardBlock=100)
+  6. highestPriority single low-priority trigger (Noise=50)
+  7. halted on wrong priority in slot
+  8. halted on triggerCount mismatch
+  9. priorityGroups fixed slot order — not sorted
+  10. PriorityResolver namespace
+
+================================================================================
+PHẦN 8 — EXPORT
+================================================================================
+
+index.ts exports:
+  PriorityResolver
+  resolvePriority
+  validatePriorityResolverContext
+  PriorityResolverContext (type)
+  PriorityResolverResult (type)
+  PriorityResolverContextValidationResult (type)
+  PriorityGroupPlaceholder (type)
+  PriorityGroupEntryPlaceholder (type)
+  PriorityResolverSlotKey (type)
+
+================================================================================
+PHẦN 9 — KIẾN TRÚC
+================================================================================
+
+Detection Layer (FROZEN v0.6.2)
+      ↓
+Trigger Aggregator (v0.7.0)
+      ↓
+Priority Resolver (v0.7.1 scaffold)
+      ↓
+[02.5.3] Conflict Resolver
+      ↓
+[02.5.x] State Machine
+
+Priority Resolver chỉ đọc metadata — không sửa AggregateResult.
+
+================================================================================
+EXIT CRITERIA
+================================================================================
+
+  [✓] PriorityResolverContext
+  [✓] PriorityResolverResult
+  [✓] validatePriorityResolverContext()
+  [✓] resolvePriority()
+  [✓] Unit Tests PASS (10/10 priority, 95/95 total)
+  [✓] MODULE_VERSION = 0.7.1
+
+NEXT: Task 02.5.3 — Conflict Resolver (scaffold)
+
+================================================================================
+END OF TASK 02.5.2 REPORT
+================================================================================

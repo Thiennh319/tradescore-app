@@ -1,0 +1,156 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.8.3 REPORT
+================================================================================
+Task:        02.8.3 — Position Adviser Wiring (FEATURE_FLAG Integration)
+Date:        2026-07-12
+Module:      services/entryStateManager/
+Version:     1.8.0 → 1.8.1
+Prerequisite: Task 02.8.2 — Position Adviser Integration Harness
+================================================================================
+
+TÓM TẮU
+-------
+Tạo Position Adviser Wiring — gate duy nhất giữa Position Adviser Integration
+Harness và Position Adviser tương lai qua FEATURE_FLAG. Khi
+POSITION_ADVISER_ENABLED off (default), trả null và discard. Không gọi Position
+Adviser, không scoring/recommendation/sizing, không production wiring.
+
+Tests: 328/328 PASS (313 existing + 15 wiring)
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+MỚI:
+  services/entryStateManager/positionAdviserWiring.ts
+  services/entryStateManager/positionAdviserWiring.test.ts
+  docs/Task_02_8_3_Report.txt
+
+SỬA (integration boundary only):
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts           (MODULE_VERSION = 1.8.1)
+  services/entryStateManager/architectureAudit.test.ts
+
+KHÔNG SỬA:
+  positionAdviserHarness.ts / positionAdviserAdapter.ts
+  ESM Core / Position Adviser module / UI / Store / Journal
+
+================================================================================
+PHẦN 2 — WIRING FLOW
+================================================================================
+
+  PositionAdviserHarnessResult (caller-supplied)
+        │
+        ▼
+  validatePositionAdviserWiringContext()
+        │
+        ▼
+  isPositionAdviserEnabled(positionAdviserEnabled)?
+        │
+        ├── false (DEFAULT) ──► return null  (discard)
+        │
+        └── true ──► return harnessResult (passthrough)
+
+FEATURE_FLAG = 'POSITION_ADVISER_ENABLED'
+DEFAULT_POSITION_ADVISER_ENABLED = false
+
+Tách biệt với ENTRY_STATE_MANAGER_ENABLED (ESM SignalBoard wiring).
+
+Không gọi Position Adviser — chỉ gate.
+
+================================================================================
+PHẦN 3 — API
+================================================================================
+
+PositionAdviserWiringContext:
+  harnessResult           PositionAdviserHarnessResult
+  positionAdviserEnabled  boolean
+
+runPositionAdviserPipeline(context):
+  → PositionAdviserHarnessResult | null
+
+isPositionAdviserEnabled(enabled):
+  → enabled === true
+
+validatePositionAdviserWiringContext():
+  • harnessResult required
+  • positionAdviserEnabled is boolean
+  • delegate validatePositionAdviserHarnessResult()
+
+validatePositionAdviserWiringResult(result, context):
+  • flag OFF → result must be null
+  • flag ON  → result required + delegate validate + passthrough check
+
+PositionAdviserWiring namespace:
+  runPositionAdviserPipeline
+  validatePositionAdviserWiringContext
+  validatePositionAdviserWiringResult
+  isPositionAdviserEnabled
+  DEFAULT_POSITION_ADVISER_ENABLED
+  FEATURE_FLAG
+
+index.ts also exports POSITION_ADVISER_FEATURE_FLAG alias.
+
+================================================================================
+PHẦN 4 — CONSTRAINTS (verified)
+================================================================================
+
+  ✓ Synchronous — no Promise / async / callback / EventBus
+  ✓ No retry / timeout
+  ✓ No mutate input
+  ✓ No import Position Adviser / UI / Store / Journal / Order Engine
+  ✓ No production wiring
+
+================================================================================
+PHẦN 5 — TEST SUMMARY
+================================================================================
+
+Command:
+  npx vitest run services/entryStateManager/
+
+Result:
+  Test Files  26 passed (26)
+  Tests       328 passed (328)
+
+positionAdviserWiring.test.ts (15 tests):
+  [✓] DEFAULT_POSITION_ADVISER_ENABLED false
+  [✓] FEATURE_FLAG OFF — null
+  [✓] FEATURE_FLAG ON — passthrough
+  [✓] validate context — valid
+  [✓] validate context — missing harnessResult
+  [✓] validate context — invalid flag type
+  [✓] validate result — OFF requires null
+  [✓] validate result — ON requires result
+  [✓] deterministic
+  [✓] no mutation
+  [✓] isPositionAdviserEnabled
+  [✓] throws invalid context
+  [✓] namespace API
+  [✓] OFF discard behavior
+  [✓] regression
+
+Regression: 313 tests từ 02.8.2 — PASS nguyên trạng.
+
+================================================================================
+PHẦN 6 — PRODUCTION IMPACT
+================================================================================
+
+NONE
+
+  • FEATURE_FLAG default OFF
+  • Không import Position Adviser
+  • Không production scan/UI wiring
+  • Caller phải explicit positionAdviserEnabled: true để nhận harness result
+
+================================================================================
+PHẦN 7 — VERSION
+================================================================================
+
+MODULE_VERSION = 1.8.1
+
+Position Adviser Harness (1.8.0) — không sửa.
+Version bump phản ánh Position Adviser wiring layer.
+
+================================================================================
+END OF REPORT — TASK 02.8.3
+================================================================================

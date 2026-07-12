@@ -1,0 +1,159 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.8.1 REPORT
+================================================================================
+Task:        02.8.1 — Position Adviser Adapter (Read-Only)
+Date:        2026-07-12
+Module:      services/entryStateManager/
+Version:     1.7.0 → 1.7.1
+Prerequisite: Task 02.7.4 — SignalBoard Wiring
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng Position Adviser Adapter — đọc IntegrationHarnessResult và map sang
+PositionAdviserInput summaries (adapter-owned). Read-only, không gọi Position
+Adviser, không scoring/recommendation, không production wiring.
+
+Tests: 298/298 PASS (283 existing + 15 adapter)
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+MỚI:
+  services/entryStateManager/positionAdviserAdapterTypes.ts
+  services/entryStateManager/positionAdviserAdapter.ts
+  services/entryStateManager/positionAdviserAdapter.test.ts
+  docs/Task_02_8_1_Report.txt
+
+SỬA (integration boundary only):
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts           (MODULE_VERSION = 1.7.1)
+  services/entryStateManager/architectureAudit.test.ts
+
+KHÔNG SỬA:
+  IntegrationHarness / PipelineOrchestrator / SignalBoardAdapter / Wiring
+  ESM Core / Detection / Decision / State Machine / Runtime
+  Position Adviser module / SignalBoardScan / UI / Journal
+
+================================================================================
+PHẦN 2 — ARCHITECTURE
+================================================================================
+
+  IntegrationHarnessResult
+        │
+        ▼
+  validatePositionAdviserAdapterContext()
+        │
+        ▼
+  buildPositionAdviserAdapterResult()    ← field copy only
+        │
+        ▼
+  PositionAdviserAdapterResult
+    (= PositionAdviserInput + message + context passthrough)
+
+Mapping sources (read-only):
+  decisionSummary  ← pipelineResult.finalDecisionResult + decisionResult
+  stateSummary     ← pipelineResult.stateMachineResult
+  actionSummary    ← pipelineResult.actionEngineResult
+  runtimeSummary   ← pipelineResult.runtimeExecutorResult
+  scanId/timestamp ← harnessResult.context
+
+================================================================================
+PHẦN 3 — TYPE MODEL
+================================================================================
+
+PositionAdviserInput (adapter-owned — future Task 02.8.2+):
+  decisionSummary   PositionAdviserDecisionSummary
+  stateSummary      PositionAdviserStateSummary
+  actionSummary     PositionAdviserActionSummary
+  runtimeSummary    PositionAdviserRuntimeSummary
+  scanId            string
+  timestamp         string
+
+PositionAdviserAdapterResult extends PositionAdviserInput:
+  message           string
+  context           IntegrationHarnessResult (passthrough reference)
+
+PositionAdviserAdapterContext:
+  harnessResult     IntegrationHarnessResult
+
+================================================================================
+PHẦN 4 — VALIDATION
+================================================================================
+
+validatePositionAdviserAdapterContext():
+  • harnessResult required
+  • delegate validateIntegrationHarnessResult()
+
+validatePositionAdviserAdapterResult():
+  • summary objects exist
+  • scanId / timestamp non-empty
+  • scanId/timestamp match harnessResult.context
+  • actionSummary.actions / runtimeSummary.executions are arrays
+  • context passthrough present
+
+================================================================================
+PHẦN 5 — PUBLIC API
+================================================================================
+
+  PositionAdviserAdapter namespace:
+    buildPositionAdviserAdapterResult()
+    validatePositionAdviserAdapterContext()
+    validatePositionAdviserAdapterResult()
+
+Exported via index.ts — types include PositionAdviserInput.
+
+================================================================================
+PHẦN 6 — TEST SUMMARY
+================================================================================
+
+Command:
+  npx vitest run services/entryStateManager/
+
+Result:
+  Test Files  24 passed (24)
+  Tests       298 passed (298)
+
+positionAdviserAdapter.test.ts (15 tests):
+  [✓] validate context — valid
+  [✓] validate context — missing harnessResult
+  [✓] mapping decision summary
+  [✓] mapping state summary
+  [✓] mapping action summary
+  [✓] mapping runtime summary
+  [✓] scanId/timestamp consistency
+  [✓] deterministic
+  [✓] no mutation
+  [✓] validate result — scanId mismatch
+  [✓] validate result — timestamp mismatch
+  [✓] throws invalid context
+  [✓] namespace API
+  [✓] context passthrough
+  [✓] regression
+
+Regression: 283 tests từ 02.7.4 — PASS nguyên trạng.
+
+================================================================================
+PHẦN 7 — PRODUCTION IMPACT
+================================================================================
+
+NONE
+
+  • Không import Position Adviser
+  • Không production wiring
+  • Không UI / Journal / Order Engine
+  • Adapter sẵn sàng cho Task 02.8.2+ integration
+
+================================================================================
+PHẦN 8 — VERSION
+================================================================================
+
+MODULE_VERSION = 1.7.1
+
+ESM Core + integration stack (02.7.x) — không sửa.
+Version bump phản ánh Position Adviser adapter layer.
+
+================================================================================
+END OF REPORT — TASK 02.8.1
+================================================================================

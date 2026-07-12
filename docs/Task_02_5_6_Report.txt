@@ -1,0 +1,235 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.5.6 REPORT
+================================================================================
+Task:        02.5.6 — Final Decision Runtime
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.8.2 → 0.9.0
+================================================================================
+
+TÓM TẮT
+-------
+Hoàn thiện Final Decision Runtime — bước cuối Decision Pipeline.
+Nhận DecisionEngineResult, chọn tối đa một FinalDecision theo selection rules.
+Không EntryState, Transition, State Machine, mutate upstream, hay production wiring.
+
+Tests: 139/139 PASS (127 existing + 12 new)
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/finalDecisionTypes.ts
+  services/entryStateManager/finalDecisionEngine.ts
+  services/entryStateManager/finalDecisionEngine.test.ts
+  docs/Task_02_5_6_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (MODULE_VERSION = 0.9.0)
+
+KHÔNG SỬA:
+  Detection Layer (FROZEN v0.6.2)
+  triggerAggregator.ts
+  priorityResolver.ts
+  conflictResolver.ts / conflictResolverTypes.ts
+  decisionEngine.ts / decisionEngineTypes.ts
+
+================================================================================
+PHẦN 2 — FINAL DECISION CONTEXT
+================================================================================
+
+interface FinalDecisionContext {
+  decisionResult: DecisionEngineResult
+  scanId?: string
+}
+
+Chỉ đọc output Decision Engine — không mutate.
+
+================================================================================
+PHẦN 3 — FINAL DECISION RESULT
+================================================================================
+
+interface FinalDecisionResult {
+  decisionResult          // passthrough
+  finalDecision           // FinalDecision | null
+  decisionCount           // 0 | 1
+  halted
+  message
+  context
+}
+
+================================================================================
+PHẦN 4 — FINAL DECISION MODEL
+================================================================================
+
+interface FinalDecision {
+  triggerKind
+  triggerId
+  priority
+  resolvedConflictId?
+  resolvedBy?
+  sourceTriggerResult?
+}
+
+Không có decisionStatus — đây là quyết định cuối pipeline (metadata only).
+Không có EntryState. Không có Transition.
+
+================================================================================
+PHẦN 5 — RUNTIME FLOW
+================================================================================
+
+  validateFinalDecisionContext()
+        ↓
+  collect ELIGIBLE candidates
+        ↓
+  build FinalDecision (selection rules)
+        ↓
+  validateFinalDecisionResult()
+        ↓
+  return FinalDecisionResult
+
+buildFinalDecisionResult(context) — entry point.
+
+Selection order (ưu tiên):
+  1. UNRESOLVED present  → Rule 3
+  2. multiple ELIGIBLE   → Rule 2
+  3. exactly 1 ELIGIBLE  → Rule 1
+  4. zero candidates     → Rule 5
+  5. all BLOCKED         → Rule 4
+
+================================================================================
+PHẦN 6 — SELECTION RULES
+================================================================================
+
+| Rule | Điều kiện                    | decisionCount | finalDecision | halted | message                              |
+|------|------------------------------|---------------|---------------|--------|--------------------------------------|
+| 1    | đúng 1 ELIGIBLE              | 1             | candidate     | false  | Final decision selected.             |
+| 2    | >1 ELIGIBLE                  | 0             | null          | true   | Multiple eligible candidates.        |
+| 3    | có UNRESOLVED                | 0             | null          | true   | Unresolved decision candidates.      |
+| 4    | tất cả BLOCKED               | 0             | null          | false  | All candidates blocked.              |
+| 5    | không có candidate           | 0             | null          | false  | No decision candidate.               |
+
+================================================================================
+PHẦN 7 — VALIDATION
+================================================================================
+
+validateFinalDecisionContext()
+
+  [✓] context là object hợp lệ
+  [✓] decisionResult tồn tại
+  [✓] decisionResult không halted
+  [✓] delegate validateDecisionEngineContext(decisionResult.context)
+  [✓] scanId là string khi có
+
+validateFinalDecisionResult()
+
+  [✓] decisionCount đúng (0 hoặc 1)
+  [✓] decisionCount ∈ {0, 1}
+  [✓] finalDecision thuộc decisionCandidates (khi có)
+  [✓] triggerId khớp TRIGGER_TYPE_CATALOG
+  [✓] priority khớp TRIGGER_TYPE_CATALOG
+  [✓] sourceTriggerResult hợp lệ (aggregate slot key)
+  [✓] halted consistency (halted ↔ no finalDecision)
+  [✓] không duplicate / count mismatch
+
+================================================================================
+PHẦN 8 — KHÔNG ĐƯỢC
+================================================================================
+
+  [✓] Không Transition
+  [✓] Không EntryState
+  [✓] Không State Machine
+  [✓] Không Rule / scorer mới
+  [✓] Không mutate DecisionEngineResult
+  [✓] Không mutate ConflictResolverResult
+  [✓] Không mutate PriorityResolverResult
+  [✓] Không mutate AggregateResult
+  [✓] Không production wiring
+
+================================================================================
+PHẦN 9 — UNIT TESTS
+================================================================================
+
+finalDecisionEngine.test.ts — 12 tests:
+
+  1. one eligible — selects final decision
+  2. multiple eligible — halted
+  3. unresolved candidate — halted
+  4. all blocked — not halted
+  5. empty candidates
+  6. invalid context — missing decisionResult
+  7. halted decisionResult
+  8. decisionCount validation
+  9. finalDecision validation — must belong to candidates
+  10. catalog metadata validation
+  11. FinalDecisionEngine namespace
+  12. deterministic output
+
+Command: npx vitest run services/entryStateManager/
+  Test Files: 13 passed (13)
+  Tests:      139 passed (139)
+
+================================================================================
+PHẦN 10 — EXPORT
+================================================================================
+
+index.ts exports:
+  FinalDecisionEngine
+  buildFinalDecisionResult
+  collectEligibleCandidates
+  validateFinalDecisionContext
+  validateFinalDecisionResult
+  FinalDecision / FinalDecisionContext / FinalDecisionResult (types)
+
+================================================================================
+PHẦN 11 — KIẾN TRÚC
+================================================================================
+
+Detection (FROZEN v0.6.2)
+      ↓
+Trigger Aggregator (v0.7.0)
+      ↓
+Priority Resolver (v0.7.1)
+      ↓
+Conflict Detect + Resolve (v0.7.5)
+      ↓
+Decision Engine (v0.8.2)
+      ↓
+Final Decision Runtime ✅ (02.5.6 — v0.9.0)
+      ↓
+State Machine (02.6.1 — scaffold, chưa triển khai)
+
+Final Decision Runtime kết thúc Decision Pipeline — chọn tối đa 1 trigger winner.
+Chưa kích hoạt EntryState transition.
+
+================================================================================
+PHẦN 12 — PRODUCTION IMPACT
+================================================================================
+
+  • Không thay đổi runtime production — FEATURE_FLAG ENTRY_STATE_MANAGER_ENABLED
+    vẫn off; không có import mới từ UI / Rule Engine / Score Engine.
+  • MODULE_VERSION bump 0.8.2 → 0.9.0 cho audit / export metadata.
+  • Decision Pipeline hoàn chỉnh ở tầng library — sẵn sàng cho State Machine scaffold.
+
+================================================================================
+EXIT CRITERIA
+================================================================================
+
+  [✓] FinalDecisionContext
+  [✓] FinalDecisionResult
+  [✓] FinalDecision (no EntryState / Transition)
+  [✓] validateFinalDecisionContext()
+  [✓] collectEligibleCandidates() / buildFinalDecisionResult()
+  [✓] Selection rules 1–5
+  [✓] validateFinalDecisionResult()
+  [✓] Unit Tests PASS (≥12 new)
+  [✓] MODULE_VERSION = 0.9.0
+  [✓] Không State Machine
+
+NEXT: Task 02.6.1 — State Machine (Scaffold)
+
+================================================================================
+END OF TASK 02.5.6 REPORT
+================================================================================

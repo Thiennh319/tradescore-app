@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { SignalRow } from '../../hooks/useSignalBoard';
-import { useJournalMarketSync } from '../../hooks/useJournalMarketSync';
+import type { SignalRowV41 } from '../../services/v41/scanV41';
+import { useJournalMarketSync, resolveJournalMarketPrice } from '../../hooks/useJournalMarketSync';
 import type { AiTradeJournalEntry } from '../../constants/aiJournal';
 import { COLORS } from '../../constants/scoring';
 import { PANEL, SPACING } from '../../constants/theme';
@@ -18,9 +19,10 @@ import { useTradeStore } from '../../store/useTradeStore';
 
 interface ActiveTradesPanelProps {
   signalRows: SignalRow[];
+  v41Rows?: SignalRowV41[];
 }
 
-export function ActiveTradesPanel({ signalRows }: ActiveTradesPanelProps) {
+export function ActiveTradesPanel({ signalRows, v41Rows = [] }: ActiveTradesPanelProps) {
   const aiTradeJournal = useTradeStore((s) => s.aiTradeJournal);
   const closeTradeEntry = useTradeStore((s) => s.closeTradeEntry);
   const confirmOrderFilled = useTradeStore((s) => s.confirmOrderFilled);
@@ -45,6 +47,7 @@ export function ActiveTradesPanel({ signalRows }: ActiveTradesPanelProps) {
   const { markBySymbol, unrealizedById, pnlBreakdownById, advisorLabelById } = useJournalMarketSync({
     entries: activeEntries,
     signalRows,
+    v41Rows,
     leverage,
     scorerVersion,
     scoringResultV4,
@@ -98,7 +101,7 @@ export function ActiveTradesPanel({ signalRows }: ActiveTradesPanelProps) {
       <CloseTradeModal
         visible={closeEntry != null}
         entry={closeEntry}
-        markPrice={closeEntry ? markBySymbol[closeEntry.symbol] : null}
+        markPrice={closeEntry ? resolveJournalMarketPrice(closeEntry, markBySymbol) ?? null : null}
         signalRow={closeEntry ? signalRows.find((r) => r.symbol === closeEntry.symbol) ?? null : null}
         onClose={() => setCloseEntry(null)}
         onConfirm={(result) => {

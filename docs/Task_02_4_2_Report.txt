@@ -1,0 +1,261 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.4.2 REPORT
+================================================================================
+Task:        02.4.2 — HardBlock Detection Engine (scaffold)
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.4.0 → 0.4.1
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng lớp HardBlock Detection Engine — context/result/evidence models,
+validateHardBlockDetectionContext(), detectHardBlock() placeholder.
+
+KHÔNG runtime detection. KHÔNG transition. KHÔNG state mutation. KHÔNG production.
+
+Rule hiện có: ĐỦ — không cần Rule mới, không dừng chờ phê duyệt.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/hardBlockDetectionTypes.ts
+  services/entryStateManager/hardBlockDetectionEngine.ts
+  services/entryStateManager/hardBlockDetectionEngine.test.ts
+  docs/Task_02_4_2_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.4.1)
+
+KHÔNG SỬA:
+  Rule Engine (scorerV4, adxGate, tradePlanV3/V4)
+  Score Engine
+  Position Adviser
+  CVD Filter
+  Whale Detection
+  RuleBook V2
+  Transition Matrix
+  UI / Store / Journal
+
+================================================================================
+PHẦN 2 — HARDBLOCK DETECTION CONTEXT
+================================================================================
+
+HardBlockDetectionContext:
+  ruleEngineOutput       HardBlockRuleEngineOutput (read-only snapshot)
+  currentEntryState      EntryState
+  candidateTransitions   EntryTransitionCandidate[]
+  signalSnapshot         EntryStateSignalSnapshot
+  marketSnapshot         EntryStateMarketSnapshot
+  scanId?                optional
+
+HardBlockRuleEngineOutput — mirror EntryStateManagerInput / scorer output:
+  hardBlocks[]           scorerV4 layer hard block strings
+  groupBlocks[]          group A/B/C blocks
+  blockReasons[]         L5a soft block reasons (V4)
+  adxGateBlocked         adxGate.ts CHOPPY flag
+  tradePlanValid         tradePlanV3/V4 geometry
+  decision               scorer decision band
+
+Helper (field copy only, no scorer import):
+  ruleEngineOutputFromManagerInput(input)
+
+================================================================================
+PHẦN 3 — HARDBLOCK DETECTION RESULT
+================================================================================
+
+HardBlockDetectionResult:
+  detected               boolean — luôn false (Task 02.4.2 placeholder)
+  triggerId              ESM-TRIG-HardBlock (từ TRIGGER_TYPE_CATALOG)
+  reason                 string
+  evidence               HardBlockEvidence[] — rỗng trong placeholder
+  sourceModule           RuleEngine
+  priority               100
+  auditLabel             ENTRY_BLOCK
+  ruleReference          RuleBook V2 §1.4 / §6
+  detectionMessage       validation / placeholder message
+  halted                 true nếu context invalid
+  context                HardBlockDetectionContext (echo)
+
+Metadata lấy 100% từ TRIGGER_TYPE_CATALOG[EntryTriggerKind.HardBlock] — không tạo mới.
+
+================================================================================
+PHẦN 4 — EVIDENCE MODEL
+================================================================================
+
+HardBlockEvidenceKind (mô tả audit — không tính toán):
+  EXISTING_HARD_BLOCK_ACTIVE
+  RULE_ENGINE_RETURNED_BLOCK
+  GROUP_BLOCK_ACTIVE
+  ADX_BELOW_THRESHOLD
+  TRADE_PLAN_INVALID
+  BLOCK_REASONS_PRESENT
+
+HardBlockEvidence:
+  kind          HardBlockEvidenceKind
+  description   string
+  rawValue?     passthrough từ rule output (Task 02.4.3+)
+
+Task 02.4.2: evidence[] luôn rỗng — chỉ định nghĩa model.
+
+================================================================================
+PHẦN 5 — API
+================================================================================
+
+validateHardBlockDetectionContext(context) → HardBlockContextValidationResult
+  - Kiểm tra ruleEngineOutput tồn tại & cấu trúc
+  - Kiểm tra currentEntryState, signalSnapshot, marketSnapshot.symbol
+  - Kiểm tra candidateTransitions là array
+  - Kiểm tra catalog priority = 100
+  - Kiểm tra sourceModule ∈ TRANSITION_SOURCE_MODULES
+  - Kiểm tra ruleReference non-empty
+
+detectHardBlock(context) → HardBlockDetectionResult
+  - Gọi validate
+  - Nếu invalid → detected=false, halted=true, evidence=[]
+  - Nếu valid → detected=false, halted=false, evidence=[] (placeholder)
+  - KHÔNG đọc hardBlocks.length để set detected (chưa runtime)
+
+HardBlockDetectionEngine namespace:
+  { detectHardBlock, validateHardBlockDetectionContext }
+
+================================================================================
+PHẦN 6 — VALIDATION REPORT
+================================================================================
+
+Structural validation only — no rule evaluation:
+
+  ✓ ruleEngineOutput required
+  ✓ hardBlocks, groupBlocks, blockReasons must be arrays
+  ✓ adxGateBlocked, tradePlanValid must be boolean
+  ✓ decision must be non-empty string
+  ✓ marketSnapshot.symbol required
+  ✓ Catalog HardBlock priority === 100
+  ✓ sourceModule valid (RuleEngine)
+  ✓ ruleReference valid (RuleBook V2 §1.4 / §6)
+
+Evidence non-empty: NOT enforced in 02.4.2 (placeholder returns empty).
+Future 02.4.3+ will populate evidence when detected=true.
+
+================================================================================
+PHẦN 7 — DEPENDENCY REPORT
+================================================================================
+
+Imports (ESM internal only):
+  triggerDetectionCatalog  → TRIGGER_TYPE_CATALOG[HardBlock]
+  evaluationTypes          → EntryTriggerKind, snapshot types
+  transitionMetadata       → TransitionAuditLabel, TRANSITION_SOURCE_MODULES
+  enums                    → EntryState (via types)
+
+KHÔNG import:
+  scorerV4, adxGate, tradePlanV3/V4
+  components/, store/, hooks/
+  RuleBook file mutation
+
+Production dependency direction (future integration):
+  scorerV4 output → EntryStateManagerInput → ruleEngineOutputFromManagerInput()
+  → HardBlockDetectionContext → detectHardBlock()
+
+ESM module: 0 production imports confirmed (unchanged).
+
+================================================================================
+PHẦN 8 — UNIT TEST REPORT
+================================================================================
+
+hardBlockDetectionEngine.test.ts — 6 passed (new)
+triggerDetectionEngine.test.ts   — 6 passed
+evaluationPipeline.test.ts       — 4 passed
+stateValidator.test.ts           — 6 passed
+
+Total ESM: 22 passed, 0 failed
+
+Covered:
+  ✓ HardBlock placeholder (detected=false)
+  ✓ Missing rule engine output (halted)
+  ✓ Invalid metadata / structure rejection
+  ✓ Audit label ENTRY_BLOCK, priority 100
+  ✓ Evidence empty in placeholder
+  ✓ ruleEngineOutputFromManagerInput field copy
+
+Không detection logic tests.
+
+================================================================================
+PHẦN 9 — ARCHITECTURE REPORT
+================================================================================
+
+  hardBlockDetectionTypes.ts   — context, result, evidence models
+  hardBlockDetectionEngine.ts  — validate + detectHardBlock placeholder
+  hardBlockDetectionEngine.test.ts — skeleton tests
+
+Vị trí trong pipeline (Task 02.3.2 step 4 CollectTriggers):
+  TriggerDetectionEngine (02.4.1) — orchestrator scaffold
+  HardBlockDetectionEngine (02.4.2) — sub-detector scaffold
+  Future 02.4.3+ — map ruleEngineOutput → evidence, detected=true passthrough
+
+Tái sử dụng Rule hiện có (không viết lại):
+  hardBlocks[]      — scorerV4 HARD_BLOCK_RULES_V4 output
+  groupBlocks[]     — scorer group blocks
+  adxGateBlocked    — adxGate.ts
+  tradePlanValid    — tradePlanV3/V4
+  blockReasons[]    — L5a V4
+  Taxonomy IDs      — hardBlockIds.ts (audit only, future mapping)
+
+================================================================================
+PHẦN 10 — PRODUCTION IMPACT REPORT
+================================================================================
+
+  Production scan path:     KHÔNG thay đổi
+  Store / Journal writes:   KHÔNG
+  SignalBoard / UI:         KHÔNG
+  FEATURE_FLAG wiring:      KHÔNG
+  State Machine:            KHÔNG
+  Transition execution:     KHÔNG
+  New HardBlock rules:      KHÔNG
+  Rule Engine changes:      KHÔNG
+
+Build: ESM vitest 22/22 pass. Không test fail mới trong module ESM.
+
+================================================================================
+PHẦN 11 — RULE SUFFICIENCY (KHÔNG THIẾU RULE)
+================================================================================
+
+App đã có đủ nguồn HardBlock cho integration sau:
+
+  1. hardBlocks[] từ scorerV4 — primary
+  2. groupBlocks[] — group block
+  3. adxGateBlocked — ADX gate
+  4. tradePlanValid === false — invalid trade plan
+  5. blockReasons[] — L5a soft blocks
+  6. hardBlockIds.ts taxonomy — audit classification
+
+KHÔNG cần bổ sung Rule. Task 02.4.3 sẽ map passthrough từ các field trên.
+
+================================================================================
+PHẦN 12 — TASK COMPLETION & XÁC NHẬN
+================================================================================
+
+  [x] HardBlockDetectionContext
+  [x] HardBlockDetectionResult
+  [x] HardBlockEvidence model
+  [x] validateHardBlockDetectionContext()
+  [x] detectHardBlock() placeholder
+  [x] Unit test skeleton
+  [x] Export từ index.ts
+  [x] MODULE_VERSION 0.4.1
+
+XÁC NHẬN:
+  ✓ Chưa có Detection Logic (runtime)
+  ✓ Chưa có Runtime Detection (detected luôn false)
+  ✓ Chưa thay đổi State / Transition
+  ✓ Chưa ảnh hưởng Production
+  ✓ Chỉ tái sử dụng Rule hiện có (shape mirror EntryStateManagerInput)
+  ✓ Không tạo HardBlock mới
+
+Next: Task 02.4.3 — passthrough detection từ ruleEngineOutput → evidence + detected.
+
+================================================================================
+END OF REPORT
+================================================================================

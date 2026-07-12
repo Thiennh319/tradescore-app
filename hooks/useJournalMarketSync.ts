@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import type { ScorerVersion } from '../constants/scoring';
 import type { SignalRow } from './useSignalBoard';
+import type { SignalRowV41 } from '../services/v41/scanV41';
 import { buildCloseAdvisorContext } from '../services/positionAdvisorExitTracking';
 import {
   buildJournalOpenPnlBreakdown,
@@ -49,6 +50,32 @@ export function buildMarkPricesFromSignalRows(rows: SignalRow[]): Record<string,
   return map;
 }
 
+/** Gộp giá mark từ Signal Board (V3/V4) và scan V4.1 — ưu tiên giá mới hơn. */
+export function mergeMarkPrices(
+  signalRows: SignalRow[],
+  v41Rows: SignalRowV41[] = [],
+): Record<string, number> {
+  const map = buildMarkPricesFromSignalRows(signalRows);
+  for (const row of v41Rows) {
+    if (row.markPrice != null && Number.isFinite(row.markPrice)) {
+      map[row.symbol] = row.markPrice;
+    }
+  }
+  return map;
+}
+
+/** Giá thị trường cho cột Current/Exit — không dùng entry/limit. */
+export function resolveJournalMarketPrice(
+  entry: AiTradeJournalEntry,
+  markBySymbol: Record<string, number>,
+): number | undefined {
+  const live = markBySymbol[entry.symbol];
+  if (live != null && Number.isFinite(live)) return live;
+  const atAnalysis = entry.market.priceAtAnalysis;
+  if (atAnalysis > 0 && Number.isFinite(atAnalysis)) return atAnalysis;
+  return undefined;
+}
+
 export function resolveScorerVersionForEntry(
   entry: AiTradeJournalEntry,
   storeVersion: ScorerVersion,
@@ -64,6 +91,7 @@ export function resolveScorerVersionForEntry(
 export function useJournalMarketSync(input: {
   entries: AiTradeJournalEntry[];
   signalRows: SignalRow[];
+  v41Rows?: SignalRowV41[];
   leverage?: number;
   scorerVersion: ScorerVersion;
   scoringResultV4: ScoringResultV4 | null;
@@ -73,6 +101,7 @@ export function useJournalMarketSync(input: {
   const {
     entries,
     signalRows,
+    v41Rows = [],
     leverage = 5,
     scorerVersion,
     scoringResultV4,
@@ -89,15 +118,15 @@ export function useJournalMarketSync(input: {
   }, [signalRows]);
 
   const markBySymbol = useMemo(
-    () => buildMarkPricesFromSignalRows(signalRows),
-    [signalRows],
+    () => mergeMarkPrices(signalRows, v41Rows),
+    [signalRows, v41Rows],
   );
 
   const pnlBreakdownById = useMemo(() => {
     const map: Record<string, JournalPnlBreakdown> = {};
     for (const entry of entries) {
       if (entry.outcome.status !== 'OPEN') continue;
-      const mark = markBySymbol[entry.symbol];
+      const mark = resolveJournalMarketPrice(entry, markBySymbol);
       map[entry.id] = buildJournalOpenPnlBreakdown(entry, mark, leverage);
     }
     return map;
@@ -115,7 +144,7 @@ export function useJournalMarketSync(input: {
     const map: Record<string, string> = {};
     for (const entry of entries) {
       if (entry.outcome.status !== 'OPEN') continue;
-      const mark = markBySymbol[entry.symbol];
+      const mark = resolveJournalMarketPrice(entry, markBySymbol);
       if (mark == null || !Number.isFinite(mark)) continue;
 
       if (isV41JournalEntry(entry)) {

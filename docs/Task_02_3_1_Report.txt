@@ -1,0 +1,143 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.3.1 REPORT
+================================================================================
+Task:        02.3.1 — Xây dựng State Validator
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.2.4 → 0.3.0
+================================================================================
+
+TÓM TẮT
+-------
+Tạo Entry State Validator — read-only API kiểm tra state, transition, metadata.
+Chuẩn hóa EntryStateValidationResult với EsmErrorCode hiện có. 6 unit test
+skeleton pass. Không state machine, không ghi dữ liệu, không production impact.
+
+RuleBook / Matrix: đủ dữ liệu — không cần dừng chờ phê duyệt.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/validationResult.ts
+  services/entryStateManager/stateValidator.ts
+  services/entryStateManager/stateValidator.test.ts
+  docs/Task_02_3_1_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.3.0)
+
+================================================================================
+PHẦN 2 — STATE VALIDATOR API
+================================================================================
+
+validateEntryState(value: string): EntryStateValidationResult
+  - Kiểm tra EntryState enum (isEntryState)
+  - Kiểm tra ENTRY_STATE_IDS (RuleBook §1)
+  - Kiểm tra ENTRY_STATE_DEFINITIONS metadata
+  - Error: ESM_002 (unknown), ESM_005 (metadata/rule)
+
+validateTransition(from: string, to: string): EntryStateValidationResult
+  - Validate from/to states trước
+  - Lookup findTransitionDefinition (locked matrix)
+  - validateTransitionMetadata trên row
+  - allowed=false → ESM_001
+  - Trả transitionDefinition, ruleReference, transitionId, category
+
+validateTransitionMetadata(def: EntryTransitionDefinition): EntryStateValidationResult
+  - transitionReason, category, priority, sourceModule, auditLabel, ruleReference
+  - Priority phải khớp TRANSITION_CATEGORY_PRIORITY
+  - Forbidden → ENTRY_INVALID; allowed → không ENTRY_INVALID
+  - Error: ESM_005
+
+EntryStateValidator — namespace { validateEntryState, validateTransition, validateTransitionMetadata }
+
+Helpers: validationSuccess(), validationFailure() — không throw.
+
+================================================================================
+PHẦN 3 — VALIDATION RESULT MODEL
+================================================================================
+
+interface EntryStateValidationResult {
+  valid: boolean
+  errorCode: EsmErrorCode | null
+  message: string
+  ruleReference: string | null
+  transitionId: EntryTransitionId | null
+  transitionCategory: TransitionCategory | null
+  state?: EntryState
+  stateDefinition?: EntryStateDefinition
+  transitionDefinition?: EntryTransitionDefinition
+}
+
+Không phát sinh Exception — luôn trả object.
+
+================================================================================
+PHẦN 4 — ERROR CODE (existing only)
+================================================================================
+
+  ESM_001  Invalid Transition     — forbidden / missing matrix edge
+  ESM_002  Unknown State          — không thuộc EntryState enum
+  ESM_005  Rule Violation         — metadata / RuleBook consistency
+  (ESM_003, 004, 006 không dùng trong task này — đủ cho validator)
+
+Không tạo ErrorCode mới.
+
+================================================================================
+PHẦN 5 — UNIT TEST SKELETON
+================================================================================
+
+File: services/entryStateManager/stateValidator.test.ts
+
+  ✓ valid state (READY)
+  ✓ invalid state (UNKNOWN) → ESM_002
+  ✓ allowed transition WATCH → READY
+  ✓ forbidden transition WATCH → LOCKED → ESM_001
+  ✓ valid matrix metadata (READY → LOCKED)
+  ✓ EntryStateValidator namespace
+
+Result: 6 passed, 0 failed
+
+================================================================================
+PHẦN 6 — KIẾN TRÚC
+================================================================================
+
+  stateValidator.ts      — public read-only API
+  validationResult.ts    — result model + builders
+  transitionValidation.ts — matrix lookup (existing, unchanged logic)
+  entryStateMetadata.ts  — state SSOT (read)
+  transitionMatrix.ts    — transition SSOT (read)
+
+  Validator không import production modules. Không ghi store/snapshot.
+
+================================================================================
+PHẦN 7 — DEPENDENCY
+================================================================================
+
+  Inbound (ai gọi validator): chỉ tests — production 0 imports
+  Outbound: enums, metadata, matrix, errorCodes, transitionValidation (read)
+
+  Không: UI, Store, React, Score/Rule Engine, PA, CVD, Whale
+
+================================================================================
+PHẦN 8 — PRODUCTION IMPACT
+================================================================================
+
+  ZERO — validator chưa wired vào scan/journal/export.
+
+================================================================================
+PHẦN 9 — XÁC NHẬN
+================================================================================
+
+  [x] Chưa có State Machine
+  [x] Chưa có Runtime transition logic
+  [x] Chưa thay đổi State (read-only)
+  [x] Chưa ảnh hưởng Production
+  [x] Validator chỉ đọc — không ghi dữ liệu
+  [x] Không sửa RuleBook / Transition Matrix / Metadata
+
+================================================================================
+END OF REPORT
+================================================================================

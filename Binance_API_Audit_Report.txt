@@ -1,0 +1,500 @@
+TradeScore — Binance API Audit Report
+Generated: 2026-07-05
+Scope: Full project audit (V3, V4, V4.1, Dashboard, Notification, Background Scanner, Services, Helpers)
+Base URL: https://fapi.binance.com (constants/scoring.ts → BINANCE_BASE_URL)
+WebSocket base: wss://fstream.binance.com/ws
+
+Symbols in active use:
+  TRADE_SYMBOLS (V3/V4 scan): BTCUSDT, NEARUSDT, SOLUSDT, BNBUSDT
+  WHALE_RADAR_SYMBOLS: BTCUSDT, NEARUSDT, SOLUSDT, BNBUSDT
+  DEFAULT_SCAN_SYMBOLS_V41: NEARUSDT, SOLUSDT, BNBUSDT, BTCUSDT
+
+Global timing constants:
+  SCAN_INTERVAL_MS = 60_000 (60s) — constants/scanSchedule.ts
+  WHALE_RADAR_INTERVAL_MS = 300_000 (5 min) — constants/whaleRadar.ts
+  MONITOR_INTERVAL_MS = 30_000 (30s) — hooks/useLockedPlanMonitor.ts
+  BACKGROUND_POSITION_TASK minimumInterval = 15 min — services/backgroundPositionCheck.ts
+
+Global cache / throttle (services/binanceApi.ts):
+  MIN_REQUEST_GAP_MS = 120 (throttle between HTTP requests)
+  DEFAULT_CACHE_TTL_MS = 60_000
+  ORDERBOOK_CACHE_TTL_MS = 15_000
+  TICKER_CACHE_TTL_MS = 3_000
+  FORCE_ORDERS_CACHE_TTL_MS = 45_000
+  FORCE_ORDERS_WS_COLLECT_MS = 2_000 (WebSocket listen window)
+
+==================================================
+SECTION 1
+BINANCE API INVENTORY
+==================================================
+
+──────────────────────────────────────────────────
+PART A — LOW-LEVEL API WRAPPERS
+──────────────────────────────────────────────────
+
+[A-01]
+File:           services/binanceApi.ts
+Function:       fetchKlines
+Endpoint:       GET /fapi/v1/klines
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol (BTCUSDT | NEARUSDT | SOLUSDT | BNBUSDT)
+Timeframe:      Caller-supplied interval (5m | 15m | 1h | 4h | 1d | 30m via V4.1 wrapper)
+Trigger:        Invoked by fetchAllMarketData, whaleRadarScan, rawMarketFetcher, or direct callers
+Refresh:        DEFAULT_CACHE_TTL_MS 60s storage cache; deduped in-flight; 120ms throttle
+Sync/Async:     Async (Promise)
+Used by:        fetchAllMarketData, services/whaleRadarScan.ts (fetchAtr1hForSymbol), services/v41/rawMarketFetcher.ts (fetchClosedKlinesV41, fetchRawMarketV41)
+
+[A-02]
+File:           services/binanceApi.ts
+Function:       fetchTickerPrice
+Endpoint:       GET /fapi/v1/ticker/price
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      N/A (spot last price)
+Trigger:        Any module needing mark/last price
+Refresh:        TICKER_CACHE_TTL_MS 3s; deduped; 120ms throttle
+Sync/Async:     Async
+Used by:        signalBoardScan, marketAnalysisFetch, lockedPlanMonitorService, whaleRadarScan, priceLevelMonitor, periodicScanService, usePendingOrderFill, useMarketAnalysis, SignalBoardV41, SignalBoardUnified, useTradeStore.fetchAndAnalyze (via bundle)
+
+[A-03]
+File:           services/binanceApi.ts
+Function:       fetch24hTickerChange
+Endpoint:       GET /fapi/v1/ticker/24hr  (field: priceChangePercent)
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol; BTCUSDT for global BTC condition
+Timeframe:      N/A (24h rolling window)
+Trigger:        BTC 24h % for L8/L9 context; alt 24h % during signal scan
+Refresh:        TICKER_CACHE_TTL_MS 3s; deduped; 120ms throttle
+Sync/Async:     Async
+Used by:        marketAnalysisFetch.fetchBtcChange24hPct, signalBoardScan (alts only; BTC uses shared value), SignalBoardV41.loadQuotes, SignalBoardUnified.loadQuotes
+
+[A-04]
+File:           services/binanceApi.ts
+Function:       fetchBookTicker
+Endpoint:       GET /fapi/v1/ticker/bookTicker
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      N/A (best bid/ask snapshot)
+Trigger:        Spread display in market analysis UI
+Refresh:        TICKER_CACHE_TTL_MS 3s; deduped; 120ms throttle
+Sync/Async:     Async
+Used by:        hooks/useMarketAnalysis.ts (loadPrice, every 60s)
+
+[A-05]
+File:           services/binanceApi.ts
+Function:       fetchDeepOrderBook
+Endpoint:       GET /fapi/v1/depth?limit=1000
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      N/A (order book snapshot)
+Trigger:        Liquidity heatmap / L7 whale walls / Whale Radar
+Refresh:        ORDERBOOK_CACHE_TTL_MS 15s; deduped; 120ms throttle
+Sync/Async:     Async
+Used by:        fetchAllMarketData, services/whaleRadarScan.ts (scanSymbol)
+
+[A-06]
+File:           services/binanceApi.ts
+Function:       fetchForceOrders → collectForceOrdersWebSocket
+Endpoint:       WebSocket wss://fstream.binance.com/ws/{symbol}@forceOrder
+HTTP Method:    WebSocket (public stream; NOT REST)
+Symbol:         Caller-supplied TradeSymbol (lowercase in stream path)
+Timeframe:      N/A (liquidation events; collects up to limit orders in 2s window)
+Trigger:        Part of fetchAllMarketData for liquidation / flow analysis
+Refresh:        FORCE_ORDERS_CACHE_TTL_MS 45s; WS collect window FORCE_ORDERS_WS_COLLECT_MS 2s; hard timeout REQUEST_TIMEOUT_MS 8s
+Sync/Async:     Async (Promise wrapping WebSocket)
+Used by:        fetchAllMarketData only (indirect: V3/V4 scoring via market bundle)
+
+[A-07]
+File:           services/binanceApi.ts
+Function:       fetchOIEngine
+Endpoint:       GET /fapi/v1/openInterest  AND  GET /futures/data/openInterestHist
+HTTP Method:    GET (two parallel fetches)
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      Stats period param (5m|15m|30m|1h|2h|4h|6h|12h|1d); default 5m; limit default 30
+Trigger:        Part of fetchAllMarketData for OI delta / L6 flow
+Refresh:        DEFAULT_CACHE_TTL_MS 60s; deduped; 120ms throttle
+Sync/Async:     Async (Promise.all parallel)
+Used by:        fetchAllMarketData only
+
+[A-08]
+File:           services/binanceApi.ts
+Function:       fetchFundingRateHistoryResult (internal) / fetchFundingRateHistory (public wrapper)
+Endpoint:       GET /fapi/v1/fundingRate?limit={limit}
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      N/A (funding rate history; limit default 16)
+Trigger:        Part of fetchAllMarketData; L6 funding metrics
+Refresh:        DEFAULT_CACHE_TTL_MS 60s; deduped; 120ms throttle
+Sync/Async:     Async
+Used by:        fetchAllMarketData (limit 12 via MARKET_LS_DEPTH in production paths); fetchFundingRateHistory exported for direct use (tests only in repo)
+
+[A-09]
+File:           services/binanceApi.ts
+Function:       fetchLongShortRatio
+Endpoint:       GET /futures/data/topLongShortAccountRatio
+HTTP Method:    GET
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      Stats period param; production uses 1h; limit default 30
+Trigger:        Part of fetchAllMarketData for top-trader L/S ratio (L6/L9)
+Refresh:        DEFAULT_CACHE_TTL_MS 60s; deduped; 120ms throttle
+Sync/Async:     Async
+Used by:        fetchAllMarketData only
+
+[A-10]
+File:           services/binanceApi.ts
+Function:       fetchAllMarketData
+Endpoint:       Orchestrator — calls A-01 (×5 timeframes), A-05, A-06, A-07, A-08, A-09 per symbol
+HTTP Method:    GET + WebSocket (composite)
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      5m (limit 80 MTF), 15m (limit 80 MTF), 1h (limit 220), 4h (limit 220), 1d (limit 220); OI period = statsPeriodFor(analysisTimeframe); L/S period = 1h; funding limit = caller param (12 in production)
+Trigger:        Full market bundle for scoring / analysis
+Refresh:        Inherits per-endpoint cache TTLs above; single orchestration per caller tick
+Sync/Async:     Async (Promise.allSettled batch)
+Used by:        signalBoardScan.scanSignalSymbol, marketAnalysisFetch.fetchMarketAnalysisBundle, lockedPlanMonitorService.refreshLockedPlanMonitorContext
+
+[A-11]
+File:           services/v41/rawMarketFetcher.ts
+Function:       fetchFundingRateV41
+Endpoint:       GET /fapi/v1/fundingRate?symbol={symbol}&limit=1
+HTTP Method:    GET (direct fetch — bypasses binanceApi cache/throttle/dedup)
+Symbol:         Caller-supplied TradeSymbol
+Timeframe:      N/A (latest funding rate only)
+Trigger:        Part of fetchRawMarketV41 (V4.1 raw market layer)
+Refresh:        No app-level cache (raw fetch each scan)
+Sync/Async:     Async
+Used by:        fetchRawMarketV41 only
+
+[A-12]
+File:           services/v41/rawMarketFetcher.ts
+Function:       fetchRawMarketV41
+Endpoint:       Composite — fetchKlines ×5 + fetchFundingRateV41 ×1 per symbol
+HTTP Method:    GET (composite)
+Symbol:         Target symbol + BTCUSDT (for BTC klines)
+Timeframe:      4h limit 250 (symbol + BTC); 30m limit 100 (symbol); 1h limit 100 (symbol + BTC)
+Trigger:        V4.1 scan pipeline (scanOneSymbolV41)
+Refresh:        Inherits fetchKlines 60s cache; funding direct (no cache)
+Sync/Async:     Async (Promise.all parallel per symbol)
+Used by:        services/v41/scanV41.ts (scanOneSymbolV41, scanV41)
+
+──────────────────────────────────────────────────
+PART B — CALL-SITE INVENTORY (WHO TRIGGERS REQUESTS)
+──────────────────────────────────────────────────
+
+[B-01] V3 / V4 SIGNAL BOARD SCAN
+File:           services/signalBoardScan.ts
+Function:       scanAllSignalRows → scanSignalSymbol (per symbol)
+Endpoints:      fetchBtcChange24hPct → A-03 (BTCUSDT)
+                fetchAllMarketData → A-10 (per symbol)
+                fetchTickerPrice → A-02 (per symbol)
+                fetch24hTickerChange → A-03 (per alt symbol; skipped for BTCUSDT)
+HTTP Method:    GET (+ WS via A-10)
+Symbol:         BTCUSDT, NEARUSDT, SOLUSDT, BNBUSDT (sequential per symbol in scanAllSignalRows)
+Timeframe:      User-selected analysis timeframe (1h | 4h | 1d) drives statsPeriodFor; klines always 5m/15m/1h/4h/1d
+Trigger:        useSignalBoard.scan(), useUnifiedAppScan (V3/V4 leg), periodicTradingWork.runSignalBoardScanPersist, foregroundScanService, background session notification scan
+Refresh:        SCAN_INTERVAL_MS 60s (useSignalBoard, useUnifiedAppScan, periodicTradingWork, foregroundScanService)
+Sync/Async:     Async
+Modules:        V3, V4, Dashboard (Signal Board), Background Scanner, Notification (session check uses scan rows)
+
+[B-02] MARKET ANALYSIS BUNDLE (shared pipeline)
+File:           services/marketAnalysisFetch.ts
+Function:       fetchMarketAnalysisBundle / fetchBtcChange24hPct
+Endpoints:      A-10 + A-02 + A-03(BTCUSDT)
+HTTP Method:    GET (+ WS)
+Symbol:         Single caller symbol + BTCUSDT for 24h
+Timeframe:      statsPeriodFor(timeframe); klines 5m/15m/80 + 1h/4h/1d/220
+Trigger:        On-demand analysis fetch
+Refresh:        Caller-dependent (60s in useMarketAnalysis / startAutoRefresh)
+Sync/Async:     Async
+Modules:        V3, V4, Dashboard, useTradeStore
+
+[B-03] SYMBOL ANALYSIS (position advisor data)
+File:           services/symbolAnalysisFetch.ts
+Function:       fetchAnalysisDataForSymbol
+Endpoints:      Via fetchMarketAnalysisBundle → B-02
+HTTP Method:    GET (+ WS)
+Symbol:         OPEN trade symbol (one at a time in alert loop)
+Timeframe:      Persisted analysis timeframe
+Trigger:        runPositionAdvisorAlerts per OPEN trade
+Refresh:        SCAN_INTERVAL_MS 60s via periodicTradingWork.checkPositionAdvisorAlerts; background task ≥15 min
+Sync/Async:     Async
+Modules:        V3, V4, V4.1 (V41 uses V41 store snapshot + analysis price), Notification
+
+[B-04] POSITION ADVISOR ALERT RUNNER
+File:           services/positionAdvisorAlertRunner.ts
+Function:       runPositionAdvisorAlerts
+Endpoints:      Indirect via fetchAnalysisDataForSymbol → B-03
+HTTP Method:    GET (+ WS)
+Symbol:         Each OPEN journal trade symbol
+Timeframe:      Persisted timeframe
+Trigger:        useTradeStore.checkPositionAdvisorAlerts; periodicTradingWork; backgroundPositionCheck task
+Refresh:        60s (foreground periodic); ≥15 min (expo-background-task minimumInterval)
+Sync/Async:     Async
+Modules:        V3, V4, V4.1, Notification, Background Scanner
+
+[B-05] TRADE STORE AUTO-REFRESH
+File:           store/useTradeStore.ts
+Function:       fetchAndAnalyze / startAutoRefresh
+Endpoints:      Via fetchMarketAnalysisBundle → B-02
+HTTP Method:    GET (+ WS)
+Symbol:         selectedSymbol (default from store)
+Timeframe:      analysisTimeframe from store
+Trigger:        App mount auto-refresh; manual fetchAndAnalyze
+Refresh:        SCAN_INTERVAL_MS 60s
+Sync/Async:     Async
+Modules:        V3, V4, Dashboard (legacy analysis panel)
+
+[B-06] MARKET ANALYSIS HOOK (UI)
+File:           hooks/useMarketAnalysis.ts
+Function:       loadMarket / loadPrice
+Endpoints:      loadMarket → fetchMarketAnalysisBundle (B-02)
+                loadPrice → A-02 + A-04
+HTTP Method:    GET (+ WS for loadMarket)
+Symbol:         Hook symbol prop
+Timeframe:      analysisTimeframe prop
+Trigger:        useEffect on mount + setInterval
+Refresh:        SCAN_INTERVAL_MS 60s (both loadMarket and loadPrice intervals)
+Sync/Async:     Async
+Modules:        V3, V4, Dashboard
+
+[B-07] V4.1 SCAN
+File:           services/v41/scanV41.ts
+Function:       scanV41 → scanOneSymbolV41
+Endpoints:      fetchRawMarketV41 → A-12 (per symbol, parallel across symbols)
+HTTP Method:    GET
+Symbol:         NEARUSDT, SOLUSDT, BNBUSDT, BTCUSDT
+Timeframe:      4h×250, 30m×100, 1h×100 (+ BTC 4h/1h)
+Trigger:        useUnifiedAppScan after V3/V4 scan; initial force scan on mount
+Refresh:        SCAN_INTERVAL_MS 60s (bundled in unified scan)
+Sync/Async:     Async (Promise.allSettled across symbols)
+Modules:        V4.1, Dashboard (SignalBoardV41, SignalBoardUnified)
+
+[B-08] V4.1 DASHBOARD QUOTES
+File:           components/dashboard/SignalBoardV41.tsx
+Function:       loadQuotes
+Endpoints:      A-02 + A-03 per symbol
+HTTP Method:    GET
+Symbol:         V4.1 symbol list
+Timeframe:      N/A
+Trigger:        useEffect on symbols change; re-fetch when rows update (post-scan)
+Refresh:        Event-driven (not fixed interval); re-runs after each scan cycle (~60s)
+Sync/Async:     Async (Promise.allSettled)
+Modules:        V4.1, Dashboard
+
+[B-09] V4.1 TRADE ENTRY (on-demand price)
+File:           components/dashboard/SignalBoardV41.tsx
+Function:       handleTradePress
+Endpoints:      A-02 (only if markPrice missing from row)
+HTTP Method:    GET
+Symbol:         User-selected symbol
+Timeframe:      N/A
+Trigger:        User taps LONG/SHORT trade button when row has no price
+Refresh:        On-demand (single shot)
+Sync/Async:     Async
+Modules:        V4.1, Dashboard
+
+[B-10] UNIFIED DASHBOARD QUOTES
+File:           components/dashboard/SignalBoardUnified.tsx
+Function:       loadQuotes
+Endpoints:      A-02 + A-03 per symbol
+HTTP Method:    GET
+Symbol:         Unified symbol list
+Timeframe:      N/A
+Trigger:        useEffect when signals.length > 0
+Refresh:        Event-driven after unified scan (~60s)
+Sync/Async:     Async
+Modules:        V3, V4, V4.1, Dashboard
+
+[B-11] LOCKED PLAN MONITOR
+File:           services/lockedPlanMonitorService.ts
+Function:       refreshLockedPlanMonitorContext
+Endpoints:      A-10 (funding limit 12) + A-02
+HTTP Method:    GET (+ WS)
+Symbol:         Locked plan symbol
+Timeframe:      statsPeriodFor(timeframe); klines same as A-10 with limit 80 MTF
+Trigger:        useLockedPlanMonitor refresh when locked plan active
+Refresh:        MONITOR_INTERVAL_MS 30s
+Sync/Async:     Async
+Modules:        V3, V4, Dashboard (locked plan UI)
+
+[B-12] WHALE RADAR SCAN
+File:           services/whaleRadarScan.ts
+Function:       runWhaleRadarScan / runWhaleRadarScanIfDue → scanSymbol → fetchAtr1hForSymbol
+Endpoints:      A-05 (depth 1000) + A-02 + A-01 (1h, limit 20)
+HTTP Method:    GET
+Symbol:         WHALE_RADAR_SYMBOLS: BTCUSDT, NEARUSDT, SOLUSDT, BNBUSDT (sequential loop)
+Timeframe:      1h for ATR; N/A for depth/ticker
+Trigger:        useWhaleRadar hook; periodicTradingWork.runWhaleRadarScanIfDue
+Refresh:        WHALE_RADAR_INTERVAL_MS 5 min (300s); skip if last scan < 5 min
+Sync/Async:     Async
+Modules:        Dashboard (Whale Radar), Notification (whaleRadarNotification), Background Scanner
+
+[B-13] PRICE LEVEL MONITOR (SL/TP)
+File:           services/priceLevelMonitor.ts
+Function:       runPriceLevelMonitor
+Endpoints:      A-02 per unique OPEN trade symbol
+HTTP Method:    GET
+Symbol:         Symbols of OPEN journal entries
+Timeframe:      N/A
+Trigger:        usePriceLevelAlerts; periodicTradingWork.runPriceLevelAlerts
+Refresh:        SCAN_INTERVAL_MS 60s
+Sync/Async:     Async
+Modules:        Notification, Journal, Background Scanner
+
+[B-14] PENDING ORDER FILL (foreground hook)
+File:           hooks/usePendingOrderFill.ts
+Function:       tick → fillPendingOrdersFromSymbols callback
+Endpoints:      A-02 per unique PENDING symbol
+HTTP Method:    GET
+Symbol:         PENDING journal symbols
+Timeframe:      N/A
+Trigger:        setInterval when PENDING orders exist
+Refresh:        SCAN_INTERVAL_MS 60s
+Sync/Async:     Async
+Modules:        Journal, Dashboard
+
+[B-15] PENDING ORDER FILL (background / persisted)
+File:           services/periodicScanService.ts
+Function:       fillPendingOrdersPersisted
+Endpoints:      A-02 per unique PENDING symbol
+HTTP Method:    GET
+Symbol:         PENDING journal symbols (from AsyncStorage)
+Timeframe:      N/A
+Trigger:        periodicTradingWork first step each 60s tick
+Refresh:        SCAN_INTERVAL_MS 60s
+Sync/Async:     Async
+Modules:        Background Scanner
+
+[B-16] UNIFIED APP SCAN ORCHESTRATOR
+File:           hooks/useUnifiedAppScan.ts
+Function:       runUnifiedScan
+Endpoints:      Delegates to B-01 (V3/V4) then B-07 (V4.1); no direct Binance calls
+HTTP Method:    N/A (orchestrator)
+Symbol:         DEFAULT_SCAN_SYMBOLS_V41
+Timeframe:      Persisted / parent timeframe
+Trigger:        Mount force scan + setInterval
+Refresh:        SCAN_INTERVAL_MS 60s (debounced if last < 60s unless force)
+Sync/Async:     Async
+Modules:        V3, V4, V4.1, Dashboard
+
+[B-17] PERIODIC TRADING WORK (master background loop)
+File:           services/periodicTradingWork.ts
+Function:       runPeriodicTradingWork
+Endpoints:      B-15, B-13, B-04, B-01, B-12 (composite)
+HTTP Method:    GET (+ WS)
+Symbol:         All active symbols per sub-task
+Timeframe:      Mixed per sub-task
+Trigger:        foregroundScanService.native periodicScanLoop; manual invoke
+Refresh:        SCAN_INTERVAL_MS 60s
+Sync/Async:     Async
+Modules:        V3, V4, V4.1, Notification, Background Scanner, Journal
+
+[B-18] FOREGROUND SCAN SERVICE (Android native)
+File:           services/foregroundScanService.native.ts
+Function:       periodicScanLoop → runPeriodicTradingWork
+Endpoints:      Via B-17
+HTTP Method:    GET (+ WS)
+Symbol:         All (via periodic work)
+Timeframe:      Mixed
+Trigger:        BackgroundService while app not killed
+Refresh:        SCAN_INTERVAL_MS 60s between ticks
+Sync/Async:     Async
+Modules:        Background Scanner
+
+[B-19] BACKGROUND POSITION CHECK (Expo task)
+File:           services/backgroundPositionCheck.ts
+Function:       TaskManager task → runPositionAdvisorAlerts
+Endpoints:      Via B-04
+HTTP Method:    GET (+ WS)
+Symbol:         OPEN trade symbols
+Timeframe:      Persisted timeframe
+Trigger:        OS-scheduled background task (minimumInterval 15 min)
+Refresh:        ≥15 min (platform-dependent)
+Sync/Async:     Async
+Modules:        Notification, V3, V4, V4.1
+
+[B-20] SIGNAL BOARD HOOK (V3/V4 UI scan)
+File:           hooks/useSignalBoard.ts
+Function:       scan → scanAllSignalRows
+Endpoints:      Via B-01
+HTTP Method:    GET (+ WS)
+Symbol:         TRADE_SYMBOLS
+Timeframe:      Hook timeframe prop
+Trigger:        Mount, setInterval, AppState resume, auto-check minute trigger
+Refresh:        SCAN_INTERVAL_MS 60s; Web mirrors APK Gist up to 3× scan interval (180s) without re-fetch
+Sync/Async:     Async
+Modules:        V3, V4, Dashboard
+
+──────────────────────────────────────────────────
+PART C — MODULES WITH NO DIRECT BINANCE CALLS
+──────────────────────────────────────────────────
+
+The following modules consume Binance data only via upstream bundles (no direct HTTP/WS):
+
+  services/scorerV3.ts          — types only (Kline, AllMarketData)
+  services/scorerV4.ts          — types + funding helper imports
+  services/positionAdvisorV3.ts — no fetch
+  services/positionAdvisorV4.ts — no fetch
+  services/v41/positionAdvisorV41.ts — uses V41 store snapshot + mark price from caller
+  hooks/useJournalMarketSync.ts — uses signal row prices + V41 store (no fetch)
+  services/notificationService.ts — sends alerts; no fetch
+  services/whaleRadarNotification.ts — notification only
+  services/indicators.ts        — pure computation on fetched data
+  services/analysisInput.ts     — builds input from AllMarketData
+  services/structureSL.ts       — pure computation on Kline[]
+  services/unifiedSignalEngine.ts — merges scan results; no fetch
+  services/scanUnified.ts       — orchestrator; no direct fetch
+
+──────────────────────────────────────────────────
+PART D — REQUEST VOLUME ESTIMATE (STEADY STATE)
+──────────────────────────────────────────────────
+
+Per 60s unified scan cycle (4 symbols, all modules active, cache cold):
+
+  V3/V4 per symbol (fetchAllMarketData):
+    - 5 kline REST calls
+    - 1 depth REST
+    - 1 forceOrder WebSocket session (~2s)
+    - 2 OI REST (openInterest + hist)
+    - 1 funding REST
+    - 1 long/short REST
+    = ~11 REST + 1 WS per symbol × 4 = ~44 REST + 4 WS
+  Plus per symbol: ticker + 24h alt = +2 REST × 4 = +8 REST
+  Plus BTC 24h once = +1 REST
+  V4.1 per symbol (fetchRawMarketV41):
+    - 5 kline REST (some overlap with V3/V4 cache if same interval/limit)
+    - 1 direct funding REST (no shared cache)
+    = ~6 REST × 4 = ~24 REST
+
+  Whale Radar (every 5 min, 4 symbols):
+    - depth + ticker + 1h klines per symbol = 3 REST × 4 = 12 REST per 5 min
+
+  Locked plan monitor (30s, 1 symbol when active):
+    - Full fetchAllMarketData + ticker ≈ 12 REST + 1 WS per 30s
+
+  Price / pending monitors (60s, variable symbols):
+    - 1 ticker REST per unique OPEN/PENDING symbol
+
+Note: binanceApi dedup + storage cache significantly reduces actual HTTP count when
+intervals overlap (e.g. ticker 3s cache, klines 60s cache, shared fetchKlines between V3 and V41 for 4h).
+
+──────────────────────────────────────────────────
+PART E — ENDPOINT SUMMARY TABLE
+──────────────────────────────────────────────────
+
+| # | Endpoint                              | Method     | Wrapper Function              |
+|---|---------------------------------------|------------|-------------------------------|
+| 1 | /fapi/v1/klines                       | GET        | fetchKlines                   |
+| 2 | /fapi/v1/ticker/price                 | GET        | fetchTickerPrice              |
+| 3 | /fapi/v1/ticker/24hr                  | GET        | fetch24hTickerChange          |
+| 4 | /fapi/v1/ticker/bookTicker            | GET        | fetchBookTicker               |
+| 5 | /fapi/v1/depth?limit=1000             | GET        | fetchDeepOrderBook            |
+| 6 | /fapi/v1/openInterest                 | GET        | fetchOIEngine (parallel)      |
+| 7 | /futures/data/openInterestHist        | GET        | fetchOIEngine (parallel)      |
+| 8 | /fapi/v1/fundingRate                  | GET        | fetchFundingRateHistoryResult |
+| 9 | /fapi/v1/fundingRate?limit=1          | GET        | fetchFundingRateV41 (V4.1)    |
+|10 | /futures/data/topLongShortAccountRatio| GET        | fetchLongShortRatio           |
+|11 | wss://fstream.binance.com/ws/{sym}@forceOrder | WebSocket | fetchForceOrders      |
+
+Total distinct Binance API surfaces: 11 (10 REST paths + 1 public WebSocket stream)
+
+── End of SECTION 1 ──

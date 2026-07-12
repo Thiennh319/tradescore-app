@@ -1,0 +1,70 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.1.1 DEPENDENCY REPORT
+================================================================================
+Module: services/entryStateManager/
+Date:   2026-07-11
+================================================================================
+
+1. INBOUND — Ai import ESM?
+--------------------------------------------------------------------------------
+
+  Grep pattern: entryStateManager (toàn repo)
+
+  Production / test imports:  NONE
+  Docs references only:      Task_02_1_* reports, README self-ref
+
+  VERDICT: ✅ ESM chưa được tích hợp vào bất kỳ luồng xử lý nào.
+
+--------------------------------------------------------------------------------
+
+2. OUTBOUND — ESM import gì?
+--------------------------------------------------------------------------------
+
+  File                    Imports
+  ----------------------  ------------------------------------------
+  metadata.ts             (none)
+  errorCodes.ts           (none)
+  hardBlockIds.ts         (none)
+  enums.ts                (none)
+  types.ts                ./enums (type only)
+  audit.ts                ./enums, ./types (type only)
+  constants.ts            ./metadata, ./enums, ./types
+  index.ts                barrel re-exports only
+
+  FORBIDDEN CHECK:
+    UI / components       ❌ not imported
+    Store / zustand       ❌ not imported
+    React                 ❌ not imported
+    scorerV3 / scorerV4   ❌ not imported
+    signalBoardScan       ❌ not imported
+    positionAdvisor*      ❌ not imported
+    indicators / CVD      ❌ not imported
+    whaleConfirmation     ❌ not imported
+    finalEntryStatus      ❌ not imported
+
+  VERDICT: ✅ Không vi phạm dependency constraint.
+
+--------------------------------------------------------------------------------
+
+3. CẢNH BÁO
+--------------------------------------------------------------------------------
+
+  Không có cảnh báo dependency. Module hoàn toàn isolated.
+
+--------------------------------------------------------------------------------
+
+4. GRAPH (sau Task 02.1.1)
+--------------------------------------------------------------------------------
+
+  [Future: signalBoardScan] ──?──> entryStateManager  (not wired)
+  [Future: exportService]   ──?──> entryStateManager  (not wired)
+
+  entryStateManager/
+    metadata ──> constants ──> index
+    enums ─────> types ──────> audit ──> index
+    errorCodes ──────────────> index
+    hardBlockIds ────────────> index
+
+================================================================================
+END OF DEPENDENCY REPORT
+================================================================================

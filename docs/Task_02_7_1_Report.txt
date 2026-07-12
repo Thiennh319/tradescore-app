@@ -1,0 +1,192 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.7.1 REPORT
+================================================================================
+Task:        02.7.1 — SignalBoardScan Integration (Adapter)
+Date:        2026-07-12
+Module:      services/entryStateManager/
+Version:     1.5.0 → 1.5.1
+Prerequisite: ESM Core v1.5.0 (FROZEN)
+================================================================================
+
+TÓM TẮT
+-------
+Tạo SignalBoardAdapter — lớp mapping đọc SignalBoardScan snapshot và chuyển
+thành ESM pipeline contexts. Không evaluate, không decision, không transition.
+Không sửa ESM Core pipeline, Detection Layer, Rule Engine, hay production wiring.
+
+Tests: 238/238 PASS (223 existing + 15 adapter)
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+MỚI:
+  services/entryStateManager/signalBoardAdapterTypes.ts
+  services/entryStateManager/signalBoardAdapter.ts
+  services/entryStateManager/signalBoardAdapter.test.ts
+  docs/Task_02_7_1_Report.txt
+
+SỬA (integration boundary only — không sửa core pipeline):
+  services/entryStateManager/index.ts           (export adapter)
+  services/entryStateManager/metadata.ts        (MODULE_VERSION = 1.5.1)
+  services/entryStateManager/architectureAudit.test.ts (version guard 1.5.1)
+
+KHÔNG SỬA:
+  Detection Layer (FROZEN v0.6.2)
+  Trigger Aggregator / Priority / Conflict / Decision / State Machine
+  Action Runtime / Runtime Dispatcher / Runtime Executor
+  ACTION_POLICY / TRANSITION_POLICY / CONFLICT_POLICY
+  services/signalBoardScan.ts
+  Production scan path / UI / Feature Flag
+
+================================================================================
+PHẦN 2 — ADAPTER MODEL
+================================================================================
+
+Input — SignalBoardAdapterContext:
+
+  signalBoardScan   SignalBoardScanSnapshot (adapter-owned slim contract)
+  marketSnapshot    EntryStateMarketSnapshot
+  triggerSnapshot   SignalBoardTriggerSnapshot (detector + optional staged outputs)
+  scanId            string
+  timestamp         ISO8601 string
+
+Output — SignalBoardAdapterResult:
+
+  aggregateContext   TriggerAggregatorContext
+  priorityContext    PriorityResolverContext
+  conflictContext    ConflictResolverContext
+  decisionContext    DecisionEngineContext
+  scanId             string
+  timestamp          string
+
+SignalBoardScanSnapshot (minimal row mirror — no import signalBoardScan.ts):
+
+  symbol, price, direction, canEnter, hardBlocked
+  decisionLabel?, decisionDisplay?
+
+SignalBoardTriggerSnapshot:
+
+  hardBlockResult?, recoveryResult?, unlockResult?,
+  confirmationResult?, noiseResult?
+  aggregateResult?, priorityResult?, conflictResult?  (optional passthrough)
+
+================================================================================
+PHẦN 3 — MAPPING FLOW
+================================================================================
+
+  SignalBoardScan snapshot
+        │
+        ▼
+  validateSignalBoardAdapterContext()
+        │
+        ▼
+  buildSignalBoardAdapterResult()     ← field copy only
+        │
+        ├── aggregateContext  ← detector slots + scanId
+        ├── priorityContext   ← aggregateResult shell or staged passthrough
+        ├── conflictContext   ← priorityResult shell or staged passthrough
+        └── decisionContext   ← conflictResult shell or staged passthrough
+        │
+        ▼
+  aggregateTriggers(aggregateContext)   ← integration orchestrator (Task 02.7.2+)
+        │
+        ▼
+  Pipeline tiếp tục bình thường (resolvePriority → resolveConflicts → …)
+
+Adapter KHÔNG gọi aggregateTriggers, resolvePriority, resolveConflicts,
+buildDecisionEngineResult, hay bất kỳ runtime evaluator nào.
+
+Shell placeholders (message: 'signal-board-adapter-mapped') cho phép orchestrator
+biết cần thay bằng output thật từ pipeline. Khi triggerSnapshot đã bundle
+staged results, adapter passthrough nguyên vẹn.
+
+================================================================================
+PHẦN 4 — VALIDATION
+================================================================================
+
+validateSignalBoardAdapterContext():
+  • scanId — non-empty string
+  • timestamp — non-empty string
+  • signalBoardScan — required, symbol/price/direction/canEnter/hardBlocked
+  • marketSnapshot — required, symbol/markPrice/timestamp
+  • symbol consistency — marketSnapshot.symbol === signalBoardScan.symbol
+  • triggerSnapshot — required object
+
+validateSignalBoardAdapterResult():
+  • scanId + timestamp on result
+  • aggregateContext.scanId matches result.scanId
+  • priorityContext / conflictContext / decisionContext scanId alignment
+  • nested upstream objects present (aggregateResult, priorityResult, conflictResult)
+
+Immutability:
+  • copyTriggerSnapshot() — shallow field copy
+  • buildSignalBoardAdapterResult() không mutate input context
+
+================================================================================
+PHẦN 5 — PUBLIC API
+================================================================================
+
+  SignalBoardAdapter namespace:
+    buildSignalBoardAdapterResult()
+    validateSignalBoardAdapterContext()
+    validateSignalBoardAdapterResult()
+
+Exported via index.ts — integration tasks import from entryStateManager barrel.
+
+================================================================================
+PHẦN 6 — TEST SUMMARY
+================================================================================
+
+Command:
+  npx vitest run services/entryStateManager/
+
+Result:
+  Test Files  20 passed (20)
+  Tests       238 passed (238)
+
+signalBoardAdapter.test.ts (15 tests):
+  [✓] validate context — valid passes
+  [✓] validate context — missing scanId
+  [✓] validate context — missing timestamp
+  [✓] validate context — missing signalBoardScan
+  [✓] validate context — symbol mismatch
+  [✓] build result — maps aggregateContext
+  [✓] build result — wires downstream contexts
+  [✓] build result — no input mutation
+  [✓] validate result — valid passes
+  [✓] validate result — scanId mismatch fails
+  [✓] integration smoke — adapt → aggregateTriggers
+  [✓] integration smoke — multi-slot snapshot
+  [✓] staged aggregateResult passthrough
+  [✓] namespace API
+  [✓] throws on invalid context
+
+Regression: 223 tests từ 02.6.7 — PASS nguyên trạng.
+
+================================================================================
+PHẦN 7 — PRODUCTION IMPACT
+================================================================================
+
+NONE — adapter scaffold only.
+
+  • Không import vào signalBoardScan.ts
+  • Không thay đổi FEATURE_FLAG (ENTRY_STATE_MANAGER_ENABLED vẫn off)
+  • Không UI wiring
+  • Không scan path mutation
+
+Task 02.7.2+ sẽ orchestrate:
+  scan → detection → adapter → aggregateTriggers → full pipeline
+
+================================================================================
+PHẦN 8 — VERSION
+================================================================================
+
+MODULE_VERSION = 1.5.1
+
+ESM Core pipeline logic giữ nguyên tại freeze baseline 1.5.0.
+Version bump phản ánh integration adapter layer (Task 02.7.1).
+
+================================================================================
+END OF REPORT — TASK 02.7.1
+================================================================================

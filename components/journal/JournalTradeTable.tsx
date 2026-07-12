@@ -14,6 +14,7 @@ import {
 } from '../../services/journalService';
 import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
+import { resolveJournalMarketPrice } from '../../hooks/useJournalMarketSync';
 
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
 
@@ -158,7 +159,7 @@ function JournalSourceCell({ entry, width }: { entry: AiTradeJournalEntry; width
 
 function JournalTradeRow({
   entry,
-  markPrice,
+  markBySymbol,
   unrealizedPnl,
   pnlBreakdown,
   advisorLabel,
@@ -168,7 +169,7 @@ function JournalTradeRow({
   onCancelPending,
 }: {
   entry: AiTradeJournalEntry;
-  markPrice?: number;
+  markBySymbol: Record<string, number>;
   unrealizedPnl?: number | null;
   pnlBreakdown?: JournalPnlBreakdown;
   advisorLabel?: string;
@@ -187,16 +188,16 @@ function JournalTradeRow({
   const openReason = resolveJournalOpenReasonDisplay(entry);
   const closeReason = resolveJournalCloseReasonDisplay(entry);
   const stalePending = isPending && isStalePendingOrder(entry);
-  const limitPrice = entry.outcome.limitOrderPrice ?? entry.market.entryPrice;
 
   const showPartialPnl = isOpen && (pnlBreakdown?.hasPartial ?? hasPartial);
 
-  const currentExit = isOpen
-    ? markPrice != null
-      ? formatUsdPrice(sym, markPrice)
-      : '—'
-    : isPending
-      ? formatUsdPrice(sym, limitPrice)
+  const marketPrice = resolveJournalMarketPrice(entry, markBySymbol);
+
+  const currentExit =
+    isOpen || isPending
+      ? marketPrice != null
+        ? formatUsdPrice(sym, marketPrice)
+        : '—'
       : entry.outcome.exitPrice != null
         ? formatUsdPrice(sym, entry.outcome.exitPrice)
         : '—';
@@ -378,7 +379,7 @@ export function JournalTradeTable({
             <JournalTradeRow
               key={entry.id}
               entry={entry}
-              markPrice={markBySymbol[entry.symbol]}
+              markBySymbol={markBySymbol}
               unrealizedPnl={unrealizedById[entry.id] ?? null}
               pnlBreakdown={pnlBreakdownById?.[entry.id]}
               advisorLabel={advisorLabelById?.[entry.id]}

@@ -14,16 +14,18 @@ import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../constants/scoring';
 import { PANEL, SPACING } from '../constants/theme';
 import { vi } from '../constants/vi';
-import { useJournalMarketSync } from '../hooks/useJournalMarketSync';
+import { useJournalMarketSync, resolveJournalMarketPrice } from '../hooks/useJournalMarketSync';
 import type { SignalRow } from '../hooks/useSignalBoard';
+import type { SignalRowV41 } from '../services/v41/scanV41';
 import { shareJournalCsv, shareSkippedSetupsCsv } from '../services/exportShare';
 import { useTradeStore } from '../store/useTradeStore';
 
 interface JournalScreenProps {
   signalRows: SignalRow[];
+  v41Rows?: SignalRowV41[];
 }
 
-export function JournalScreen({ signalRows }: JournalScreenProps) {
+export function JournalScreen({ signalRows, v41Rows = [] }: JournalScreenProps) {
   const getVisibleAiJournal = useTradeStore((s) => s.getVisibleAiJournal);
   const getAccountHistory = useTradeStore((s) => s.getAccountHistory);
   const closeTradeEntry = useTradeStore((s) => s.closeTradeEntry);
@@ -65,6 +67,7 @@ export function JournalScreen({ signalRows }: JournalScreenProps) {
   const { markBySymbol, unrealizedById, pnlBreakdownById, advisorLabelById } = useJournalMarketSync({
     entries,
     signalRows,
+    v41Rows,
     leverage,
     scorerVersion,
     scoringResultV4,
@@ -146,7 +149,7 @@ export function JournalScreen({ signalRows }: JournalScreenProps) {
       <CloseTradeModal
         visible={closeEntry != null}
         entry={closeEntry}
-        markPrice={closeEntry ? markBySymbol[closeEntry.symbol] : null}
+        markPrice={closeEntry ? resolveJournalMarketPrice(closeEntry, markBySymbol) ?? null : null}
         signalRow={
           closeEntry
             ? signalRows.find((r) => r.symbol === closeEntry.symbol) ?? null

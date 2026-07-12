@@ -1,0 +1,173 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.7.3 REPORT
+================================================================================
+Task:        02.7.3 — Entry State Manager Integration Harness (Scaffold)
+Date:        2026-07-12
+Module:      services/entryStateManager/
+Version:     1.6.0 → 1.6.1
+Prerequisite: Task 02.7.2 — Pipeline Orchestrator
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng Integration Harness — lớp integration DUY NHẤT giữa production scan
+input và ESM pipeline. Harness inject currentState, gọi SignalBoardAdapter,
+gọi PipelineOrchestrator, re-run state machine tail với injected state, trả
+IntegrationHarnessResult. Không decision, rule, transition, action execution,
+hay production side effects.
+
+Tests: 268/268 PASS (253 existing + 15 harness)
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+MỚI:
+  services/entryStateManager/integrationHarnessTypes.ts
+  services/entryStateManager/integrationHarness.ts
+  services/entryStateManager/integrationHarness.test.ts
+  docs/Task_02_7_3_Report.txt
+
+SỬA (integration boundary only):
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts           (MODULE_VERSION = 1.6.1)
+  services/entryStateManager/architectureAudit.test.ts
+
+KHÔNG SỬA:
+  pipelineOrchestrator.ts / signalBoardAdapter.ts
+  ESM Core pipeline / Detection Layer / Policies
+  signalBoardScan.ts / Feature Flag / production wiring
+  UI / Order Engine / Position Adviser / Journal
+
+================================================================================
+PHẦN 2 — INTEGRATION FLOW
+================================================================================
+
+  SignalBoardScan snapshot (production-facing input)
+        │
+        ▼
+  validateIntegrationHarnessContext()
+        │
+        ▼
+  buildSignalBoardAdapterResult()
+        │
+        ▼
+  buildPipelineOrchestratorResult()
+        │
+        ▼
+  injectCurrentStateIntoPipeline()   ← harness-only tail re-run
+        │
+        ▼
+  IntegrationHarnessResult
+
+injectCurrentStateIntoPipeline():
+  Re-runs state machine → action engine → action runtime → dispatcher → executor
+  with context.currentState — without modifying PipelineOrchestrator module.
+
+Harness đặc tính:
+  • Synchronous — không Promise / async
+  • Deterministic
+  • Không mutate input
+  • Không swallow exception
+  • Không retry / scheduler / timeout / EventBus / execute
+
+================================================================================
+PHẦN 3 — CONTEXT & RESULT MODEL
+================================================================================
+
+IntegrationHarnessContext:
+  signalBoardScan    SignalBoardScanSnapshot
+  marketSnapshot     EntryStateMarketSnapshot
+  triggerSnapshot    SignalBoardTriggerSnapshot
+  currentState       EntryState (state machine — injected)
+  scanId             string
+  timestamp          ISO8601 string
+
+IntegrationHarnessResult:
+  adapterResult      SignalBoardAdapterResult
+  pipelineResult     PipelineOrchestratorResult (with injected currentState)
+  halted             boolean — mirrors pipelineResult.halted
+  message            string
+  context            IntegrationHarnessContext (copied passthrough)
+
+================================================================================
+PHẦN 4 — VALIDATION
+================================================================================
+
+validateIntegrationHarnessContext():
+  • delegate validateSignalBoardAdapterContext()
+  • currentState must be valid state machine EntryState (isStateMachineEntryState)
+
+validateIntegrationHarnessResult():
+  • delegate validateSignalBoardAdapterResult()
+  • delegate validatePipelineOrchestratorResult()
+  • halted === pipelineResult.halted
+  • pipelineResult.stateMachineResult.currentState === context.currentState
+  • context.scanId === adapterResult.scanId
+
+================================================================================
+PHẦN 5 — PUBLIC API
+================================================================================
+
+  IntegrationHarness namespace:
+    buildIntegrationHarnessResult()
+    validateIntegrationHarnessContext()
+    validateIntegrationHarnessResult()
+
+Exported via index.ts barrel.
+
+================================================================================
+PHẦN 6 — TEST SUMMARY
+================================================================================
+
+Command:
+  npx vitest run services/entryStateManager/
+
+Result:
+  Test Files  22 passed (22)
+  Tests       268 passed (268)
+
+integrationHarness.test.ts (15 tests):
+  [✓] validate context — valid
+  [✓] validate context — invalid scanId
+  [✓] validate context — invalid currentState
+  [✓] currentState passthrough
+  [✓] adapter called (spy)
+  [✓] orchestrator called (spy)
+  [✓] deterministic
+  [✓] no mutation
+  [✓] halted propagation
+  [✓] validate result — halted mismatch
+  [✓] validate result — currentState mismatch
+  [✓] throws on invalid context
+  [✓] namespace API
+  [✓] full integration success
+  [✓] regression
+
+Regression: 253 tests từ 02.7.2 — PASS nguyên trạng.
+
+================================================================================
+PHẦN 7 — PRODUCTION IMPACT
+================================================================================
+
+NONE — harness scaffold only.
+
+  • Không import signalBoardScan.ts / UI / Order Engine / Journal
+  • Không thay đổi FEATURE_FLAG
+  • Không production scan path wiring
+
+Task 02.7.4+ có thể gọi buildIntegrationHarnessResult() từ integration
+harness entry point (vẫn behind FEATURE_FLAG).
+
+================================================================================
+PHẦN 8 — VERSION
+================================================================================
+
+MODULE_VERSION = 1.6.1
+
+ESM Core + Orchestrator + Adapter modules giữ nguyên (không sửa).
+Version bump phản ánh integration harness layer.
+
+================================================================================
+END OF REPORT — TASK 02.7.3
+================================================================================

@@ -1,0 +1,105 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.2.2.2 REPORT
+================================================================================
+Task:        02.2.2.2 — Hoàn thiện Transition Metadata
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.2.3 → 0.2.4
+================================================================================
+
+TÓM TẮT
+-------
+Bổ sung metadata đầy đủ cho 16 transition: transitionReason, transitionCategory,
+priority, sourceModule, auditLabel. Export ENTRY_TRANSITION_METADATA_TABLE.
+Validation pass. Data-only — không state machine, không production impact.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/transitionMetadata.ts
+  docs/Task_02_2_2_2_Report.txt
+
+SỬA:
+  services/entryStateManager/transitionTypes.ts
+  services/entryStateManager/transitionMatrix.ts
+  services/entryStateManager/transitionValidation.ts
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.2.4)
+
+================================================================================
+PHẦN 2 — TRANSITION METADATA TABLE (16 rows)
+================================================================================
+
+transitionId          | from    | to      | allow | reason                      | category      | pri | sourceModule        | auditLabel
+----------------------|---------|---------|-------|-----------------------------|---------------|-----|---------------------|------------------
+ESM-T-READY-READY     | READY   | READY   | Y     | Conditions Still Valid      | Confirmation  | 60  | EntryStateManager   | ENTRY_CONFIRM
+ESM-T-READY-WATCH     | READY   | WATCH   | Y     | Momentum Weakened           | NoiseFilter   | 50  | CVDFilter           | ENTRY_NOISE_FILTER
+ESM-T-READY-LOCKED    | READY   | LOCKED  | Y     | Price Entered Lock Zone     | Confirmation  | 60  | EntryStateManager   | ENTRY_LOCK
+ESM-T-READY-BLOCKED   | READY   | BLOCKED | Y     | Hard Block Activated        | HardBlock     | 100 | RuleEngine          | ENTRY_BLOCK
+ESM-T-WATCH-WATCH     | WATCH   | WATCH   | Y     | Awaiting Confirmation       | NoiseFilter   | 50  | EntryStateManager   | ENTRY_NOISE_FILTER
+ESM-T-WATCH-READY     | WATCH   | READY   | Y     | Conditions Confirmed        | Confirmation  | 60  | EntryStateManager   | ENTRY_CONFIRM
+ESM-T-WATCH-LOCKED    | WATCH   | LOCKED  | N     | Invalid Pipeline Skip       | Protection    | 90  | EntryStateManager   | ENTRY_INVALID
+ESM-T-WATCH-BLOCKED   | WATCH   | BLOCKED | Y     | Hard Block Activated        | HardBlock     | 100 | RuleEngine          | ENTRY_BLOCK
+ESM-T-LOCKED-LOCKED   | LOCKED  | LOCKED  | Y     | Maintaining Lock            | Confirmation  | 60  | EntryStateManager   | ENTRY_LOCK
+ESM-T-LOCKED-BLOCKED  | LOCKED  | BLOCKED | Y     | Critical Risk Cancel        | Protection    | 90  | RiskEngine          | ENTRY_BLOCK
+ESM-T-LOCKED-READY    | LOCKED  | READY   | N     | Invalid Skip-WATCH Recovery | Protection    | 90  | EntryStateManager   | ENTRY_INVALID
+ESM-T-LOCKED-WATCH    | LOCKED  | WATCH   | Y     | Price Left Lock Zone        | Unlock        | 70  | EntryStateManager   | ENTRY_UNLOCK
+ESM-T-BLOCKED-BLOCKED | BLOCKED | BLOCKED | Y     | Block Still Active          | HardBlock     | 100 | RuleEngine          | ENTRY_BLOCK
+ESM-T-BLOCKED-WATCH   | BLOCKED | WATCH   | Y     | Hard Block Cleared          | Recovery      | 70  | RuleEngine          | ENTRY_RECOVERY
+ESM-T-BLOCKED-READY   | BLOCKED | READY   | N     | Invalid Skip-WATCH Recovery | Protection    | 90  | EntryStateManager   | ENTRY_INVALID
+ESM-T-BLOCKED-LOCKED  | BLOCKED | LOCKED  | N     | Invalid Pipeline Skip       | Protection    | 90  | EntryStateManager   | ENTRY_INVALID
+
+Export constant: ENTRY_TRANSITION_METADATA_TABLE
+
+Categories (fixed): Confirmation, Recovery, Protection, HardBlock, Unlock, NoiseFilter
+Priority reference: HardBlock=100, Protection=90, Recovery/Unlock=70, Confirmation=60, NoiseFilter=50
+
+================================================================================
+PHẦN 3 — VALIDATION
+================================================================================
+
+validateTransitionMatrixData(): valid=true
+
+  [x] 16/16 có đủ metadata fields
+  [x] Không duplicate transitionId
+  [x] priority ≥ 0
+  [x] sourceModule không rỗng, thuộc whitelist
+  [x] allowed=false → ENTRY_INVALID; allowed=true → không ENTRY_INVALID
+  [x] METADATA_TABLE đồng bộ MATRIX
+
+auditLabel reuse (hợp lệ — khác ngữ cảnh from→to):
+  ENTRY_BLOCK: READY→BLOCKED, WATCH→BLOCKED, LOCKED→BLOCKED, BLOCKED→BLOCKED
+  ENTRY_CONFIRM: READY→READY, WATCH→READY
+  ENTRY_NOISE_FILTER: READY→WATCH, WATCH→WATCH
+
+================================================================================
+PHẦN 4 — KIẾN TRÚC
+================================================================================
+
+  transitionMetadata.ts   — enums, priority reference, source module list
+  transitionTypes.ts      — EntryTransitionDefinition + MetadataRow
+  transitionMatrix.ts     — 16 rows + ENTRY_TRANSITION_METADATA_TABLE
+  transitionValidation.ts — metadata + workflow integrity checks
+
+  sourceModule: khai báo only — không import RuleEngine/CVD/Whale/PA.
+
+================================================================================
+PHẦN 5 — PRODUCTION IMPACT
+================================================================================
+
+  ZERO — module isolated, 0 production imports, không runtime logic.
+
+================================================================================
+PHẦN 6 — XÁC NHẬN
+================================================================================
+
+  [x] Chưa có Runtime Logic
+  [x] Chưa có State Machine
+  [x] Chưa ảnh hưởng Production
+  [x] Metadata phục vụ Audit / Journal / Export / AI validation (task sau)
+
+================================================================================
+END OF REPORT
+================================================================================

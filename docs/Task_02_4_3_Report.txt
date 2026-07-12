@@ -1,0 +1,233 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.4.3 REPORT
+================================================================================
+Task:        02.4.3 — HardBlock Detection Runtime (Passthrough)
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.4.1 → 0.4.2
+================================================================================
+
+TÓM TẮT
+-------
+Hoàn thiện HardBlock Detection Runtime — passthrough từ Rule Engine output sang
+Trigger Detection. Không tự tính HardBlock. Không Rule mới. Không State/Transition.
+
+detected = true khi và chỉ khi có ≥ 1 Evidence hợp lệ sau dedupe.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/normalizedRuleOutput.ts
+  services/entryStateManager/hardBlockOriginRuleId.ts
+  services/entryStateManager/hardBlockEvidenceBuilder.ts
+  docs/Task_02_4_3_Report.txt
+
+SỬA:
+  services/entryStateManager/hardBlockDetectionTypes.ts
+  services/entryStateManager/hardBlockDetectionEngine.ts
+  services/entryStateManager/hardBlockDetectionEngine.test.ts
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.4.2)
+
+KHÔNG SỬA:
+  scorerV3/V4, adxGate.ts, tradePlanV3/V4, Rule Engine, Score Engine
+  Position Adviser, CVD Filter, Whale Detection, RuleBook, Transition Matrix
+  UI, Store, Journal, Production scan path
+
+================================================================================
+PHẦN 2 — RUNTIME FLOW
+================================================================================
+
+  Integration (future)
+       │
+       ▼
+  EntryStateManagerInput / scan row
+       │
+       ▼
+  normalizeRuleOutput()          ← field copy only (adapter)
+       │
+       ▼
+  HardBlockDetectionContext
+    normalizedRuleOutput
+    currentEntryState
+    candidateTransitions
+    signalSnapshot
+    marketSnapshot
+       │
+       ▼
+  validateHardBlockDetectionContext()
+       │ invalid → halted, detected=false, evidence=[]
+       ▼ valid
+  buildHardBlockEvidenceFromRuleOutput()
+    1. hardBlocks[]     → RULE_ENGINE_RETURNED_BLOCK (per item)
+    2. groupBlocks[]    → GROUP_BLOCK_ACTIVE (per item)
+    3. adxGateBlocked   → ADX_BELOW_THRESHOLD (flag)
+    4. !tradePlanValid   → TRADE_PLAN_INVALID (flag)
+    5. blockReasons[]   → BLOCK_REASONS_PRESENT (per item)
+       │
+       ▼
+  dedupeHardBlockEvidence()
+       │
+       ▼
+  detected = evidence.length > 0
+       │
+       ▼
+  HardBlockDetectionResult
+    + audit: triggerId, sourceModule, ruleReference
+    + originRuleIds[], evidenceCount, detectionMessage
+
+KHÔNG gọi scorer. KHÔNG đọc decision để quyết định detected.
+
+================================================================================
+PHẦN 3 — ADAPTER REPORT
+================================================================================
+
+NormalizedRuleOutput (canonical boundary):
+  hardBlocks[]
+  groupBlocks[]
+  blockReasons[]
+  adxGateBlocked
+  tradePlanValid
+  decision            (required struct; NOT used for detection)
+
+API:
+  normalizeRuleOutput(input)              — field copy
+  normalizeRuleOutputFromManagerInput()   — alias
+  ruleEngineOutputFromManagerInput()      — deprecated alias (02.4.2 compat)
+
+HardBlockDetectionContext đổi:
+  ruleEngineOutput → normalizedRuleOutput
+
+HardBlockRuleEngineOutput = type alias NormalizedRuleOutput (backward compat).
+
+Adapter KHÔNG import scorerV3/V4/CVDX — chỉ interface + mapper.
+
+================================================================================
+PHẦN 4 — EVIDENCE MAPPING REPORT
+================================================================================
+
+| Nguồn Rule Engine        | Evidence Kind              | originRuleId   | sourceModule |
+|--------------------------|----------------------------|----------------|--------------|
+| hardBlocks[i]            | RULE_ENGINE_RETURNED_BLOCK | prefix map*    | RuleEngine   |
+| groupBlocks[i]           | GROUP_BLOCK_ACTIVE         | HB-MED-01*     | RuleEngine   |
+| adxGateBlocked=true      | ADX_BELOW_THRESHOLD        | HB-CRIT-01     | RuleEngine   |
+| tradePlanValid=false     | TRADE_PLAN_INVALID         | null           | RuleEngine   |
+| blockReasons[i]          | BLOCK_REASONS_PRESENT      | HB-LOW-01*     | RuleEngine   |
+
+* prefix map (RuleBook §6 — không tạo ID mới):
+  L3 MACD              → HB-HIGH-05
+  CVD deeply negative… → HB-HIGH-01
+  CVD +…> +2M          → HB-HIGH-02
+  Funding …            → HB-HIGH-04
+  BTC quá rủi ro       → HB-CRIT-03
+  BTC ≤ -2% / ≥ +2%    → HB-HIGH-03
+  L9 Phiên xấu         → HB-MED-02
+  L10 / Tâm lý         → HB-MED-03
+  Nhóm A/B/C           → HB-MED-01
+  L5a …                → HB-LOW-01
+
+THIẾU Rule ID (originRuleId = null — chờ phê duyệt nếu cần taxonomy):
+  tradePlanValid=false — RuleBook không có HB-* riêng cho invalid plan geometry.
+  hardBlocks message không khớp prefix map — null (passthrough vẫn có evidence).
+
+Evidence fields: kind, description, rawValue, originRuleId, sourceModule, timestamp
+  timestamp: marketSnapshot.timestamp hoặc placeholder 1970-01-01T00:00:00.000Z
+
+================================================================================
+PHẦN 5 — VALIDATION REPORT
+================================================================================
+
+validateHardBlockDetectionContext():
+  ✓ normalizedRuleOutput structure
+  ✓ priority catalog = 100
+  ✓ auditLabel = ENTRY_BLOCK
+  ✓ sourceModule ∈ TRANSITION_SOURCE_MODULES
+
+validateHardBlockDetectionResult():
+  ✓ priority = 100
+  ✓ auditLabel = ENTRY_BLOCK
+  ✓ evidenceCount === evidence.length
+  ✓ detected === (evidence.length > 0)
+  ✓ no duplicate evidence (dedupe key: kind|rawValue|originRuleId|sourceModule)
+  ✓ originRuleId valid hoặc null
+  ✓ evidence sourceModule hợp lệ
+  ✓ originRuleIds[] khớp distinct non-null IDs từ evidence
+
+================================================================================
+PHẦN 6 — UNIT TEST REPORT
+================================================================================
+
+hardBlockDetectionEngine.test.ts — 10 passed (runtime)
+triggerDetectionEngine.test.ts   — 6 passed
+evaluationPipeline.test.ts       — 4 passed
+stateValidator.test.ts           — 6 passed
+
+Total ESM: 26 passed, 0 failed
+
+Covered:
+  ✓ hardBlocks[] → detected=true
+  ✓ groupBlocks[] → detected=true
+  ✓ adxGateBlocked=true
+  ✓ tradePlanValid=false (originRuleId null)
+  ✓ blockReasons[]
+  ✓ multiple evidence
+  ✓ no evidence → detected=false
+  ✓ duplicate dedupe
+  ✓ context halt on missing output
+  ✓ validateHardBlockDetectionResult
+
+Không test Decision. Không test State.
+
+================================================================================
+PHẦN 7 — ARCHITECTURE REPORT
+================================================================================
+
+  normalizedRuleOutput.ts       — adapter interface + mapper
+  hardBlockOriginRuleId.ts      — RuleBook §6 taxonomy lookup
+  hardBlockEvidenceBuilder.ts   — passthrough evidence builder + dedupe
+  hardBlockDetectionEngine.ts   — detectHardBlock runtime + validators
+  hardBlockDetectionTypes.ts    — extended Evidence + Result audit fields
+
+Vị trí pipeline: Step 4 CollectTriggers → HardBlock sub-detector (read-only).
+
+================================================================================
+PHẦN 8 — PRODUCTION IMPACT REPORT
+================================================================================
+
+  Production scan:          KHÔNG thay đổi
+  Rule/Score Engine:        KHÔNG sửa
+  State / Transition:       KHÔNG
+  FEATURE_FLAG wiring:      KHÔNG
+  Store / Journal:          KHÔNG
+
+ESM module vẫn 0 production imports.
+
+================================================================================
+PHẦN 9 — TASK COMPLETION & XÁC NHẬN
+================================================================================
+
+  [x] NormalizedRuleOutput + adapter mapper
+  [x] Runtime passthrough detectHardBlock()
+  [x] Evidence với originRuleId, sourceModule, timestamp
+  [x] detected = evidence.length > 0
+  [x] Audit fields: originRuleIds, evidenceCount, detectionMessage
+  [x] validateHardBlockDetectionResult()
+  [x] Unit tests đầy đủ
+  [x] MODULE_VERSION 0.4.2
+
+XÁC NHẬN:
+  ✓ Không sửa Rule Engine
+  ✓ Không tạo Rule mới
+  ✓ Không thay đổi State
+  ✓ Không Transition
+  ✓ Không Decision Engine (decision không dùng cho detected)
+  ✓ Chỉ passthrough dữ liệu hiện có
+
+Ghi chú taxonomy:
+  tradePlanValid=false → originRuleId null (RuleBook chưa có HB-ID) — đã ghi báo cáo.
+
+================================================================================
+END OF REPORT
+================================================================================

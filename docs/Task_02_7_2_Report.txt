@@ -1,0 +1,209 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.7.2 REPORT
+================================================================================
+Task:        02.7.2 — Pipeline Orchestrator (Scaffold)
+Date:        2026-07-12
+Module:      services/entryStateManager/
+Version:     1.5.1 → 1.6.0
+Prerequisite: Task 02.7.1 — SignalBoard Adapter
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng Pipeline Orchestrator — lớp DUY NHẤT điều phối toàn bộ ESM pipeline
+sau SignalBoardAdapter. Chỉ orchestration: gọi tuần tự các stage builders/
+resolvers đã có. Không rule, không decision logic, không transition logic,
+không evaluate, không async/retry/event bus.
+
+Tests: 253/253 PASS (238 existing + 15 orchestrator)
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+MỚI:
+  services/entryStateManager/pipelineOrchestratorTypes.ts
+  services/entryStateManager/pipelineOrchestrator.ts
+  services/entryStateManager/pipelineOrchestrator.test.ts
+  docs/Task_02_7_2_Report.txt
+
+SỬA (integration boundary only):
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts           (MODULE_VERSION = 1.6.0)
+  services/entryStateManager/architectureAudit.test.ts
+
+KHÔNG SỬA:
+  Detection Layer / Aggregator / Priority / Conflict / Decision
+  Final Decision / State Machine / Action Engine / Action Runtime
+  Runtime Dispatcher / Runtime Executor / Policy tables
+  signalBoardAdapter.ts (02.7.1)
+  signalBoardScan.ts / Feature Flag / production wiring
+
+================================================================================
+PHẦN 2 — PIPELINE FLOW
+================================================================================
+
+  SignalBoardAdapterResult
+        │
+        ▼
+  validatePipelineOrchestratorContext()
+        │
+        ▼
+  aggregateTriggers(adapterResult.aggregateContext)
+        │
+        ▼
+  resolvePriority({ aggregateResult, scanId })
+        │
+        ▼
+  resolveConflicts({ priorityResult, scanId })
+        │
+        ▼
+  buildDecisionEngineResult({ conflictResult, scanId })
+        │
+        ▼
+  buildFinalDecisionResult({ decisionResult, scanId })
+        │
+        ▼
+  buildEntryStateMachineResult({ finalDecisionResult, currentState: WATCH, scanId })
+        │
+        ▼
+  buildActionEngineResult({ stateMachineResult, scanId })
+        │
+        ▼
+  buildActionRuntimeResult({ actionEngineResult, scanId })
+        │
+        ▼
+  buildRuntimeDispatcherResult({ actionRuntimeResult, scanId })
+        │
+        ▼
+  buildRuntimeExecutorResult({ runtimeDispatcherResult, scanId })
+        │
+        ▼
+  validatePipelineOrchestratorResult()  (caller / tests)
+        │
+        ▼
+  PipelineOrchestratorResult
+
+Orchestrator đặc tính:
+  • Synchronous — không Promise / async
+  • Deterministic — không UUID / random / timestamp trong orchestration
+  • Không mutate input context
+  • Không swallow exception — throw khi context invalid; downstream errors propagate
+  • Không retry / timeout / scheduler / EventBus
+
+================================================================================
+PHẦN 3 — CONTEXT & RESULT MODEL
+================================================================================
+
+PipelineOrchestratorContext:
+  adapterResult   SignalBoardAdapterResult
+  scanId          string (must match adapterResult.scanId)
+
+PipelineOrchestratorResult:
+  aggregateResult
+  priorityResult
+  conflictResult
+  decisionResult
+  finalDecisionResult
+  stateMachineResult
+  actionEngineResult
+  actionRuntimeResult
+  runtimeDispatcherResult
+  runtimeExecutorResult
+  halted            boolean — true if ANY stage halted
+  message           string  — success or concatenated halted stage messages
+  context           PipelineOrchestratorContext (passthrough)
+
+ORCHESTRATOR_DEFAULT_CURRENT_STATE = EntryState.WATCH
+  (scaffold default for state machine — Task 02.7.3+ may externalize)
+
+================================================================================
+PHẦN 4 — VALIDATION
+================================================================================
+
+validatePipelineOrchestratorContext():
+  • context is object
+  • scanId non-empty
+  • adapterResult required
+  • delegate validateSignalBoardAdapterResult()
+  • scanId === adapterResult.scanId
+
+validatePipelineOrchestratorResult():
+  • delegate validateDecisionEngineResult()
+  • delegate validateFinalDecisionResult()
+  • delegate validateEntryStateMachineResult()
+  • delegate validateActionEngineResult()
+  • delegate validateActionRuntimeResult()
+  • delegate validateRuntimeDispatcherResult()
+  • delegate validateRuntimeExecutorResult()
+  • aggregate/priority/conflict structural checks
+  • scanId consistency across stage contexts
+  • halted reflects any stage halted
+
+================================================================================
+PHẦN 5 — PUBLIC API
+================================================================================
+
+  PipelineOrchestrator namespace:
+    buildPipelineOrchestratorResult()
+    validatePipelineOrchestratorContext()
+    validatePipelineOrchestratorResult()
+    ORCHESTRATOR_DEFAULT_CURRENT_STATE
+
+Exported via index.ts barrel.
+
+================================================================================
+PHẦN 6 — TEST SUMMARY
+================================================================================
+
+Command:
+  npx vitest run services/entryStateManager/
+
+Result:
+  Test Files  21 passed (21)
+  Tests       253 passed (253)
+
+pipelineOrchestrator.test.ts (15 tests):
+  [✓] validate context — valid
+  [✓] validate context — missing scanId
+  [✓] validate context — missing adapterResult
+  [✓] validate context — scanId mismatch
+  [✓] full pipeline success
+  [✓] halted propagation
+  [✓] deterministic
+  [✓] scanId consistency
+  [✓] no mutation
+  [✓] validate result — halted flag
+  [✓] throws on invalid context
+  [✓] namespace API
+  [✓] adapter → orchestrator end-to-end
+  [✓] passthrough chain references
+  [✓] regression
+
+Regression: 238 tests từ 02.7.1 — PASS nguyên trạng.
+
+================================================================================
+PHẦN 7 — PRODUCTION IMPACT
+================================================================================
+
+NONE — orchestrator scaffold only.
+
+  • Không import vào signalBoardScan.ts
+  • Không thay đổi FEATURE_FLAG
+  • Không UI / production scan path wiring
+
+Task 02.7.3+ có thể gọi:
+  adapter → orchestrator trong integration harness (vẫn off production path).
+
+================================================================================
+PHẦN 8 — VERSION
+================================================================================
+
+MODULE_VERSION = 1.6.0
+
+ESM Core pipeline modules giữ nguyên (frozen 1.5.0 baseline).
+Version bump phản ánh integration orchestrator layer.
+
+================================================================================
+END OF REPORT — TASK 02.7.2
+================================================================================

@@ -1,0 +1,200 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.5.4 REPORT
+================================================================================
+Task:        02.5.4 — Conflict Resolution Runtime
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.7.3 → 0.7.4
+================================================================================
+
+TÓM TẮT
+-------
+Hoàn thiện Conflict Resolution Runtime — resolve conflict giữa các trigger
+theo catalog priority. Same priority → UNRESOLVED. Không Decision cuối, không
+State, Transition, production wiring. Không sửa Detection / Aggregator / Priority.
+
+Tests: 111/111 PASS (11 files — 105 existing + 6 net new resolution tests)
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/conflictResolutionPolicy.ts
+  docs/Task_02_5_4_Report.txt
+
+SỬA:
+  services/entryStateManager/conflictResolver.ts
+  services/entryStateManager/conflictResolverTypes.ts
+  services/entryStateManager/conflictResolver.test.ts
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (MODULE_VERSION = 0.7.4)
+
+KHÔNG SỬA:
+  Detection Layer (FROZEN v0.6.2)
+  triggerAggregator.ts / priorityResolver.ts
+  conflictEdgeCaseSpecs.ts
+
+================================================================================
+PHẦN 2 — TYPES MỚI
+================================================================================
+
+enum ConflictResolutionStatus {
+  UNRESOLVED
+  RESOLVED
+}
+
+interface ResolvedConflict {
+  groupId
+  conflictKind          // SAME_PRIORITY | EDGE_CASE
+  status
+  winningTrigger        // null khi UNRESOLVED
+  suppressedTriggers
+  reason
+}
+
+ConflictResolverResult — thêm:
+  resolvedConflicts
+  resolvedCount
+  unresolvedCount
+
+================================================================================
+PHẦN 3 — CONFLICT RESOLUTION POLICY
+================================================================================
+
+CONFLICT_RESOLUTION_POLICY (conflictResolutionPolicy.ts)
+
+Nguồn duy nhất: TRIGGER_TYPE_CATALOG
+
+  getPriorityForKind(kind) → catalog.priority
+  getTriggerIdForKind(kind) → catalog.triggerId
+  samePriorityStatus → UNRESOLVED
+  catalogSource → 'TRIGGER_TYPE_CATALOG'
+
+KHÔNG hardcode priority.
+
+================================================================================
+PHẦN 4 — RESOLUTION FLOW
+================================================================================
+
+  validateConflictResolverContext()
+        ↓
+  detectPotentialConflicts()
+        ↓
+  resolveConflictGroup() × N
+        ↓
+  ResolvedConflict[]
+        ↓
+  ConflictResolverResult
+
+resolveConflicts(context) — entry point.
+
+================================================================================
+PHẦN 5 — RESOLUTION RULES
+================================================================================
+
+Catalog priority (từ TRIGGER_TYPE_CATALOG):
+
+| Trigger      | Priority |
+|--------------|----------|
+| HardBlock    | 100      |
+| Recovery     | 70       |
+| Unlock       | 70       |
+| Confirmation | 60       |
+| Noise        | 50       |
+
+RULE:
+  - Khác priority → RESOLVED, winner = trigger priority cao nhất
+  - Cùng priority → UNRESOLVED, winningTrigger=null, suppressedTriggers=[]
+
+Ví dụ:
+  HardBlock vs Confirmation → RESOLVED (HardBlock)
+  HardBlock vs Noise        → RESOLVED (HardBlock)
+  Confirmation vs Noise     → RESOLVED (Confirmation)
+  Recovery vs Unlock        → UNRESOLVED
+
+================================================================================
+PHẦN 6 — KHÔNG ĐƯỢC
+================================================================================
+
+  [✓] Không Decision cuối (Task 02.5.5)
+  [✓] Không Transition
+  [✓] Không State change
+  [✓] Không mutate priorityResult
+  [✓] Không sửa aggregateResult
+  [✓] Không production wiring
+
+================================================================================
+PHẦN 7 — UNIT TESTS
+================================================================================
+
+conflictResolver.test.ts — 16 tests (2 describe blocks):
+
+Detection (02.5.3) — 7 tests:
+  valid / invalid / empty / groups / halted / wrong metadata / passthrough
+
+Resolution (02.5.4) — 9 tests:
+  1. HardBlock wins Confirmation (EDGE-001)
+  2. HardBlock wins Noise (resolveConflictGroup)
+  3. Confirmation wins Noise
+  4. Recovery vs Unlock UNRESOLVED
+  5. Unlock wins Noise (EDGE-002)
+  6. resolvedCount / unresolvedCount
+  7. CONFLICT_RESOLUTION_POLICY reads catalog
+  8. deterministic output
+  9. namespace (+ resolveConflictGroup)
+
+Command: npx vitest run services/entryStateManager/
+  Test Files: 11 passed (11)
+  Tests:      111 passed (111)
+
+================================================================================
+PHẦN 8 — EXPORT
+================================================================================
+
+index.ts exports:
+  ConflictResolver
+  detectPotentialConflicts
+  resolveConflictGroup          (mới)
+  resolveConflicts
+  validateConflictResolverContext
+  CONFLICT_RESOLUTION_POLICY
+  ConflictResolutionStatus
+  ResolvedConflict (type)
+  ConflictKind (type)
+  ConflictResolutionPolicy (type)
+
+================================================================================
+PHẦN 9 — KIẾN TRÚC
+================================================================================
+
+Detection (FROZEN)
+      ↓
+Aggregator
+      ↓
+Priority Resolver
+      ↓
+Conflict Detect (02.5.3)
+      ↓
+Conflict Resolve ✅ (02.5.4)
+      ↓
+Decision (02.5.5)
+
+Conflict Resolver trả về ResolvedConflict[] — không sinh quyết định cuối.
+
+================================================================================
+EXIT CRITERIA
+================================================================================
+
+  [✓] ResolvedConflict
+  [✓] ConflictResolutionStatus
+  [✓] CONFLICT_RESOLUTION_POLICY
+  [✓] resolveConflictGroup()
+  [✓] Unit Tests PASS (111/111)
+  [✓] MODULE_VERSION = 0.7.4
+
+NEXT: Task 02.5.5 — Decision (scaffold / runtime)
+
+================================================================================
+END OF TASK 02.5.4 REPORT
+================================================================================

@@ -1,0 +1,187 @@
+================================================================================
+TRADESCORE V1.0.5 — FIX 02.5.3 REPORT (Architecture Cleanup)
+================================================================================
+Task:        FIX 02.5.3 — Conflict Resolver Architecture Cleanup
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.7.2 → 0.7.3
+Prerequisite: Task 02.5.3 (Conflict Resolver Scaffold) — trước Task 02.5.4
+================================================================================
+
+TÓM TẮT
+-------
+Dọn kiến trúc Conflict Resolver scaffold: tách edge-case metadata sạch khỏi
+TRIGGER_EDGE_CASE_SPECS (02.4.1 docs), chuẩn hóa deterministic conflict group
+IDs. Không đổi public API, validation API, result model. Không thêm rule,
+decision, transition, state.
+
+Tests: 105/105 PASS (11 files — không đổi số lượng test)
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/conflictEdgeCaseSpecs.ts
+  docs/Task_02_5_3_Fix_Report.txt
+
+SỬA:
+  services/entryStateManager/conflictResolver.ts
+  services/entryStateManager/conflictResolver.test.ts  (groupId assertions only)
+  services/entryStateManager/metadata.ts (MODULE_VERSION = 0.7.3)
+
+KHÔNG SỬA:
+  Detection Layer (FROZEN v0.6.2)
+  triggerDetectionCatalog.ts — TRIGGER_EDGE_CASE_SPECS giữ nguyên (Task 02.4.1 docs)
+  Trigger Aggregator
+  Priority Resolver
+  conflictResolverTypes.ts — public types unchanged
+  index.ts — không thêm export mới
+  Production wiring
+
+================================================================================
+PHẦN 2 — FIX 1: TRIGGER_EDGE_CASE_SPECS
+================================================================================
+
+VẤN ĐỀ
+------
+conflictResolver.ts import TRIGGER_EDGE_CASE_SPECS và dùng:
+  - spec.title
+  - spec.description (có ngôn ngữ transition/state)
+  - spec.expectedBehavior (sort, SM, priority override)
+  - groupId = spec.id ('EDGE-001')
+
+=> Vi phạm scaffold 02.5.3 — chứa ngôn ngữ quyết định.
+
+GIẢI PHÁP
+---------
+Tạo module riêng conflictEdgeCaseSpecs.ts — chỉ metadata cho Conflict Resolver:
+
+  interface ConflictEdgeCaseSpec {
+    edgeId              // CONFLICT-EDGE-{NNN}
+    involvedKinds       // cặp trigger
+    description         // "Potential conflict only."
+    metadata            // { sourceEdgeId: 'EDGE-00N' } traceability
+  }
+
+CONFLICT_EDGE_CASE_SPECS:
+
+| edgeId              | involvedKinds              | sourceEdgeId |
+|---------------------|----------------------------|--------------|
+| CONFLICT-EDGE-001   | HardBlock + Confirmation   | EDGE-001     |
+| CONFLICT-EDGE-002   | Unlock + Noise             | EDGE-002     |
+| CONFLICT-EDGE-003   | Recovery + HardBlock       | EDGE-003     |
+| CONFLICT-EDGE-005   | Recovery + Unlock          | EDGE-005     |
+
+EDGE-004 (không có trigger) — không đưa vào conflict specs.
+
+ĐÃ LOẠI khỏi Task 02.5.3:
+  [✓] winner / loser
+  [✓] priority override
+  [✓] resolve / resolution deferred
+  [✓] preferred / discard trigger
+  [✓] state / transition language trong reason
+  [✓] expectedBehavior / title từ catalog 02.4.1
+
+TRIGGER_EDGE_CASE_SPECS (triggerDetectionCatalog.ts) — GIỮ NGUYÊN cho tài liệu 02.4.1.
+
+================================================================================
+PHẦN 3 — FIX 2: CONFLICT GROUP ID
+================================================================================
+
+TRƯỚC:
+  Same priority: CONFLICT-SAME-PRIORITY-{N}     (đã đúng)
+  Edge cases:    EDGE-001, EDGE-002, ...        (không đúng chuẩn)
+
+SAU (deterministic — cùng input → cùng id):
+
+  CONFLICT-SAME-PRIORITY-70
+  CONFLICT-SAME-PRIORITY-{priority}
+  CONFLICT-EDGE-001
+  CONFLICT-EDGE-002
+  CONFLICT-EDGE-003
+  CONFLICT-EDGE-005
+
+Helper: samePriorityConflictGroupId(priority) trong conflictEdgeCaseSpecs.ts
+
+REASON TEXT (same-priority):
+  TRƯỚC: "... resolution deferred (Task 02.5.4)"
+  SAU:   "Potential conflict only: N triggers share catalog priority X."
+
+REASON TEXT (edge):
+  TRƯỚC: "Placeholder: {title} — {description}"
+  SAU:   "Potential conflict only." (từ CONFLICT_EDGE_CASE_SPECS)
+
+Không UUID / random / timestamp.
+
+================================================================================
+PHẦN 4 — API & OUTPUT
+================================================================================
+
+KHÔNG ĐỔI:
+  [✓] ConflictResolverContext
+  [✓] ConflictResolverResult
+  [✓] ConflictGroupPlaceholder (groupId, members, reason)
+  [✓] validateConflictResolverContext()
+  [✓] detectPotentialConflicts()
+  [✓] resolveConflicts()
+  [✓] ConflictResolver namespace
+  [✓] conflictCount / halted / passthrough priorityResult
+
+THAY ĐỔI NỘI BỘ (groupId + reason string — cleanup semantics):
+  groupId EDGE-00N → CONFLICT-EDGE-00N
+  reason — bỏ ngôn ngữ quyết định
+
+================================================================================
+PHẦN 5 — UNIT TESTS
+================================================================================
+
+conflictResolver.test.ts — cập nhật tối thiểu:
+  - groupId assertions: CONFLICT-EDGE-002, CONFLICT-EDGE-005
+  - reason assertion: "Potential conflict only"
+
+Logic test không đổi:
+  [✓] valid / invalid context
+  [✓] empty priorityResult
+  [✓] conflictCount
+  [✓] halted
+  [✓] no winner/loser fields
+  [✓] passthrough priorityResult
+
+Command: npx vitest run services/entryStateManager/
+  Test Files: 11 passed (11)
+  Tests:      105 passed (105)
+
+================================================================================
+PHẦN 6 — KIẾN TRÚC SAU CLEANUP
+================================================================================
+
+Detection Layer (FROZEN v0.6.2)
+      ↓
+Trigger Aggregator (v0.7.0)
+      ↓
+Priority Resolver (v0.7.1)
+      ↓
+Conflict Resolver (v0.7.3 — cleanup)
+      │
+      ├── conflictEdgeCaseSpecs.ts  (metadata only)
+      └── conflictResolver.ts       (grouping only)
+      ↓
+[02.5.4] Conflict Resolution Runtime
+
+================================================================================
+EXIT CRITERIA
+================================================================================
+
+  [✓] FIX 1 — edge specs sạch, tách khỏi TRIGGER_EDGE_CASE_SPECS runtime path
+  [✓] FIX 2 — deterministic group IDs CONFLICT-SAME-PRIORITY-* / CONFLICT-EDGE-*
+  [✓] Không đụng Detection / Aggregator / Priority Resolver
+  [✓] Public API / validation / result model giữ nguyên
+  [✓] Tests PASS — 105/105
+  [✓] MODULE_VERSION = 0.7.3
+
+NEXT: Task 02.5.4 — Conflict Resolution Runtime
+
+================================================================================
+END OF FIX 02.5.3 REPORT
+================================================================================

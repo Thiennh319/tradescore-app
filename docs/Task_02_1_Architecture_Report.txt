@@ -1,0 +1,146 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.1 ARCHITECTURE REPORT
+================================================================================
+Module:   Entry State Manager (ESM)
+Path:     services/entryStateManager/
+Version:  0.1.0 (scaffold)
+RuleBook: V2.0.0 LOCKED
+Date:     2026-07-11
+================================================================================
+
+1. VỊ TRÍ TRONG KIẾN TRÚC
+--------------------------------------------------------------------------------
+
+RuleBook V2 §8.2 — luồng chuẩn (chưa wired tại Task 02.1):
+
+  Indicators
+      ↓
+  Score Engine          (scorerV3 / scorerV4 / scanV41)
+      ↓
+  Rule Engine           (hardBlocks, decision, ADX, plan validity)
+      ↓
+  Entry State Manager   ← MODULE MỚI (scaffold only)
+      ↓
+  Entry Engine          (canEnter, pending, journal open)
+      ↓
+  Trade Journal
+
+Task 02.1 chỉ định nghĩa contract dữ liệu cho tầng ESM. Không có runtime
+pipeline hook.
+
+--------------------------------------------------------------------------------
+
+2. CẤU TRÚC THƯ MỤC
+--------------------------------------------------------------------------------
+
+services/entryStateManager/
+├── index.ts          Public API — re-export only
+├── enums.ts          Domain enums (EntryState, LockStatus, …)
+├── types.ts          Core interfaces & type aliases
+├── constants.ts      Version stamps & default config values
+├── audit.ts          Export audit section shapes (RuleBook §7)
+└── hardBlockIds.ts   Taxonomy ID unions (RuleBook §6)
+
+Pattern: tương tự services/v41/types.ts — types-only layer, tách file theo concern.
+
+--------------------------------------------------------------------------------
+
+3. PHỤ THUỘC (DEPENDENCY GRAPH)
+--------------------------------------------------------------------------------
+
+  entryStateManager/index.ts
+      ├── constants.ts  → enums.ts, types.ts
+      ├── enums.ts      → (none)
+      ├── types.ts      → enums.ts
+      ├── audit.ts      → enums.ts, types.ts
+      └── hardBlockIds.ts → (none)
+
+  Không import từ:
+    scorerV3, scorerV4, signalBoardScan, lockedPlanScoring, store, components, …
+
+  Không có phụ thuộc ngược từ codebase vào ESM (grep: 0 references).
+
+--------------------------------------------------------------------------------
+
+4. DATA CONTRACT
+--------------------------------------------------------------------------------
+
+4.1 Input — EntryStateManagerInput
+  Mô tả read-only context từ Rule Engine output (§8.1, §9.3).
+  Field types cố ý loose (string cho decision) để tránh coupling scaffold → scorer.
+
+4.2 Output — EntryStateSnapshot
+  Single source of truth per (symbol, direction) per scan (§9.2).
+  Chứa: entryState, previousState, transition, lockStatus, commitScore, …
+
+4.3 Persistence shape — EntryStateRecord
+  snapshot + hysteresis counters + config snapshot + lockZoneBounds.
+
+4.4 Audit — EntryStateAuditSection
+  Map trực tiếp RuleBook §7.1 + §7.2 cho export package tương lai.
+
+--------------------------------------------------------------------------------
+
+5. ENUM & TAXONOMY MAP (RuleBook alignment)
+--------------------------------------------------------------------------------
+
+  EntryState          ↔ RuleBook §1 (READY/WATCH/LOCKED/BLOCKED)
+  LockStatus          ↔ RuleBook §7.1 lock_status
+  HardBlockPriority   ↔ RuleBook §6 tiers
+  HardBlockTaxonomyId ↔ RuleBook §6.1–6.4 IDs
+  HysteresisConfig    ↔ RuleBook §3.2 keys
+  LockZoneConfig      ↔ RuleBook §4.1 parameters
+
+--------------------------------------------------------------------------------
+
+6. CONSTANTS & FEATURE FLAG
+--------------------------------------------------------------------------------
+
+  ESM_FEATURE_FLAG_KEY = 'ENTRY_STATE_MANAGER_ENABLED'
+  RuleBook §9.5 — ESM disabled by default; app chạy FinalEntryStatus only.
+
+  Default configs (ESM_DEFAULT_*) là schema defaults từ RuleBook — chưa được
+  engine nào đọc.
+
+--------------------------------------------------------------------------------
+
+7. RÀNG BUỘC KIẾN TRÚC (đã tuân thủ ở scaffold)
+--------------------------------------------------------------------------------
+
+  §8.1  ESM không sửa Score/Rule/CVD/PA/Whale/StructureSL/TradePlan
+  §9.1  Single responsibility — chỉ state types, không scoring
+  §9.3  Input contract chỉ mô tả dữ liệu đọc từ engine khác
+  §9.5  Backward compatible — zero integration = zero behavior change
+
+  Chưa implement (task sau):
+  §3    Hysteresis runtime
+  §4    Setup lock evaluator
+  §5    Commit score computation
+  §32+  Event Log (Part D RuleBook)
+
+--------------------------------------------------------------------------------
+
+8. ĐIỂM TÍCH HỢP DỰ KIẾN (RuleBook §8.3 — NOT in 02.1)
+--------------------------------------------------------------------------------
+
+  signalBoardScan.ts     after enrichSnapshotFinalStatus
+  scanV41.ts             after visibility/opportunity
+  scanUnified.ts         merge V4 + V41 ESM state
+  useLockedPlanMonitor   sync LOCKED ↔ LockedTradePlan
+  exportService.ts       SECTION: ENTRY STATE (ESM)
+  exportEntrySltpAuditPackage.ts
+
+--------------------------------------------------------------------------------
+
+9. RỦI RO & GHI CHÚ
+--------------------------------------------------------------------------------
+
+  - EsmScorerVersion tách biệt khỏi ScorerVersion hiện có — tránh rename file cũ.
+    Mapping layer sẽ cần ở task integration.
+  - EntryStateManagerInput.decision: string — task integration sẽ narrow type
+    hoặc import ScoreDecision nếu cần.
+  - Không có README trong module — theo convention project (v41 cũng không có).
+
+================================================================================
+END OF ARCHITECTURE REPORT
+================================================================================

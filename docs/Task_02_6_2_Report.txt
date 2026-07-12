@@ -1,0 +1,200 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.6.2 REPORT
+================================================================================
+Task:        02.6.2 — Transition Runtime
+Date:        2026-07-12
+Module:      services/entryStateManager/
+Version:     1.0.0 → 1.0.1
+================================================================================
+
+TÓM TẮT
+-------
+Hoàn thiện Transition Runtime — State Machine có thể resolve nextState đầu tiên.
+Luật chuyển state tập trung tại TRANSITION_POLICY. currentState không mutate.
+Không Entry/Exit Action, Event Bus, hay production wiring.
+
+Tests: 163/163 PASS (151 existing + 12 new)
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/transitionPolicy.ts
+  docs/Task_02_6_2_Report.txt
+
+SỬA:
+  services/entryStateManager/stateMachine.ts
+  services/entryStateManager/stateMachineTypes.ts
+  services/entryStateManager/stateMachine.test.ts
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (MODULE_VERSION = 1.0.1)
+
+KHÔNG SỬA:
+  Detection Layer / Aggregator / Priority / Conflict / Decision / Final Decision
+  Test cũ Decision Pipeline — PASS nguyên trạng
+
+================================================================================
+PHẦN 2 — TRANSITION POLICY
+================================================================================
+
+Module duy nhất chứa luật chuyển state:
+
+  TRANSITION_POLICY.canTransition(currentState, targetState, finalDecision)
+
+interface TransitionPolicy {
+  canTransition(
+    currentState: EntryState,
+    targetState: EntryState,
+    finalDecision: FinalDecisionResult,
+  ): boolean
+}
+
+Rules:
+  IDLE    → WATCH   khi có finalDecision
+  WATCH   → READY   khi finalDecision != null
+  WATCH   → BLOCKED khi finalDecision.halted
+  READY   → ENTRY   khi decisionCount === 1 và có finalDecision
+  ENTRY   → ACTIVE  luôn hợp lệ (placeholder)
+  ACTIVE  → EXIT    placeholder
+  EXIT    → IDLE    placeholder
+
+Helpers (metadata graph — không evaluate policy):
+  listPolicyTransitionTargets(currentState)
+  getPolicyTransitionReason(from, to)
+
+================================================================================
+PHẦN 3 — RUNTIME FLOW
+================================================================================
+
+  validateEntryStateMachineContext()
+        ↓
+  buildAvailableTransitions()      ← từ policy graph
+        ↓
+  resolveNextState()               ← TRANSITION_POLICY.canTransition
+        ↓
+  validateEntryStateMachineResult()
+        ↓
+  return EntryStateMachineResult
+
+buildEntryStateMachineResult(context) — entry point.
+
+================================================================================
+PHẦN 4 — RESULT MỞ RỘNG
+================================================================================
+
+interface EntryStateMachineResult {
+  currentState              // không đổi
+  availableTransitions
+  nextState                 // EntryState | null — đề xuất
+  transitionPerformed       // true khi resolve được transition hợp lệ
+  halted
+  message
+  context
+}
+
+currentState giữ nguyên — nextState là state đề xuất, chưa commit.
+
+================================================================================
+PHẦN 5 — VALIDATION
+================================================================================
+
+validateEntryStateMachineResult() bổ sung:
+
+  [✓] transitionPerformed === true  → nextState != null
+  [✓] transitionPerformed === false → nextState == null
+  [✓] nextState thuộc EntryState enum khi có
+  [✓] halted → không transitionPerformed
+  [✓] các rule cũ (transitions array, duplicate, currentState match)
+
+================================================================================
+PHẦN 6 — KHÔNG ĐƯỢC
+================================================================================
+
+  [✓] Không mutate currentState
+  [✓] Không timeout / retry / hysteresis
+  [✓] Không side effect
+  [✓] Không scorer / Rule Engine
+  [✓] Không production import
+  [✓] Không hardcode transition trong stateMachine.ts
+
+================================================================================
+PHẦN 7 — UNIT TESTS
+================================================================================
+
+stateMachine.test.ts — thêm 12 tests (02.6.2):
+
+  1. IDLE → WATCH
+  2. WATCH → READY
+  3. READY → ENTRY
+  4. ENTRY → ACTIVE
+  5. ACTIVE → EXIT
+  6. EXIT → IDLE
+  7. transitionPerformed=false
+  8. invalid transition (policy rejects)
+  9. policy validation WATCH → BLOCKED when halted
+  10. namespace export resolveNextState
+  11. deterministic output
+  12. currentState không mutate
+
+Command: npx vitest run services/entryStateManager/
+  Test Files: 14 passed (14)
+  Tests:      163 passed (163)
+
+================================================================================
+PHẦN 8 — EXPORT
+================================================================================
+
+index.ts exports:
+  TRANSITION_POLICY
+  TransitionPolicy (type)
+  listPolicyTransitionTargets
+  getPolicyTransitionReason
+  resolveNextState
+  ResolvedNextState (type)
+  EntryStateMachine (namespace — thêm resolveNextState)
+
+================================================================================
+PHẦN 9 — KIẾN TRÚC
+================================================================================
+
+Decision Pipeline (FROZEN)
+      ↓
+Final Decision Runtime
+      ↓
+State Machine Scaffold (02.6.1)
+      ↓
+Transition Runtime ✅ (02.6.2 — v1.0.1)
+      ↓
+Entry / Exit Actions (02.6.3 — chưa triển khai)
+
+TRANSITION_POLICY là SSOT cho luật chuyển state.
+stateMachine.ts chỉ orchestrate — không chứa rule.
+
+================================================================================
+PHẦN 10 — PRODUCTION IMPACT
+================================================================================
+
+  • Không thay đổi runtime production — FEATURE_FLAG vẫn off.
+  • MODULE_VERSION bump 1.0.0 → 1.0.1.
+  • Decision Pipeline không đổi API / test.
+  • nextState là đề xuất — chưa apply vào application state.
+
+================================================================================
+EXIT CRITERIA
+================================================================================
+
+  [✓] transitionPolicy.ts + TRANSITION_POLICY
+  [✓] resolveNextState()
+  [✓] EntryStateMachineResult.nextState / transitionPerformed
+  [✓] validateEntryStateMachineResult() mở rộng
+  [✓] Không hardcode rule trong stateMachine.ts
+  [✓] currentState không mutate
+  [✓] Unit Tests PASS (≥12 new)
+  [✓] MODULE_VERSION = 1.0.1
+
+NEXT: Task 02.6.3 — Entry / Exit Actions
+
+================================================================================
+END OF TASK 02.6.2 REPORT
+================================================================================

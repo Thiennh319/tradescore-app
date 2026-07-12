@@ -1,0 +1,125 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.1 COMPLETION REPORT
+================================================================================
+Task:        02.1 — Tạo khung Entry State Manager
+Date:        2026-07-11
+RuleBook:    V2.0.0 — LOCKED (không sửa Rule)
+Module:      services/entryStateManager/
+Version:     ESM scaffold 0.1.0
+================================================================================
+
+SUMMARY
+-------
+Đã tạo khung module Entry State Manager (ESM) gồm cấu trúc thư mục, enum, type,
+interface, constants và barrel export. Không có thuật toán, state machine,
+transition logic, hysteresis runtime, lock logic, commit score logic, hay event
+emitter. Không tích hợp vào App hay bất kỳ engine nào.
+
+================================================================================
+1. FILE MỚI (6 files)
+================================================================================
+
+services/entryStateManager/
+  index.ts           — Public barrel export
+  enums.ts           — EntryState, LockStatus, HardBlockPriority, EsmDirection, …
+  types.ts           — Snapshot, record, input, config interfaces
+  constants.ts       — RuleBook version, default config (schema only)
+  audit.ts           — Audit export field shapes (§7 RuleBook)
+  hardBlockIds.ts    — Hard-block taxonomy ID unions (§6 RuleBook)
+
+docs/
+  Task_02_1_Completion_Report.txt   — Báo cáo này
+  Task_02_1_Architecture_Report.txt — Kiến trúc module
+
+================================================================================
+2. FILE CŨ ĐÃ CHỈNH SỬA
+================================================================================
+
+(Không có)
+
+================================================================================
+3. LÝ DO CHỈNH FILE CŨ
+================================================================================
+
+Không áp dụng — task chỉ thêm module mới, không sửa production code.
+
+================================================================================
+4. PHẠM VI ĐÃ TẠO (theo RuleBook V2 §1–§9)
+================================================================================
+
+Enums:
+  EntryState          READY | WATCH | LOCKED | BLOCKED
+  LockStatus          UNLOCKED | LOCKED | PENDING_FILL
+  HardBlockPriority   CRITICAL | HIGH | MEDIUM | LOW
+  EsmDirection        LONG | SHORT
+  LockZoneMode        PERCENT | ATR
+  EsmScorerVersion    v3 | v4 | v41 | unified
+
+Interfaces / Types:
+  HysteresisConfig, LockZoneConfig, EntryLockZoneBounds
+  HysteresisCounters (storage shape — chưa cập nhật runtime)
+  EntryStateSnapshot, EntryStateRecord
+  EntryStateManagerInput (read-only Rule Engine context)
+  EntryStateManagerConfig
+  EntryStateTransitionLabel
+  EntryStateAuditFields, EntryStateAuditSupplement, EntryStateAuditSection
+  HardBlockTaxonomyId (+ tier unions)
+
+Constants:
+  ESM_RULEBOOK_VERSION = 'RuleBook V2.0.0'
+  ESM_AUDIT_VERSION    = 'audit-v2.1'
+  ESM_MODULE_VERSION   = '0.1.0'
+  ESM_FEATURE_FLAG_KEY = 'ENTRY_STATE_MANAGER_ENABLED'
+  ESM_DEFAULT_HYSTERESIS_CONFIG (§3.2 defaults — config data only)
+  ESM_DEFAULT_LOCK_ZONE_CONFIG    (§4.1 defaults — config data only)
+
+================================================================================
+5. PHẠM VI KHÔNG TẠO (đúng yêu cầu Task 02.1)
+================================================================================
+
+  [ ] State machine / transition evaluator
+  [ ] Hysteresis counter updates
+  [ ] Setup lock / Entry Lock Zone computation
+  [ ] Commit score formula
+  [ ] Event Log writer / domain events
+  [ ] Integration: signalBoardScan, scanV41, scanUnified, store, UI, export
+  [ ] Tests (task không yêu cầu; không sửa test hiện có)
+
+================================================================================
+6. BUILD & TYPECHECK
+================================================================================
+
+TypeScript — module ESM:
+  npx tsc --noEmit (full project) — không có lỗi trong entryStateManager/*
+  Module mới compile sạch; không import ngược vào Score/Rule/Entry engines.
+
+Vitest:
+  npm test — 114 file pass, 4 file fail (12 tests) — failures có sẵn trước task
+  (driveSync.e2e, exportService, positionAdvisorV4, positionAdvisorExitTracking).
+  Task 02.1 không thêm test mới và không làm tăng số test fail.
+
+Warning mới: Không phát sinh từ module ESM.
+
+================================================================================
+7. XÁC NHẬN AN TOÀN PRODUCTION
+================================================================================
+
+  [x] Module chưa được import ở bất kỳ file nào ngoài services/entryStateManager/
+  [x] Không sửa Score Engine, Rule Engine, Entry Engine, PA, Journal, Store, UI
+  [x] Không refactor, không đổi tên file cũ
+  [x] Không thay đổi hành vi ứng dụng V1.0.5
+  [x] RuleBook V2.0.0 không bị chỉnh sửa trong task này
+  [x] Feature flag ENTRY_STATE_MANAGER_ENABLED — documented, chưa wired
+
+================================================================================
+8. TASK TIẾP THEO ĐỀ XUẤT (ngoài phạm vi 02.1)
+================================================================================
+
+  Task 02.2 — ESM state machine + transition rules (theo RuleBook §2)
+  Task 02.3 — Hysteresis counter persistence
+  Task 02.4 — Setup lock zone evaluator
+  Task 02.5 — Integration signalBoardScan (behind feature flag)
+
+================================================================================
+END OF REPORT
+================================================================================

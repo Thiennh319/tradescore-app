@@ -1,0 +1,147 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.2.2 REPORT
+================================================================================
+Task:        02.2.2 — Định nghĩa Transition Matrix
+Date:        2026-07-11
+RuleBook:    V2.0.0 — LOCKED
+Module:      services/entryStateManager/
+Version:     0.2.0 → 0.2.2
+================================================================================
+
+TÓM TẮT
+-------
+Đối chiếu RuleBook §1–§2 — ma trận 4×4 = 16 transition, tất cả structurally
+allowed. 7 conditional constraints (§2.3 + §1.x ❌). Data-only — không state
+machine, không if/else runtime, không production impact.
+
+RuleBook gap: KHÔNG phát hiện thiếu/mâu thuẫn cần dừng chờ phê duyệt.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/transitionTypes.ts
+  services/entryStateManager/transitionMatrix.ts
+  services/entryStateManager/transitionValidation.ts
+  docs/Task_02_2_2_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts  (MODULE_VERSION 0.2.2)
+
+================================================================================
+PHẦN 2 — TRANSITION MATRIX ĐẦY ĐỦ (16)
+================================================================================
+
+ID format: ESM-T-{FROM}-{TO}
+
+FROM READY:
+  ESM-T-READY-READY    | §1.1  | Giữ READY
+  ESM-T-READY-WATCH    | §2.2  | Plan/score borderline
+  ESM-T-READY-LOCKED   | §2.2  | Giá ∈ Entry Lock Zone
+  ESM-T-READY-BLOCKED  | §2.2  | Hard/Group/ADX/ambiguity
+
+FROM WATCH:
+  ESM-T-WATCH-WATCH    | §1.2  | Giữ WATCH
+  ESM-T-WATCH-READY    | §2.2  | canEnter + plan + hysteresis
+  ESM-T-WATCH-LOCKED   | §2.2  | Giá vào lock zone
+  ESM-T-WATCH-BLOCKED  | §2.2  | Hard block / score / ambiguity
+
+FROM LOCKED:
+  ESM-T-LOCKED-LOCKED  | §1.3  | Giữ LOCKED
+  ESM-T-LOCKED-BLOCKED | §2.2  | Cancel critical
+  ESM-T-LOCKED-READY   | §2.2  | Unlock + đủ READY
+  ESM-T-LOCKED-WATCH   | §2.2  | Unlock mềm / ra lock zone
+
+FROM BLOCKED:
+  ESM-T-BLOCKED-BLOCKED | §1.4 | Giữ BLOCKED
+  ESM-T-BLOCKED-WATCH   | §2.2 | Hard hết, soft còn
+  ESM-T-BLOCKED-READY   | §2.2 | Block hết + hysteresis exit
+  ESM-T-BLOCKED-LOCKED  | §2.2 | (Hiếm) recovery + in zone
+
+Export: ENTRY_TRANSITION_MATRIX, ENTRY_TRANSITION_LOOKUP
+
+================================================================================
+PHẦN 3 — ALLOWED TRANSITIONS (structural)
+================================================================================
+
+  16/16 — tất cả allowed: true
+
+  ENTRY_ALLOWED_TRANSITIONS = filter matrix (all 16)
+
+  Lưu ý RuleBook §2.1 diagram: WATCH ↔ READY ↔ LOCKED ↔ BLOCKED đều liên thông.
+  Self-loop (giữ) explicit trong §1.1–§1.4.
+
+================================================================================
+PHẦN 4 — FORBIDDEN TRANSITIONS
+================================================================================
+
+STRUCTURAL (allowed: false trong matrix):
+  (none) — ENTRY_FORBIDDEN_TRANSITIONS = []
+
+  RuleBook KHÔNG cấm cặp from→to nào hoàn toàn. Ví dụ task minh họa
+  BLOCKED→WATCH / BLOCKED→LOCKED thực tế được phép tại §2.2.
+
+CONDITIONAL (ENTRY_TRANSITION_CONSTRAINTS — 7):
+
+  CONSTRAINT-001 | READY↔BLOCKED same scan + hysteresis active     | §2.3.1
+  CONSTRAINT-002 | LOCKED→WATCH chỉ vì RSI/MACD 1 scan            | §2.3.2
+  CONSTRAINT-003 | BLOCKED→READY khi hardBlocks còn                  | §2.3.3
+  CONSTRAINT-004 | →LOCKED khi AMBIGUOUS (READY/WATCH→LOCKED)      | §2.3.4
+  CONSTRAINT-005 | WATCH→READY ngay 1 scan sau nhiễu từ READY      | §1.2
+  CONSTRAINT-006 | LOCKED→READY do MACD/RSI nhiễu 1 scan           | §1.3
+  CONSTRAINT-007 | BLOCKED→READY ngay 1 scan sau hard block hết    | §1.4
+
+  Mỗi constraint có futureConditionPlaceholder — chưa có logic.
+
+================================================================================
+PHẦN 5 — VALIDATION
+================================================================================
+
+  Duplicate ID/pair:     ✅ none (validateTransitionMatrixData)
+  Outside RuleBook:      ✅ all 16 from §1 + §2.2
+  Full 4×4 grid:         ✅ 16 entries, no orphan state
+  Structural forbidden:  ✅ empty array documented
+
+  Helpers (data only):
+    findTransitionDefinition(from, to)
+    isStructurallyAllowed(from, to)
+    validateTransitionMatrixData()
+
+================================================================================
+PHẦN 6 — KIẾN TRÚC
+================================================================================
+
+  transitionTypes.ts      — EntryTransitionDefinition, Constraint interfaces
+  transitionMatrix.ts       — ENTRY_TRANSITION_MATRIX (SSOT data)
+  transitionValidation.ts   — integrity checks only
+
+  State machine (task sau) đọc matrix + constraints — không duplicate rules.
+
+  Dependency: chỉ import enums + entryStateMetadata trong module ESM.
+  Production imports: 0
+
+================================================================================
+PHẦN 7 — BUILD & PRODUCTION IMPACT
+================================================================================
+
+  TypeScript entryStateManager/* : 0 errors
+  Vitest: không đổi (không sửa test)
+  Production impact: ZERO
+
+================================================================================
+PHẦN 8 — XÁC NHẬN
+================================================================================
+
+  [x] Chưa có State Machine
+  [x] Chưa có Runtime transition logic
+  [x] Chưa có if/else xử lý chuyển trạng thái (chỉ validation data integrity)
+  [x] Chưa có Hysteresis / Setup Lock / Commit Score
+  [x] Chưa ảnh hưởng Production
+  [x] RuleBook không bị sửa
+  [x] Không tự ý bổ sung Rule
+
+================================================================================
+END OF REPORT
+================================================================================

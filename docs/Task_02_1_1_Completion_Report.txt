@@ -1,0 +1,115 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.1.1 COMPLETION REPORT
+================================================================================
+Task:        02.1.1 — Hoàn thiện Scaffold Entry State Manager
+Date:        2026-07-11
+RuleBook:    V2.0.0 — LOCKED
+Module:      services/entryStateManager/
+Version:     0.1.0 → 0.1.1
+================================================================================
+
+SUMMARY
+-------
+Hoàn thiện scaffold ESM: README, metadata chuẩn, EsmErrorCode enum, JSDoc toàn
+bộ public API. Không state machine, không integration, không đổi hành vi App.
+
+================================================================================
+1. FILE MỚI (3)
+================================================================================
+
+services/entryStateManager/README.md       — Module documentation
+services/entryStateManager/metadata.ts     — MODULE_NAME, MODULE_VERSION, …
+services/entryStateManager/errorCodes.ts   — EsmErrorCode + labels
+
+docs/Task_02_1_1_Completion_Report.txt     — Báo cáo này
+docs/Task_02_1_1_Dependency_Report.txt
+docs/Task_02_1_1_Architecture_Report.txt
+docs/Task_02_1_1_Production_Impact_Report.txt
+
+================================================================================
+2. FILE CHỈNH SỬA (6)
+================================================================================
+
+services/entryStateManager/index.ts        — Export metadata + error codes
+services/entryStateManager/constants.ts    — Source từ metadata; JSDoc
+services/entryStateManager/enums.ts        — JSDoc đầy đủ
+services/entryStateManager/types.ts        — JSDoc đầy đủ
+services/entryStateManager/audit.ts        — JSDoc đầy đủ
+services/entryStateManager/hardBlockIds.ts — JSDoc đầy đủ
+
+================================================================================
+3. README
+================================================================================
+
+Path: services/entryStateManager/README.md
+
+Nội dung: mục đích, phạm vi, cấm, dependency, feature flag, version, error
+codes, kiến trúc tích hợp, task liên quan.
+
+================================================================================
+4. ERROR CODE ENUM
+================================================================================
+
+File: services/entryStateManager/errorCodes.ts
+
+  EsmErrorCode.ESM_001  Invalid Transition
+  EsmErrorCode.ESM_002  Unknown State
+  EsmErrorCode.ESM_003  Invalid Lock
+  EsmErrorCode.ESM_004  Invalid Commit Score
+  EsmErrorCode.ESM_005  Rule Violation
+  EsmErrorCode.ESM_006  Feature Disabled
+
+  ESM_ERROR_CODE_LABELS — map code → label (docs/formatting only)
+
+Không throw, không catch, không runtime handler.
+
+================================================================================
+5. METADATA
+================================================================================
+
+File: services/entryStateManager/metadata.ts
+
+  MODULE_NAME        = 'EntryStateManager'
+  MODULE_VERSION     = '0.1.1'
+  RULEBOOK_VERSION   = 'RuleBook V2.0.0'
+  AUDIT_VERSION      = 'audit-v2.1'
+  FEATURE_FLAG       = 'ENTRY_STATE_MANAGER_ENABLED'
+  ESM_MODULE_METADATA — bundled object
+
+Backward-compat aliases (constants.ts):
+  ESM_RULEBOOK_VERSION, ESM_AUDIT_VERSION, ESM_MODULE_VERSION,
+  ESM_FEATURE_FLAG_KEY → re-export từ metadata (không duplicate giá trị).
+
+================================================================================
+6. NAMING CONVENTION CHECK (báo cáo only — không refactor)
+================================================================================
+
+PASS — Enum names unique, không trùng enum khác trong repo.
+PASS — Type/interface names unique trong module.
+NOTE — Alias constants ESM_* vs MODULE_* / FEATURE_FLAG:
+       Cố ý giữ backward compat Task 02.1. Không duplicate giá trị runtime.
+NOTE — EsmScorerVersion tách khỏi ScorerVersion app-wide (mapping task sau).
+PASS — Không viết tắt khó hiểu ngoài prefix ESM/Esm (đã document trong README).
+
+Không phát hiện duplicate enum/type cần refactor.
+
+================================================================================
+7. BUILD
+================================================================================
+
+TypeScript entryStateManager/* : 0 errors
+Vitest: 12 failed | 1058 passed — KHÔNG tăng so với Task 02.1 (cùng 4 files)
+Warning mới từ module ESM: không phát sinh
+
+================================================================================
+8. XÁC NHẬN
+================================================================================
+
+  [x] ESM chưa import UI / Store / React / Score / Rule / PA / CVD / Whale
+  [x] Không file production nào import entryStateManager
+  [x] Không thay đổi hành vi TradeScore V1.0.5
+  [x] RuleBook V2 không bị sửa
+
+================================================================================
+END OF REPORT
+================================================================================

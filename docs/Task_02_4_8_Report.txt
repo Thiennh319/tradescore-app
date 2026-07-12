@@ -1,0 +1,217 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.4.8 REPORT
+================================================================================
+Task:        02.4.8 — Recovery Detection Engine (Scaffold)
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.5.1 → 0.5.2
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng scaffold Recovery Detection Engine — mô tả khả năng thoát BLOCKED
+và bắt đầu Recovery. Context/result/evidence models, adapter placeholder,
+validateRecoveryDetectionContext(), detectRecovery() placeholder.
+
+KHÔNG runtime detection. KHÔNG Rule mới. KHÔNG State/Transition/Decision.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/recoveryEvidenceKinds.ts
+  services/entryStateManager/recoveryDetectionTypes.ts
+  services/entryStateManager/recoverySignalAdapter.ts
+  services/entryStateManager/recoveryDetectionEngine.ts
+  services/entryStateManager/recoveryDetectionEngine.test.ts
+  docs/Task_02_4_8_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.5.2)
+
+KHÔNG SỬA:
+  RuleBook V2, scorerV3/V4, Rule Engine, Transition Matrix, Trigger Catalog
+  UI, Store, Production scan path
+
+================================================================================
+PHẦN 2 — RECOVERY TAXONOMY
+================================================================================
+
+RecoveryEvidenceKind (6 kinds — declaration only):
+
+  RECOVERY_BLOCK_CLEARED      — hard block cleared
+  RECOVERY_RULES_NORMALIZED   — rule output normalized, no active blocks
+  RECOVERY_TRADEPLAN_VALID    — trade plan recovered valid
+  RECOVERY_MARKET_STABLE      — market conditions stable
+  RECOVERY_SIGNAL_RETURNED    — signal quality returned
+  RECOVERY_READY_FOR_WATCH    — ready for WATCH (Business Workflow 02.2.2.1)
+
+RECOVERY_EVIDENCE_KIND_DESCRIPTIONS — human text per kind.
+
+RuleBook taxonomy gap (KHÔNG tự bổ sung):
+  RuleBook V2 mô tả BLOCKED → WATCH recovery (§2.2) nhưng
+  KHÔNG có bảng originRuleId dạng `RC-*`.
+  → RecoveryEvidence.originRuleId = null trong scaffold.
+
+RecoverySignalSnapshot — 6 placeholder slots (null in 02.4.8):
+  blockClearedHint, rulesNormalizedHint, tradePlanRecoveredHint,
+  marketStableHint, signalReturnedHint, readyForWatchHint
+
+================================================================================
+PHẦN 3 — CONTEXT MODEL
+================================================================================
+
+RecoveryDetectionContext:
+  normalizedRuleOutput
+  currentEntryState
+  signalSnapshot
+  marketSnapshot
+  candidateTransitions
+  recoverySignalSnapshot?  (optional)
+  scanId?
+
+================================================================================
+PHẦN 4 — RESULT MODEL
+================================================================================
+
+RecoveryDetectionResult:
+  detected               boolean — luôn false (02.4.8 placeholder)
+  triggerId              ESM-TRIG-Recovery
+  priority               70
+  sourceModule           RuleEngine
+  auditLabel             ENTRY_RECOVERY
+  ruleReference          RuleBook V2 §2.2 / Business Workflow 02.2.2.1
+  evidence               [] (placeholder)
+  originRuleIds          []
+  evidenceCount          0
+  detectionMessage       placeholder / validation errors
+  halted                 true if context invalid
+  context                echo
+
+Metadata từ TRIGGER_TYPE_CATALOG[EntryTriggerKind.Recovery] — không tạo mới.
+
+================================================================================
+PHẦN 5 — VALIDATION
+================================================================================
+
+validateRecoveryDetectionContext():
+  ✓ normalizedRuleOutput structure
+  ✓ currentEntryState, signalSnapshot, marketSnapshot.symbol
+  ✓ candidateTransitions is array
+  ✓ Catalog Recovery priority === 70
+  ✓ auditLabel === ENTRY_RECOVERY
+  ✓ sourceModule === RuleEngine
+  ✓ sourceModule ∈ TRANSITION_SOURCE_MODULES
+  ✓ ruleReference non-empty
+
+detectRecovery() placeholder:
+  ✓ valid context → detected=false, evidence=[], evidenceCount=0
+  ✓ invalid context → halted=true, detected=false
+
+Không tính toán recovery.
+
+================================================================================
+PHẦN 6 — DEPENDENCY
+================================================================================
+
+ESM internal only:
+  recoveryDetectionEngine → triggerDetectionCatalog, evaluationTypes,
+                            transitionMetadata, normalizedRuleOutput (types)
+  recoverySignalAdapter   → evaluationTypes, normalizedRuleOutput (types)
+
+KHÔNG import: scorer, Rule Engine runtime, UI, Store.
+
+Integration path (future):
+  app recovery signals → recoverySignalSnapshot → detectRecovery()
+
+================================================================================
+PHẦN 7 — ARCHITECTURE
+================================================================================
+
+  recoveryEvidenceKinds.ts    — taxonomy + descriptions
+  recoveryDetectionTypes.ts   — Context, Result, Evidence models
+  recoverySignalAdapter.ts    — Placeholder adapter (empty snapshot)
+  recoveryDetectionEngine.ts  — validate + detectRecovery placeholder
+
+Trigger: EntryTriggerKind.Recovery
+  triggerId:     ESM-TRIG-Recovery
+  priority:      70
+  sourceModule:  RuleEngine
+  auditLabel:    ENTRY_RECOVERY
+
+Vị trí pipeline: Step 4 CollectTriggers — parallel other detectors.
+
+Recovery KHÔNG quyết định state — chỉ mô tả khả năng recovery (future 02.4.9+).
+
+================================================================================
+PHẦN 8 — UNIT TEST
+================================================================================
+
+recoveryDetectionEngine.test.ts     — 6 passed (new)
+confirmationDetectionEngine.test.ts — 12 passed
+noiseDetectionEngine.test.ts        — 13 passed
+hardBlockDetectionEngine.test.ts    — 10 passed
+triggerDetectionEngine.test.ts      — 6 passed
+evaluationPipeline.test.ts          — 4 passed
+stateValidator.test.ts              — 6 passed
+
+Total ESM: 57 passed, 0 failed
+
+Covered:
+  ✓ Context hợp lệ
+  ✓ Context lỗi (halted)
+  ✓ priority 70, ENTRY_RECOVERY
+  ✓ triggerId ESM-TRIG-Recovery
+  ✓ Placeholder detected=false
+  ✓ evidence=[]
+  ✓ Taxonomy 6 kinds
+
+Không test Detection Runtime.
+
+================================================================================
+PHẦN 9 — PRODUCTION IMPACT
+================================================================================
+
+  Production scan:     KHÔNG thay đổi
+  Rule Engine:         KHÔNG sửa
+  State Machine:       KHÔNG
+  Transition:          KHÔNG
+  Decision Engine:     KHÔNG
+  FEATURE_FLAG:        KHÔNG wired
+
+ESM: 0 production imports.
+
+================================================================================
+PHẦN 10 — CHECKLIST
+================================================================================
+
+  [x] recoveryEvidenceKinds.ts
+  [x] recoveryDetectionTypes.ts
+  [x] recoverySignalAdapter.ts
+  [x] recoveryDetectionEngine.ts
+  [x] recoveryDetectionEngine.test.ts (6 tests)
+  [x] validateRecoveryDetectionContext()
+  [x] detectRecovery() placeholder
+  [x] RecoveryDetectionEngine namespace
+  [x] Export index.ts
+  [x] MODULE_VERSION 0.5.2
+  [x] Task_02_4_8_Report.txt
+
+================================================================================
+PHẦN 11 — XÁC NHẬN
+================================================================================
+
+  ✓ Không Runtime Detection
+  ✓ Không Decision
+  ✓ Không Transition
+  ✓ Không State Machine
+  ✓ Không Production Impact
+  ✓ Chỉ Scaffold
+
+Next: Task 02.4.9 — Recovery passthrough runtime (mirror Confirmation 02.4.7).
+
+================================================================================
+END OF REPORT
+================================================================================

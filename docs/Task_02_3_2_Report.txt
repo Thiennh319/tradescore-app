@@ -1,0 +1,136 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.3.2 REPORT
+================================================================================
+Task:        02.3.2 — Xây dựng State Evaluation Pipeline
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.3.0 → 0.3.1
+================================================================================
+
+TÓM TẮT
+-------
+Thiết kế Pipeline đánh giá 7 bước (interfaces + step specs). Pipeline chỉ mô tả
+thứ tự đánh giá — không State Machine, không runtime decision, không production.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/evaluationTypes.ts
+  services/entryStateManager/evaluationPipeline.ts
+  services/entryStateManager/evaluationPipeline.test.ts
+  docs/Task_02_3_2_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.3.1)
+
+================================================================================
+PHẦN 2 — PIPELINE DIAGRAM
+================================================================================
+
+  [1] READ_SNAPSHOT
+        currentEntryState + signal + market
+        ▼
+  [2] VALIDATE_SNAPSHOT ──invalid──► HALT
+        State Validator (validateEntryState)
+        ▼ valid
+  [3] COLLECT_CANDIDATES
+        ENTRY_ALLOWED_TRANSITIONS (from current state only)
+        ▼
+  [4] COLLECT_TRIGGERS
+        HardBlock | Unlock | Recovery | Confirmation | Noise
+        ▼
+  [5] SORT_TRIGGERS
+        priority metadata 100 → 50 (description only)
+        ▼
+  [6] SELECT_CANDIDATE  ◄── PLACEHOLDER (null)
+        ▼
+  [7] EMIT_RESULT
+        EntryStateEvaluationResult (read-only)
+
+Export: ENTRY_STATE_EVALUATION_PIPELINE_DIAGRAM
+
+================================================================================
+PHẦN 3 — MODELS
+================================================================================
+
+EntryStateEvaluationContext
+  currentEntryState, currentSignal, currentMarket
+  esmSnapshot?, ruleEngineInput?, scanId?
+
+EntryStateSignalSnapshot
+  direction, canEnter, decision, hardBlocks, tradePlanValid, entryScore
+
+EntryStateMarketSnapshot
+  symbol, markPrice, timestamp
+
+EntryTransitionCandidate
+  transitionId, from/to, reason, category, priority, sourceModule
+  auditLabel, ruleReference, definition
+
+EntryTrigger
+  kind (HardBlock|Unlock|Recovery|Confirmation|Noise)
+  category, priority, sourceModule, reasonPlaceholder, relatedTransitionId?
+
+EntryStateEvaluationResult
+  currentState, snapshotValidation, candidateTransitions, triggers
+  sortedTriggers, nextStep (placeholder), pipelineStepReached, halted, context
+
+EntryStateNextStepPlaceholder
+  message, selectedTransitionId (null)
+
+EntryStateEvaluationStep enum: 1–7
+
+================================================================================
+PHẦN 4 — PIPELINE STEPS (ENTRY_STATE_EVALUATION_PIPELINE_STEPS)
+================================================================================
+
+  1 READ_SNAPSHOT       — input context → structural snapshot
+  2 VALIDATE_SNAPSHOT   — State Validator; haltOnFailure=true
+  3 COLLECT_CANDIDATES  — matrix allowed edges only
+  4 COLLECT_TRIGGERS    — interface slots; no detection logic
+  5 SORT_TRIGGERS       — priority metadata order (documented)
+  6 SELECT_CANDIDATE    — placeholder; no decision
+  7 EMIT_RESULT         — EntryStateEvaluationResult; no state change
+
+================================================================================
+PHẦN 5 — KIẾN TRÚC
+================================================================================
+
+  evaluationTypes.ts    — context, result, candidate, trigger models
+  evaluationPipeline.ts — step specs, diagram, placeholder constant
+  stateValidator.ts     — used at step 2 (existing; not wired to executor)
+
+  Không có evaluatePipeline() executor — task sau (State Machine).
+
+  Pipeline đánh giá → State Machine quyết định (Task 02.4+).
+
+================================================================================
+PHẦN 6 — PRODUCTION IMPACT
+================================================================================
+
+  ZERO — no scan integration, no store/journal writes, 0 production imports.
+
+================================================================================
+PHẦN 7 — TESTS
+================================================================================
+
+  evaluationPipeline.test.ts — 4 passed (step count, halt flag, placeholder, trigger map)
+  stateValidator.test.ts     — 6 passed
+  Total ESM: 10 passed
+
+================================================================================
+PHẦN 8 — XÁC NHẬN
+================================================================================
+
+  [x] Chưa có State Machine
+  [x] Chưa có Runtime Decision / Transition Logic
+  [x] Chưa thay đổi State / Production
+  [x] Pipeline chỉ mô tả — không thuật toán executor
+  [x] Không Hysteresis / Commit Score / Setup Lock
+
+================================================================================
+END OF REPORT
+================================================================================

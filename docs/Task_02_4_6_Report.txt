@@ -1,0 +1,220 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.4.6 REPORT
+================================================================================
+Task:        02.4.6 — Confirmation Detection Engine (Scaffold)
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.4.4 → 0.5.0
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng scaffold Confirmation Detection Engine — context/result/evidence models,
+confirmation signal adapter placeholder, validateConfirmationDetectionContext(),
+detectConfirmation() placeholder (detected=false, evidence=[]).
+
+KHÔNG runtime detection. KHÔNG Rule mới. KHÔNG State/Transition/Decision.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/confirmationEvidenceKinds.ts
+  services/entryStateManager/confirmationDetectionTypes.ts
+  services/entryStateManager/confirmationSignalAdapter.ts
+  services/entryStateManager/confirmationDetectionEngine.ts
+  services/entryStateManager/confirmationDetectionEngine.test.ts
+  docs/Task_02_4_6_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.5.0)
+
+KHÔNG SỬA:
+  RuleBook V2, scorerV3/V4, Transition Matrix, Trigger Catalog
+  UI, Store, Production scan path
+
+================================================================================
+PHẦN 2 — CONFIRMATION TAXONOMY
+================================================================================
+
+ConfirmationEvidenceKind (6 kinds — declaration only):
+
+  EMA_CONFIRMED          — EMA alignment confirmed
+  TREND_CONFIRMED        — Trend structure confirmed
+  SCORE_CONFIRMED        — Entry score threshold confirmed (RuleBook §1.1)
+  TRADEPLAN_CONFIRMED    — Trade plan valid and ready (RuleBook §1.4)
+  VOLUME_CONFIRMED       — Volume confirmation
+  DIRECTION_CONFIRMED    — Direction clarity (RuleBook §3 / ambiguity exit)
+
+CONFIRMATION_EVIDENCE_KIND_DESCRIPTIONS — human text per kind.
+
+RuleBook taxonomy gap (KHÔNG tự bổ sung):
+  RuleBook V2 mô tả WATCH → READY confirmation (§1.1, §3) nhưng
+  KHÔNG có bảng originRuleId dạng `CF-*`.
+  → ConfirmationEvidence.originRuleId = null trong scaffold.
+
+ConfirmationSignalSnapshot — 6 placeholder slots (null in 02.4.6):
+  emaConfirmedHint, trendConfirmedHint, scoreConfirmedHint,
+  tradePlanConfirmedHint, volumeConfirmedHint, directionConfirmedHint
+
+================================================================================
+PHẦN 3 — CONTEXT MODEL
+================================================================================
+
+ConfirmationDetectionContext:
+  normalizedRuleOutput
+  currentEntryState
+  signalSnapshot
+  marketSnapshot
+  candidateTransitions
+  confirmationSignalSnapshot?  (optional — integration future)
+  scanId?
+
+================================================================================
+PHẦN 4 — RESULT MODEL
+================================================================================
+
+ConfirmationDetectionResult:
+  detected               boolean — luôn false (02.4.6 placeholder)
+  triggerId              ESM-TRIG-Confirmation
+  priority               60
+  sourceModule           EntryStateManager
+  auditLabel             ENTRY_CONFIRM
+  ruleReference          RuleBook V2 §1.1 / §3
+  evidence               [] (placeholder)
+  originRuleIds          []
+  evidenceCount          0
+  detectionMessage       placeholder / validation errors
+  halted                 true if context invalid
+  context                echo
+
+Metadata từ TRIGGER_TYPE_CATALOG[EntryTriggerKind.Confirmation] — không tạo mới.
+
+================================================================================
+PHẦN 5 — VALIDATION REPORT
+================================================================================
+
+validateConfirmationDetectionContext():
+  ✓ normalizedRuleOutput structure
+  ✓ currentEntryState, signalSnapshot, marketSnapshot.symbol
+  ✓ candidateTransitions is array
+  ✓ Catalog Confirmation priority === 60
+  ✓ auditLabel === ENTRY_CONFIRM
+  ✓ sourceModule === EntryStateManager
+  ✓ sourceModule ∈ TRANSITION_SOURCE_MODULES
+  ✓ ruleReference non-empty
+
+detectConfirmation() placeholder:
+  ✓ valid context → detected=false, evidence=[], evidenceCount=0
+  ✓ invalid context → halted=true, detected=false
+
+Không tính toán confirmation.
+
+================================================================================
+PHẦN 6 — ARCHITECTURE REPORT
+================================================================================
+
+  confirmationEvidenceKinds.ts    — taxonomy + descriptions
+  confirmationDetectionTypes.ts   — Context, Result, Evidence models
+  confirmationSignalAdapter.ts    — Placeholder adapter (empty snapshot)
+  confirmationDetectionEngine.ts  — validate + detectConfirmation placeholder
+
+Trigger: EntryTriggerKind.Confirmation
+  triggerId:     ESM-TRIG-Confirmation
+  priority:      60
+  sourceModule:  EntryStateManager
+  auditLabel:    ENTRY_CONFIRM
+  ruleReference: RuleBook V2 §1.1 / §3
+
+Vị trí pipeline: Step 4 CollectTriggers — parallel HardBlock / Noise detectors.
+
+Confirmation KHÔNG quyết định READY/WATCH/LOCKED/BLOCKED — chỉ trả lời
+"điều kiện xác nhận đã đủ hay chưa" (future 02.4.7+).
+
+================================================================================
+PHẦN 7 — DEPENDENCY REPORT
+================================================================================
+
+ESM internal only:
+  confirmationDetectionEngine → triggerDetectionCatalog, evaluationTypes,
+                                transitionMetadata, normalizedRuleOutput (types)
+  confirmationSignalAdapter   → evaluationTypes, normalizedRuleOutput (types)
+
+KHÔNG import: scorer, tradePlan evaluators, UI, Store.
+
+Integration path (future):
+  app confirmation signals → confirmationSignalSnapshot → detectConfirmation()
+
+================================================================================
+PHẦN 8 — UNIT TEST REPORT
+================================================================================
+
+confirmationDetectionEngine.test.ts — 6 passed (new)
+noiseDetectionEngine.test.ts        — 13 passed
+hardBlockDetectionEngine.test.ts    — 10 passed
+triggerDetectionEngine.test.ts      — 6 passed
+evaluationPipeline.test.ts          — 4 passed
+stateValidator.test.ts              — 6 passed
+
+Total ESM: 45 passed, 0 failed
+
+Covered:
+  ✓ Context hợp lệ
+  ✓ Context lỗi (halted)
+  ✓ Metadata priority 60, ENTRY_CONFIRM
+  ✓ triggerId ESM-TRIG-Confirmation
+  ✓ Placeholder detected=false
+  ✓ evidence=[]
+  ✓ Taxonomy 6 kinds
+
+Không test Detection Runtime.
+
+================================================================================
+PHẦN 9 — PRODUCTION IMPACT REPORT
+================================================================================
+
+  Production scan:      KHÔNG thay đổi
+  Rule/Score Engine:  KHÔNG sửa
+  State Machine:      KHÔNG
+  Transition:         KHÔNG
+  Decision Engine:    KHÔNG
+  Trigger Catalog:    KHÔNG sửa
+  FEATURE_FLAG:       KHÔNG wired
+
+ESM: 0 production imports.
+
+================================================================================
+PHẦN 10 — TASK COMPLETION CHECKLIST
+================================================================================
+
+  [x] confirmationEvidenceKinds.ts
+  [x] confirmationDetectionTypes.ts
+  [x] confirmationSignalAdapter.ts
+  [x] confirmationDetectionEngine.ts
+  [x] confirmationDetectionEngine.test.ts (6 tests)
+  [x] validateConfirmationDetectionContext()
+  [x] detectConfirmation() placeholder
+  [x] ConfirmationDetectionEngine namespace
+  [x] Export index.ts
+  [x] MODULE_VERSION 0.5.0
+  [x] Task_02_4_6_Report.txt
+
+================================================================================
+PHẦN 11 — XÁC NHẬN
+================================================================================
+
+  ✓ Không Rule mới
+  ✓ Không Runtime Detection
+  ✓ Không Decision
+  ✓ Không State Machine
+  ✓ Không Transition
+  ✓ Không Production Impact
+  ✓ Chỉ Scaffold
+
+Next: Task 02.4.7 — Confirmation passthrough runtime (mirror Noise 02.4.5).
+
+================================================================================
+END OF REPORT
+================================================================================

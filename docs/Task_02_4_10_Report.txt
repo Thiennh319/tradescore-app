@@ -1,0 +1,220 @@
+================================================================================
+TRADESCORE V1.0.5 — TASK 02.4.10 REPORT
+================================================================================
+Task:        02.4.10 — Unlock Detection Engine (Scaffold)
+Date:        2026-07-11
+Module:      services/entryStateManager/
+Version:     0.5.3 → 0.6.0
+================================================================================
+
+TÓM TẮT
+-------
+Xây dựng scaffold Unlock Detection Engine — mô tả điều kiện thoát LOCKED.
+Context/result/evidence models, adapter placeholder, validateUnlockDetectionContext(),
+detectUnlock() placeholder (detected=false, evidence=[]).
+
+KHÔNG runtime detection. KHÔNG Rule mới. KHÔNG State/Transition/Decision.
+
+================================================================================
+PHẦN 1 — FILE THAY ĐỔI
+================================================================================
+
+MỚI:
+  services/entryStateManager/unlockEvidenceKinds.ts
+  services/entryStateManager/unlockDetectionTypes.ts
+  services/entryStateManager/unlockSignalAdapter.ts
+  services/entryStateManager/unlockDetectionEngine.ts
+  services/entryStateManager/unlockDetectionEngine.test.ts
+  docs/Task_02_4_10_Report.txt
+
+SỬA:
+  services/entryStateManager/index.ts
+  services/entryStateManager/metadata.ts (v0.6.0)
+
+KHÔNG SỬA:
+  RuleBook V2, scorerV3/V4, Transition Matrix, Trigger Catalog
+  UI, Store, Production scan path
+
+================================================================================
+PHẦN 2 — UNLOCK TAXONOMY
+================================================================================
+
+UnlockEvidenceKind (6 kinds — declaration only):
+
+  UNLOCK_LOCK_ZONE_EXITED       — price exited entry lock zone (§4.1)
+  UNLOCK_PRICE_RECOVERED        — price recovered from lock zone
+  UNLOCK_CONFIRMATION_RETURNED  — confirmation signals returned
+  UNLOCK_RISK_NORMALIZED        — risk conditions normalized
+  UNLOCK_SIGNAL_STABLE          — signal stable after lock
+  UNLOCK_READY_FOR_WATCH        — unlock complete, ready for WATCH
+
+UNLOCK_EVIDENCE_KIND_DESCRIPTIONS — human text per kind.
+
+RuleBook taxonomy gap (KHÔNG tự bổ sung):
+  RuleBook V2 mô tả LOCKED unlock (§4) nhưng
+  KHÔNG có bảng originRuleId dạng `UL-*`.
+  → UnlockEvidence.originRuleId = null trong scaffold.
+
+UnlockSignalSnapshot — 6 placeholder slots (null in 02.4.10):
+  lockZoneExitedHint, priceRecoveredHint, confirmationReturnedHint,
+  riskNormalizedHint, signalStableHint, readyForWatchHint
+
+================================================================================
+PHẦN 3 — CONTEXT MODEL
+================================================================================
+
+UnlockDetectionContext:
+  normalizedRuleOutput
+  currentEntryState
+  signalSnapshot
+  marketSnapshot
+  candidateTransitions
+  unlockSignalSnapshot?  (optional)
+  scanId?
+
+================================================================================
+PHẦN 4 — RESULT MODEL
+================================================================================
+
+UnlockDetectionResult:
+  detected               boolean — luôn false (02.4.10 placeholder)
+  triggerId              ESM-TRIG-Unlock
+  priority               70
+  sourceModule           EntryStateManager
+  auditLabel             ENTRY_UNLOCK
+  ruleReference          RuleBook V2 §4 / Business Workflow
+  evidence               [] (placeholder)
+  originRuleIds          []
+  evidenceCount          0
+  detectionMessage       placeholder / validation errors
+  halted                 true if context invalid
+  context                echo
+
+Metadata từ TRIGGER_TYPE_CATALOG[EntryTriggerKind.Unlock] — không tạo mới.
+
+================================================================================
+PHẦN 5 — VALIDATION
+================================================================================
+
+validateUnlockDetectionContext():
+  ✓ normalizedRuleOutput structure
+  ✓ currentEntryState, signalSnapshot, marketSnapshot.symbol
+  ✓ candidateTransitions is array
+  ✓ Catalog Unlock priority === 70
+  ✓ auditLabel === ENTRY_UNLOCK
+  ✓ sourceModule === EntryStateManager
+  ✓ sourceModule ∈ TRANSITION_SOURCE_MODULES
+  ✓ ruleReference non-empty
+
+detectUnlock() placeholder:
+  ✓ valid context → detected=false, evidence=[], evidenceCount=0
+  ✓ invalid context → halted=true, detected=false
+
+Không tính toán unlock.
+
+================================================================================
+PHẦN 6 — DEPENDENCY
+================================================================================
+
+ESM internal only:
+  unlockDetectionEngine → triggerDetectionCatalog, evaluationTypes,
+                          transitionMetadata, normalizedRuleOutput (types)
+  unlockSignalAdapter   → evaluationTypes, normalizedRuleOutput (types)
+
+KHÔNG import: scorer, setup lock runtime, UI, Store.
+
+Integration path (future):
+  app unlock signals → unlockSignalSnapshot → detectUnlock()
+
+================================================================================
+PHẦN 7 — ARCHITECTURE
+================================================================================
+
+  unlockEvidenceKinds.ts    — taxonomy + descriptions
+  unlockDetectionTypes.ts   — Context, Result, Evidence models
+  unlockSignalAdapter.ts    — Placeholder adapter (empty snapshot)
+  unlockDetectionEngine.ts  — validate + detectUnlock placeholder
+
+Trigger: EntryTriggerKind.Unlock
+  triggerId:     ESM-TRIG-Unlock
+  priority:      70
+  sourceModule:  EntryStateManager
+  auditLabel:    ENTRY_UNLOCK
+
+Vị trí pipeline: Step 4 CollectTriggers — parallel other detectors.
+
+Unlock KHÔNG quyết định state — chỉ mô tả điều kiện thoát LOCKED (future 02.4.11+).
+
+================================================================================
+PHẦN 8 — UNIT TEST
+================================================================================
+
+unlockDetectionEngine.test.ts       — 6 passed (new)
+recoveryDetectionEngine.test.ts     — 12 passed
+confirmationDetectionEngine.test.ts — 12 passed
+noiseDetectionEngine.test.ts        — 13 passed
+hardBlockDetectionEngine.test.ts    — 10 passed
+triggerDetectionEngine.test.ts      — 6 passed
+evaluationPipeline.test.ts          — 4 passed
+stateValidator.test.ts              — 6 passed
+
+Total ESM: 69 passed, 0 failed
+
+Covered:
+  ✓ Context hợp lệ
+  ✓ Context lỗi (halted)
+  ✓ priority 70, ENTRY_UNLOCK
+  ✓ triggerId ESM-TRIG-Unlock
+  ✓ Placeholder detected=false
+  ✓ evidence=[]
+  ✓ Taxonomy 6 kinds
+
+Không test Detection Runtime.
+
+================================================================================
+PHẦN 9 — PRODUCTION IMPACT
+================================================================================
+
+  Production scan:     KHÔNG thay đổi
+  Rule Engine:         KHÔNG sửa
+  State Machine:       KHÔNG
+  Transition:          KHÔNG
+  Decision Engine:     KHÔNG
+  FEATURE_FLAG:        KHÔNG wired
+
+ESM: 0 production imports.
+
+================================================================================
+PHẦN 10 — CHECKLIST
+================================================================================
+
+  [x] unlockEvidenceKinds.ts
+  [x] unlockDetectionTypes.ts
+  [x] unlockSignalAdapter.ts
+  [x] unlockDetectionEngine.ts
+  [x] unlockDetectionEngine.test.ts (6 tests)
+  [x] validateUnlockDetectionContext()
+  [x] detectUnlock() placeholder
+  [x] UnlockDetectionEngine namespace
+  [x] Export index.ts
+  [x] MODULE_VERSION 0.6.0
+  [x] Task_02_4_10_Report.txt
+
+================================================================================
+PHẦN 11 — XÁC NHẬN
+================================================================================
+
+  ✓ Không Runtime Detection
+  ✓ Không Decision
+  ✓ Không Transition
+  ✓ Không State Machine
+  ✓ Không Production Impact
+  ✓ Chỉ Scaffold
+
+Next: Task 02.4.11 — Unlock passthrough runtime (mirror Recovery 02.4.9).
+
+All 5 EntryTriggerKind now have dedicated detector modules (Unlock scaffold completes set).
+
+================================================================================
+END OF REPORT
+================================================================================
