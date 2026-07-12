@@ -1,0 +1,201 @@
+================================================================================
+TRADESCORE V1.0.5 — UL-04.2 REPORT
+================================================================================
+Task:        UL-04.2 — Staging Validation
+Date:        2026-07-12
+Type:        Validation only — no feature development
+Prerequisite: UL-04.1 — Runtime Optimization
+ESM Core:    2.0.0 (UNCHANGED — frozen)
+================================================================================
+
+TÓM TẮT
+-------
+Xác nhận toàn bộ kiến trúc ESM hoạt động đúng khi ENTRY_STATE_MANAGER_ENABLED
+runtime ON trong DEV/Staging. Production compile-time default vẫn OFF.
+
+Validation harness: 40 vòng scan mô phỏng (BTC / ETH / SOL), export, performance,
+regression — tự động qua vitest.
+
+Tests UL-04.2 scope: 77/77 PASS (staging + wiring + store + export + UI helpers)
+
+================================================================================
+PHẦN 1 — DEV/STAGING FLAG ENABLE
+================================================================================
+
+config/featureFlags.ts
+  - FEATURE_FLAGS.ENTRY_STATE_MANAGER_ENABLED = false  (production compile-time)
+  - isEntryStateManagerEnabled() returns true when:
+      • FEATURE_FLAGS explicit true, OR
+      • __DEV__ === true (Expo dev / web dev), OR
+      • EXPO_PUBLIC_TRADESCORE_STAGING=1|true (staging builds)
+
+Production release build:
+  ✓ __DEV__ = false
+  ✓ No staging env var
+  ✓ ESM wiring no-op (silent)
+
+DEV / Staging:
+  ✓ ESM wiring active after scan
+  ✓ Benchmark logs enabled (__DEV__)
+
+Staging env (optional):
+  EXPO_PUBLIC_TRADESCORE_STAGING=1
+
+================================================================================
+PHẦN 2 — SCAN STABILITY (40 ROUNDS)
+================================================================================
+
+Harness: services/productionEsmBridge/ul042StagingValidation.test.ts
+
+Scenario:
+  - 3 symbols: BTCUSDT, ETHUSDT, SOLUSDT
+  - Journal: BTC OPEN, ETH PENDING, SOL lockedPlan
+  - 40 consecutive scan rounds
+
+Results:
+  ✓ Scan hoàn tất mỗi vòng
+  ✓ Không crash
+  ✓ Không exception
+  ✓ Không console.warn bất thường
+  ✓ snapshotBySymbol keys stable (≤ 3 symbols, no leak)
+  ✓ 120 bridge runs (40 × 3 eligible symbols)
+  ✓ Store writes ≤ 120 (delta skip on unchanged rounds)
+
+================================================================================
+PHẦN 3 — JOURNAL / UI VALIDATION
+================================================================================
+
+Verified via resolveEsmHintDisplay + EsmRecommendationCell contract:
+
+  ✓ Position Adviser recommendationLabel vẫn là nội dung chính
+  ✓ ESM hint badge (ⓘ READY / WATCH / …) tách biệt khỏi PA label
+  ✓ Tooltip không chứa pipeline/harness/scan id text
+  ✓ resolveEsmHintBadge returns null khi snapshot.symbol ≠ requested symbol
+  ✓ Không có Hint sai Symbol (cross-symbol bleed test PASS)
+
+UI layout: UNCHANGED (validation read-only, no component edits)
+
+================================================================================
+PHẦN 4 — snapshotBySymbol
+================================================================================
+
+Symbols tested: BTCUSDT, ETHUSDT, SOLUSDT
+
+  ✓ Mỗi key map đúng snapshot.symbol
+  ✓ ETH-only rescan không overwrite BTC scanId
+  ✓ Delta update: lastUpdatedBySymbol giữ nguyên khi material fields unchanged
+  ✓ Per-symbol isolation (UL-03.1 architecture preserved)
+
+================================================================================
+PHẦN 5 — EXPORT VALIDATION
+================================================================================
+
+| Export                    | Status | Checks                                      |
+|---------------------------|--------|---------------------------------------------|
+| Full Audit (L1-L11)       | PASS   | RULE BOOK, EXECUTIVE SUMMARY, symbol data   |
+| Entry / SL / TP Audit     | PASS   | ENTRY/SL/TP RULE BOOK, ACTUAL TRADE PLAN    |
+| AI Review Report          | PASS   | Markdown hợp lệ, all required sections      |
+
+AI Review Report verified:
+  ✓ # Architecture Version Matrix (UI Layer UL-03.2)
+  ✓ # Feature Flags (ENTRY_STATE_MANAGER_ENABLED reflects runtime)
+  ✓ ## Entry State — per-symbol runtime snapshot (BTC/ETH/SOL)
+  ✓ ## Recommendation — PA primary + ESM hint
+  ✓ ## Position Adviser Snapshot
+  ✓ No .zip references
+
+================================================================================
+PHẦN 6 — PERFORMANCE BENCHMARK
+================================================================================
+
+Method: 40 rounds × 3 symbols, simulated scan = 100ms/round (4000ms total)
+
+| Metric              | Bridge OFF | Bridge ON (40 rounds) |
+|---------------------|------------|------------------------|
+| Wiring overhead     | ~0ms       | measured via benchmark |
+| Bridge Time (sum)   | 0          | > 0 (3 bridges/round)  |
+| Store Time (sum)    | 0          | delta-skipped repeats  |
+| Total Added / Scan  | —          | < 10% threshold PASS   |
+
+Acceptance threshold: Total Added Time < 10% simulated scan time
+Result: PASS
+
+DEV console (when __DEV__):
+  Scan Time / Bridge Time / Store Update Time / Total Added Time
+
+Production build: no benchmark log, no persistence
+
+================================================================================
+PHẦN 7 — REGRESSION CHECKLIST
+================================================================================
+
+  ✓ Không thay đổi Score (signal rows JSON identical post-wiring)
+  ✓ Không thay đổi Entry (journal plan fields unchanged)
+  ✓ Không thay đổi SL / TP (journal plan unchanged)
+  ✓ Không thay đổi Journal entries
+  ✓ Không thay đổi Position Adviser
+  ✓ Không thay đổi Export cũ (structure preserved)
+  ✓ Không thay đổi UI components
+  ✓ Không thay đổi RuleBook
+  ✓ Không thay đổi Pipeline
+  ✓ Không thay đổi Mapping
+  ✓ Không sửa module Freeze
+
+================================================================================
+PHẦN 8 — FILES CHANGED (VALIDATION ONLY)
+================================================================================
+
+config/featureFlags.ts
+  - DEV/Staging auto-enable in isEntryStateManagerEnabled()
+
+config/featureFlags.test.ts
+  - UL-04.2 staging env test
+
+services/productionEsmBridge/ul042StagingValidation.test.ts (NEW)
+  - 14 staging validation tests
+
+docs/UL_04_2_Report.txt
+  - This report
+
+================================================================================
+PHẦN 9 — FILES UNTOUCHED
+================================================================================
+
+services/entryStateManager/**
+RuleBook / Detection Layer / State Machine / Mapping Bridge
+Position Adviser core
+UI layouts (SignalBoard, JournalTradeTable, EsmRecommendationCell)
+Scan scoring (signalBoardScan.ts)
+Pipeline / Mapping modules
+
+================================================================================
+PHẦN 10 — REGRESSION COMMAND
+================================================================================
+
+Command:
+  npx vitest run services/productionEsmBridge \
+    config/featureFlags.test.ts \
+    store/__tests__/esmSnapshotDelta.test.ts \
+    store/__tests__/esmBridgeStore.test.ts \
+    services/exportAiReviewReport.test.ts \
+    utils/architectureExportMetadata.test.ts \
+    utils/esmUiDisplay.test.ts
+
+Result: 77/77 PASS
+
+================================================================================
+ACCEPTANCE CHECKLIST
+================================================================================
+
+✓ DEV PASS
+✓ STAGING PASS (EXPO_PUBLIC_TRADESCORE_STAGING=1 verified)
+✓ Benchmark PASS (< 10% overhead)
+✓ Export PASS (Full / Entry-SL-TP / AI Review)
+✓ UI PASS (PA primary + ESM hint, no cross-symbol bleed)
+✓ Regression PASS (77/77)
+✓ Production default OFF unchanged
+✓ No Freeze performed in this task
+
+================================================================================
+END UL-04.2 REPORT
+================================================================================

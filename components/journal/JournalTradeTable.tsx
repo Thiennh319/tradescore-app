@@ -15,6 +15,10 @@ import {
 import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
 import { resolveJournalMarketPrice } from '../../hooks/useJournalMarketSync';
+import { EsmRecommendationCell } from './EsmRecommendationCell';
+import { resolveEsmHintDisplay } from '../../utils/esmUiDisplay';
+import { useTradeStore } from '../../store/useTradeStore';
+import { getEsmSnapshotForSymbol, type EsmBridgeState } from '../../store/esmBridgeTypes';
 
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
 
@@ -163,6 +167,7 @@ function JournalTradeRow({
   unrealizedPnl,
   pnlBreakdown,
   advisorLabel,
+  esmBridge,
   onDetail,
   onStopTrade,
   onConfirmFill,
@@ -173,6 +178,7 @@ function JournalTradeRow({
   unrealizedPnl?: number | null;
   pnlBreakdown?: JournalPnlBreakdown;
   advisorLabel?: string;
+  esmBridge: EsmBridgeState;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
   onConfirmFill?: (entry: AiTradeJournalEntry) => void;
@@ -215,6 +221,9 @@ function JournalTradeRow({
         ? COLORS.bullish
         : COLORS.bearish;
 
+  const esmSnapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
+  const esmHint = resolveEsmHintDisplay(esmSnapshot, entry.symbol);
+
   const liveAdvisor = isOpen ? advisorLabel?.trim() : '';
   const recommendation =
     liveAdvisor || entry.scoring.recommendationLabel?.trim() || '—';
@@ -241,12 +250,13 @@ function JournalTradeRow({
       >
         {displayStatus}
       </Text>
-      <Text
-        style={[styles.cell, { width: COL.recommendation, color: recommendationColor }]}
-        numberOfLines={2}
-      >
-        {recommendation}
-      </Text>
+      <EsmRecommendationCell
+        recommendationLabel={recommendation}
+        recommendationColor={recommendationColor}
+        hintBadge={esmHint.hintBadge}
+        width={COL.recommendation}
+        tooltipLines={esmHint.tooltipLines}
+      />
       <Text style={[styles.cell, { width: COL.entry }]} numberOfLines={1}>
         {formatUsdPrice(sym, entry.market.entryPrice)}
       </Text>
@@ -327,7 +337,6 @@ export function JournalTradeTable({
   entries,
   markBySymbol,
   unrealizedById,
-  advisorLabelById,
   pnlBreakdownById,
   onDetail,
   onStopTrade,
@@ -338,6 +347,7 @@ export function JournalTradeTable({
   pageResetKey,
 }: JournalTradeTableProps) {
   const [page, setPage] = useState(1);
+  const esmBridge = useTradeStore((s) => s.esmBridge);
 
   useEffect(() => {
     setPage(1);
@@ -383,6 +393,7 @@ export function JournalTradeTable({
               unrealizedPnl={unrealizedById[entry.id] ?? null}
               pnlBreakdown={pnlBreakdownById?.[entry.id]}
               advisorLabel={advisorLabelById?.[entry.id]}
+              esmBridge={esmBridge}
               onDetail={onDetail}
               onStopTrade={onStopTrade}
               onConfirmFill={onConfirmFill}

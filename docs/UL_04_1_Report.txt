@@ -1,0 +1,248 @@
+================================================================================
+TRADESCORE V1.0.5 — UL-04.1 REPORT
+================================================================================
+Task:        UL-04.1 — Runtime Optimization & Architecture Freeze Preparation
+Date:        2026-07-12
+Type:        Post-scan wiring optimization only — no trading decision changes
+Prerequisite: UL-04.0 — Production Wiring (Phase 1)
+ESM Core:    2.0.0 (UNCHANGED — frozen)
+================================================================================
+
+TÓM TẮT
+-------
+Tối ưu runtime ESM post-scan wiring trước khi đóng băng kiến trúc:
+  1. Symbol filter — chỉ chạy Bridge cho symbol có lệnh OPEN/PENDING hoặc locked plan
+  2. Delta update — bỏ qua ghi Store khi hintCode / currentState / blockReasons / message không đổi
+  3. DEV benchmark — đo Scan / Bridge / Store Update / Total Added Time
+
+Tests UL-04.1 scope: 36/36 PASS (wiring + filter + delta + bridge + store)
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+store/esmSnapshotDelta.ts (NEW)
+  - extractEsmSnapshotDeltaComparable()
+  - areEsmSnapshotsMateriallyEqual()
+  - So sánh: hintCode, currentState, blockReasons, message
+
+store/__tests__/esmSnapshotDelta.test.ts (NEW)
+  - 3 delta comparison tests
+
+services/productionEsmBridge/productionEsmSymbolFilter.ts (NEW)
+  - resolveEligibleEsmSymbols() — OPEN, PENDING, lockedPlan.symbol
+  - isEsmSymbolEligible()
+
+services/productionEsmBridge/productionEsmSymbolFilter.test.ts (NEW)
+  - 2 filter tests
+
+services/productionEsmBridge/esmStoreBridge.ts
+  - writeEsmSnapshotToStoreIfChanged() — delta-aware write, returns boolean
+  - writeEsmSnapshotToStore() — returns boolean (always true when written)
+  - WriteEsmSnapshotOptions.skipIfUnchanged
+
+services/productionEsmBridge/productionEsmScanWiring.ts
+  - PRODUCTION_ESM_SCAN_WIRING_VERSION = 'UL-04.1'
+  - Symbol filter before bridge loop
+  - writeEsmSnapshotToStoreIfChanged (skip unchanged)
+  - EsmScanWiringBenchmark return type
+  - DEV-only benchmark log: Scan Time / Bridge Time / Store Update Time / Total Added Time
+
+services/productionEsmBridge/productionEsmScanWiring.test.ts
+  - +symbol filter, delta skip, benchmark stats tests (5 total)
+
+services/productionEsmBridge/index.ts
+  - Export filter + delta write + benchmark types
+
+hooks/useSignalBoard.ts
+  - Pass scanDurationMs to wireProductionEsmAfterScan
+
+services/periodicTradingWork.ts
+  - Pass scanDurationMs to wireProductionEsmAfterScan
+
+docs/UL_04_1_Report.txt
+  - This report
+
+================================================================================
+PHẦN 2 — FILES UNTOUCHED
+================================================================================
+
+services/entryStateManager/**          — FROZEN
+RuleBook / Detection Layer / State Machine / Mapping Bridge
+Position Adviser
+runProductionEsmBridge core logic
+Scan scoring logic (signalBoardScan.ts)
+Journal / SignalBoard / Export UI layouts
+config/featureFlags.ts default (ENTRY_STATE_MANAGER_ENABLED = false)
+
+================================================================================
+PHẦN 3 — PART 1: SYMBOL FILTER
+================================================================================
+
+Trước UL-04.1:
+  for each SignalRow → runProductionEsmBridge()
+
+Sau UL-04.1:
+  eligible = resolveEligibleEsmSymbols({ journal, lockedPlan })
+  for each SignalRow:
+    if symbol ∉ eligible → skip (no bridge, no store)
+    else → runProductionEsmBridge()
+
+Điều kiện eligible (ít nhất một):
+  ✓ Journal entry OPEN (running order)
+  ✓ Journal entry PENDING (pending order)
+  ✓ lockedPlan.symbol (active locked setup)
+
+Watchlist:
+  App không có khái niệm Watchlist riêng. lockedPlan đóng vai trò active setup watch.
+  activeScanSymbols được truyền vào filter input cho tương lai — không dùng để mở rộng
+  bridge cho symbol passive (scan-only không có position/plan).
+
+Kết quả:
+  ✓ Symbol passive không chạy Bridge
+  ✓ Symbol passive không ghi Store
+  ✓ Kết quả giao dịch không đổi (bridge output chỉ cho symbol có vị thế/kế hoạch)
+
+================================================================================
+PHẦN 4 — PART 2: DELTA UPDATE
+================================================================================
+
+Trước ghi Store:
+  previous = store.esmBridge.snapshotBySymbol[symbol]
+  if previous && areEsmSnapshotsMateriallyEqual(previous, next):
+    return false  // skip write
+
+Material fields:
+  - hintCode      (resolveEsmRuleBookHint)
+  - currentState  (state machine / mapped state)
+  - blockReasons  (hard block normalized output)
+  - message       (snapshot.message)
+
+Khi skip:
+  ✓ Không gọi updateEsmSnapshot
+  ✓ Không cập nhật lastUpdatedBySymbol
+  ✓ Không trigger React render từ store write
+
+Lưu ý:
+  Call site phải truyền store state mới (useTradeStore.getState() mỗi lần scan)
+  để delta đọc snapshot hiện tại chính xác.
+
+================================================================================
+PHẦN 5 — PART 3: RUNTIME BENCHMARK (DEV ONLY)
+================================================================================
+
+wireProductionEsmAfterScan trả về EsmScanWiringBenchmark:
+  - scanMs          (từ scanDurationMs input)
+  - bridgeMs        (tổng thời gian runProductionEsmBridge)
+  - storeMs         (tổng thời gian writeEsmSnapshotToStoreIfChanged)
+  - totalAddedMs    (bridgeMs + storeMs)
+  - bridgeRuns, storeWrites, symbolsSkipped
+
+DEV console output (chỉ khi __DEV__):
+  [ESM]
+  Scan Time: {scanMs}ms
+  Bridge Time: {bridgeMs}ms
+  Store Update Time: {storeMs}ms
+  Total Added Time: {totalAddedMs}ms
+
+Production build:
+  ✓ Không log benchmark
+  ✓ Không lưu benchmark
+  ✓ Benchmark object vẫn trả về (caller có thể bỏ qua)
+
+================================================================================
+PHẦN 6 — OPTIMIZED WIRING FLOW
+================================================================================
+
+```
+scanAllSignalRows()  [unchanged]
+        │
+        ▼
+isEntryStateManagerEnabled() ?
+        │
+   NO ──┴── YES
+   │         │
+   │         ▼
+   │    eligible = resolveEligibleEsmSymbols(journal, lockedPlan)
+   │         │
+   │         ▼
+   │    for each SignalRow (no error):
+   │      if symbol ∉ eligible → symbolsSkipped++
+   │      else:
+   │        runProductionEsmBridge()
+   │        writeEsmSnapshotToStoreIfChanged()
+   │          → skip if material fields unchanged
+   │
+   └── (silent return)
+```
+
+================================================================================
+PHẦN 7 — PERFORMANCE IMPACT
+================================================================================
+
+Flag OFF: zero overhead (unchanged from UL-04.0).
+
+Flag ON — improvements:
+  - Bridge runs: O(eligible symbols) thay vì O(all scan rows)
+  - Store writes: chỉ khi snapshot material thay đổi
+  - Passive scan symbols: 0 bridge + 0 store cost
+
+Typical scenario (4 scan rows, 1 OPEN position):
+  Before: 4 bridge + 4 store writes per scan
+  After:  1 bridge + 1 store write (first scan); 1 bridge + 0 store (unchanged snapshot)
+
+================================================================================
+PHẦN 8 — REGRESSION
+================================================================================
+
+Command:
+  npx vitest run services/productionEsmBridge/productionEsmScanWiring.test.ts \
+    services/productionEsmBridge/productionEsmSymbolFilter.test.ts \
+    store/__tests__/esmSnapshotDelta.test.ts \
+    store/__tests__/esmBridgeStore.test.ts \
+    services/productionEsmBridge/productionEsmBridge.test.ts
+
+Result: 36/36 PASS
+
+Verified:
+  ✓ Flag OFF — no store mutation
+  ✓ Flag ON — chỉ eligible symbol có snapshot
+  ✓ ETHUSDT skipped khi chỉ BTCUSDT OPEN
+  ✓ Identical snapshot — lastUpdated không đổi
+  ✓ Error rows skipped
+  ✓ Benchmark stats returned
+  ✓ Frozen ESM not modified
+
+================================================================================
+PHẦN 9 — TEST COUNT
+================================================================================
+
+| Suite                              | Tests |
+|------------------------------------|-------|
+| productionEsmScanWiring            | 5     |
+| productionEsmSymbolFilter (NEW)    | 2     |
+| esmSnapshotDelta (NEW)             | 3     |
+| productionEsmBridge                | 15    |
+| esmBridgeStore                     | 11    |
+| UL-04.1 scoped run                 | 36    |
+
+New tests: +5 (2 filter + 3 delta)
+
+================================================================================
+ACCEPTANCE CHECKLIST
+================================================================================
+
+✓ Bridge không chạy cho Symbol không cần thiết
+✓ Snapshot giống nhau không ghi Store
+✓ Benchmark chỉ DEV
+✓ Không thay đổi UI
+✓ Không thay đổi Export
+✓ Không thay đổi RuleBook
+✓ Không thay đổi Position Adviser
+✓ Không thay đổi Pipeline
+✓ Không sửa module freeze
+✓ Regression PASS (36/36)
+
+================================================================================
+END UL-04.1 REPORT
+================================================================================

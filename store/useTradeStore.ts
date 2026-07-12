@@ -111,6 +111,15 @@ import {
 } from '../services/tradePlanExpiry';
 import { formatMultiConfirmationCancelNote } from '../services/planHealth';
 import type { PlanHealth } from '../types/tradePlan';
+import type { ProductionEsmBridgeSnapshot } from '../services/productionEsmBridge/productionEsmBridgeTypes';
+import {
+  mergeEsmSnapshotIntoBridgeState,
+  validateStorableEsmSnapshot,
+} from './esmBridgeStoreUtils';
+import {
+  DEFAULT_ESM_BRIDGE_STATE,
+  type EsmBridgeState,
+} from './esmBridgeTypes';
 import {
   archiveSkippedSetupsIfNeeded,
   applySkippedPriceUpdate,
@@ -316,6 +325,8 @@ export interface TradeStoreState {
   milestoneUpgradePreview: MilestoneUpgradePreview | null;
   /** Nhật ký milestone (capital_state) */
   milestoneJournal: string[];
+  /** ESM bridge namespace — read-only snapshots (UL-02); data only */
+  esmBridge: EsmBridgeState;
 }
 
 export interface CloseTradeOptions {
@@ -490,6 +501,14 @@ export interface TradeStoreActions {
     entry: Omit<RecommendationLogEntry, 'id' | 'trigger'>,
     isUserInteraction?: boolean,
   ) => Promise<void>;
+  /**
+   * UL-02 — persist ProductionEsmBridge snapshot (data only).
+   * Does not run ESM, infer state, or render UI.
+   */
+  updateEsmSnapshot: (
+    snapshot: ProductionEsmBridgeSnapshot,
+    options?: { now?: number },
+  ) => void;
 }
 
 export type TradeStore = TradeStoreState & TradeStoreActions;
@@ -948,6 +967,7 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
   capitalManagement: defaultCapitalManagementState(),
   milestoneUpgradePreview: null,
   milestoneJournal: [],
+  esmBridge: { ...DEFAULT_ESM_BRIDGE_STATE },
 
   hydrate: async () => {
     const diskCountsAtStart = await readDiskJournalCounts();
@@ -2220,6 +2240,18 @@ export const useTradeStore = create<TradeStore>()((set, get) => ({
 
   logPositionRecommendation: async (entry, isUserInteraction = false) => {
     await logRecommendationIfNeeded(entry, isUserInteraction);
+  },
+
+  updateEsmSnapshot: (snapshot, options) => {
+    const validation = validateStorableEsmSnapshot(snapshot);
+    if (!validation.valid) {
+      throw new Error(
+        `invalid ProductionEsmBridgeSnapshot: ${validation.errors.join('; ')}`,
+      );
+    }
+    set((state) => ({
+      esmBridge: mergeEsmSnapshotIntoBridgeState(state.esmBridge, snapshot, options?.now),
+    }));
   },
 
   markGracePeriodTriggered: async (tradeId) => {

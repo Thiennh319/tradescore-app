@@ -62,14 +62,19 @@ import {
   ENTRY_SLTP_AUDIT_PACKAGE_FILENAME,
   exportEntrySltpAuditPackage,
 } from '../../services/exportEntrySltpAuditPackage';
+import {
+  AI_REVIEW_REPORT_FILENAME,
+  exportAiReviewReport,
+} from '../../services/exportAiReviewReport';
 import { TradePlanModal } from './TradePlanModal';
 import { formatUsdPrice } from '../../utils/formatPrice';
 
-type AuditExportMode = 'full' | 'entrySltp';
+type AuditExportMode = 'full' | 'entrySltp' | 'aiReview';
 
 const AUDIT_EXPORT_OPTIONS: { id: AuditExportMode; label: string }[] = [
   { id: 'full', label: 'Full Audit (L1-L11 Scoring)' },
   { id: 'entrySltp', label: 'Entry / SL / TP Audit' },
+  { id: 'aiReview', label: 'AI Review Report' },
 ];
 
 function auditExportLabel(mode: AuditExportMode): string {
@@ -662,6 +667,9 @@ export function SignalBoard({
   const [exportToast, setExportToast] = useState<string | null>(null);
   const scorerVersion = useTradeStore((s) => s.scorerVersion);
   const setScorerVersion = useTradeStore((s) => s.setScorerVersion);
+  const esmBridge = useTradeStore((s) => s.esmBridge);
+  const getVisibleAiJournal = useTradeStore((s) => s.getVisibleAiJournal);
+  const getAccountHistory = useTradeStore((s) => s.getAccountHistory);
   const boardStrategySource =
     (scorerVersion === 'v3' ? vi.signalBoard.scorerV3 : vi.signalBoard.scorerV4) as StrategySource;
 
@@ -683,26 +691,64 @@ export function SignalBoard({
     setExporting(true);
     try {
       const isEntrySltp = auditExportMode === 'entrySltp';
-      const content = isEntrySltp
-        ? exportEntrySltpAuditPackage(rows, scorerVersion)
-        : exportTradeScoreAuditPackage(rows, scorerVersion);
-      const filename = isEntrySltp
-        ? ENTRY_SLTP_AUDIT_PACKAGE_FILENAME
-        : 'TradeScore_Audit_Package.txt';
+      const isAiReview = auditExportMode === 'aiReview';
+      const journal = getVisibleAiJournal();
+      const pendingOrders = journal.filter((e) => e.outcome.status === 'PENDING');
+      const runningOrders = journal.filter((e) => e.outcome.status === 'OPEN');
+
+      const content = isAiReview
+        ? exportAiReviewReport({
+            generatedAt: new Date().toISOString(),
+            scorerVersion,
+            signalRows: rows,
+            esmBridge,
+            journalEntries: journal,
+            pendingOrders,
+            runningOrders,
+            closedTrades: journal.filter(
+              (e) => e.outcome.status === 'WIN' || e.outcome.status === 'LOSS',
+            ),
+            accountHistory: getAccountHistory(),
+          })
+        : isEntrySltp
+          ? exportEntrySltpAuditPackage(rows, scorerVersion)
+          : exportTradeScoreAuditPackage(rows, scorerVersion);
+
+      const filename = isAiReview
+        ? AI_REVIEW_REPORT_FILENAME
+        : isEntrySltp
+          ? ENTRY_SLTP_AUDIT_PACKAGE_FILENAME
+          : 'TradeScore_Audit_Package.txt';
+
+      const mime = isAiReview
+        ? 'text/markdown;charset=utf-8'
+        : 'text/plain;charset=utf-8';
 
       if (Platform.OS === 'web') {
-        downloadTextFileWeb(filename, content, 'text/plain;charset=utf-8');
+        downloadTextFileWeb(filename, content, mime);
       } else {
-        await saveAndShareNativeFile(filename, content, 'text/plain');
+        await saveAndShareNativeFile(filename, content, mime);
       }
 
-      showExportToast(`✅ Audit Package — ${rows.length} coin — ${filename}`);
+      const toastLabel = isAiReview
+        ? `✅ AI Review — ${filename}`
+        : `✅ Audit Package — ${rows.length} coin — ${filename}`;
+      showExportToast(toastLabel);
     } catch {
       showExportToast('❌ Xuất Audit Package thất bại');
     } finally {
       setExporting(false);
     }
-  }, [auditExportMode, exporting, rows, scorerVersion, showExportToast]);
+  }, [
+    auditExportMode,
+    esmBridge,
+    exporting,
+    getAccountHistory,
+    getVisibleAiJournal,
+    rows,
+    scorerVersion,
+    showExportToast,
+  ]);
 
   const openAuditExportMenu = useCallback(() => {
     auditMenuTriggerRef.current?.measureInWindow((x, y, width, height) => {

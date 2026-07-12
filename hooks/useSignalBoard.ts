@@ -17,6 +17,7 @@ import {
   type PersistedSignalBoard,
 } from '../services/signalBoardPersist';
 import { scanAllSignalRows, type SignalRow } from '../services/signalBoardScan';
+import { wireProductionEsmAfterScan } from '../services/productionEsmBridge/productionEsmScanWiring';
 import { buildSignalScanContext } from '../services/signalScanContext';
 import {
   buildAutoRefreshLockKey,
@@ -137,11 +138,15 @@ export function useSignalBoard(
         aiTradeJournal,
         settings,
       });
+      const scanStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const next = await scanAllSignalRows(timeframe, scoringPsychology, scanContext, {
         v3: ambiguityStateRefV3.current,
         v4: ambiguityStateRefV4.current,
       });
+      const scanDurationMs =
+        (typeof performance !== 'undefined' ? performance.now() : Date.now()) - scanStart;
       const scannedAt = Date.now();
+      wireProductionEsmAfterScan(next, scannedAt, useTradeStore.getState(), { scanDurationMs });
       setRows(next);
       setLastScannedAt(scannedAt);
       lastScannedAtRef.current = scannedAt;

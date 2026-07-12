@@ -10,6 +10,7 @@ import { isSessionNotificationsEnabled } from './notificationPreferences';
 import { fillPendingOrdersPersisted } from './periodicScanService';
 import { runPriceLevelMonitor } from './priceLevelMonitor';
 import { scanAllSignalRows } from './signalBoardScan';
+import { wireProductionEsmAfterScan } from './productionEsmBridge/productionEsmScanWiring';
 import { savePersistedSignalBoard } from './signalBoardPersist';
 import {
   loadPersistedSignalScanContext,
@@ -25,6 +26,7 @@ import {
   buildAutoRefreshLockKey,
   getVietnamDateParts,
   shouldTriggerAutoCheck,
+  useTradeStore,
 } from '../store/useTradeStore';
 import { runWhaleRadarScanIfDue } from './whaleRadarScan';
 
@@ -97,8 +99,12 @@ export async function runSignalBoardScanPersist(now = new Date()): Promise<Perio
     loadPersistedScoringPsychology(),
     loadPersistedSignalScanContext(),
   ]);
+  const scanStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const rows = await scanAllSignalRows(timeframe, scoringPsychology, scanContext);
+  const scanDurationMs =
+    (typeof performance !== 'undefined' ? performance.now() : Date.now()) - scanStart;
   const scannedAt = now.getTime();
+  wireProductionEsmAfterScan(rows, scannedAt, useTradeStore.getState(), { scanDurationMs });
   await savePersistedSignalBoard(timeframe, rows, scannedAt);
 
   if (Platform.OS !== 'web') {

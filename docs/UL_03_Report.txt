@@ -1,0 +1,204 @@
+================================================================================
+TRADESCORE V1.0.5 — UL-03 REPORT
+================================================================================
+Task:        UL-03 — UI Integration (Read-only)
+Date:        2026-07-12
+Module:      utils/esmUiDisplay + journal UI + exportAiReviewReport
+Prerequisite: UL-02 — Store Bridge (esmBridge.latestSnapshot)
+ESM Version: 2.0.0 (UNCHANGED — frozen)
+================================================================================
+
+TÓM TẮT
+-------
+Tích hợp read-only Entry State Manager vào UI hiện tại:
+- Cột Recommendation (Journal) hiển thị nhãn ESM từ store snapshot
+- Hover tooltip web (tối đa 4 dòng) — không modal/dialog
+- Export dropdown thêm template "AI Review Report" → TradeScore_AI_Review.md
+
+UI KHÔNG gọi pipeline, scoring, Position Adviser, Mapping, RuleBook evaluation.
+
+Tests UL-03 scope: 420/420 PASS (412 prior + 8 new)
+
+================================================================================
+PHẦN 1 — FILES CREATED
+================================================================================
+
+utils/esmUiDisplay.ts
+  - resolveEsmRecommendationCode / Label / Color / Display
+  - resolveEsmTooltipLines (max 4, snapshot fields only)
+
+utils/esmUiDisplay.test.ts
+  - 6 display helper tests
+
+components/journal/EsmRecommendationCell.tsx
+  - Recommendation cell + web hover tooltip (lightweight)
+
+services/exportAiReviewReport.ts
+  - exportAiReviewReport() → single Markdown file
+  - AI_REVIEW_REPORT_FILENAME = TradeScore_AI_Review.md
+
+services/exportAiReviewReport.test.ts
+  - 2 export structure tests
+
+docs/UL_03_Report.txt
+  - This report
+
+================================================================================
+PHẦN 2 — FILES MODIFIED
+================================================================================
+
+components/journal/JournalTradeTable.tsx
+  - Read useTradeStore().esmBridge.latestSnapshot
+  - Replace advisor/scoring label with ESM display
+  - EsmRecommendationCell for tooltip
+
+components/dashboard/SignalBoard.tsx
+  - AuditExportMode + 'aiReview' option
+  - handleExportAuditPackage → exportAiReviewReport when selected
+  - Existing Full Audit + Entry/SL/TP templates unchanged
+
+================================================================================
+PHẦN 3 — FILES UNCHANGED (VERIFIED)
+================================================================================
+
+services/entryStateManager/**          — FROZEN v2.0.0
+services/productionEsmBridge/**        — UL-01.1 transport (no UL-03 edits)
+store/useTradeStore.ts                 — UL-02 only (esmBridge namespace pre-existing)
+store/esmBridgeTypes.ts
+store/esmBridgeStoreUtils.ts
+Detection Layer / State Machine / RuleBook / Position Adviser / Pipeline
+Mapping Bridge internals
+SignalBoard layout (no new panels/tabs/columns)
+Running Orders layout
+
+================================================================================
+PHẦN 4 — UI CHANGES
+================================================================================
+
+Recommendation column (JournalTradeTable)
+-----------------------------------------
+Source: useTradeStore().esmBridge.latestSnapshot (symbol match)
+
+| ESM Code | Display              | Color           |
+|----------|----------------------|-----------------|
+| READY    | Tiếp tục giữ         | bullish         |
+| WATCH    | Chờ thêm             | warning         |
+| WAIT     | Theo dõi             | textSecondary   |
+| BLOCKED  | Huỷ lệnh             | bearish         |
+| LOCKED   | Khoá lệnh            | warning         |
+| N/A      | Chưa đánh giá        | textSecondary   |
+
+Tooltip (web only, hover Recommendation)
+  - Max 4 lines prefixed with •
+  - From snapshot.message, harness messages, hard-block evidence only
+  - No modal / dialog / popup window
+
+Export dropdown (SignalBoard — existing location)
+  - Full Audit (L1-L11 Scoring)     — unchanged
+  - Entry / SL / TP Audit           — unchanged
+  - AI Review Report                — NEW (single .md, no zip/json)
+
+================================================================================
+PHẦN 5 — ARCHITECTURE IMPACT
+================================================================================
+
+Data flow (read-only):
+
+  esmBridge.latestSnapshot
+        │
+        ▼
+  resolveEsmRecommendationDisplay(snapshot, symbol)
+        │
+        ▼
+  JournalTradeTable Recommendation column
+
+Constraints honored:
+  ✓ UI never calls runEntryStateManagerPipeline()
+  ✓ UI never calls scoring / PA / Mapping evaluation
+  ✓ Display mapping is presentation-only (utils/esmUiDisplay.ts)
+  ✓ Export reads store + rows + frozen metadata constants only
+
+When ENTRY_STATE_MANAGER_ENABLED is OFF or no snapshot written:
+  → All rows show "Chưa đánh giá" (N/A)
+
+When snapshot symbol ≠ row symbol:
+  → Row shows N/A (single global latestSnapshot)
+
+================================================================================
+PHẦN 6 — PRODUCTION IMPACT
+================================================================================
+
+Risk: LOW — read-only render path only.
+
+- No change to order execution, journal mutations, or scan pipeline
+- No auto-wiring scan → bridge → store (deferred UL-04)
+- Existing Position Adviser labels no longer shown in Recommendation column
+  (replaced by ESM per task spec)
+- Export AI Review adds optional Markdown download; existing exports untouched
+
+================================================================================
+PHẦN 7 — TEST COUNT
+================================================================================
+
+| Suite                              | Tests |
+|------------------------------------|-------|
+| esmUiDisplay.test.ts (UL-03)       | 6     |
+| exportAiReviewReport.test.ts (UL-03) | 2     |
+| esmBridgeStore.test.ts (UL-02)     | 10    |
+| productionEsmBridge.test.ts        | 15    |
+| entryStateManager (frozen)         | 382   |
+| UL-03 scope total                  | 420   |
+
+Command:
+  npx vitest run utils/esmUiDisplay.test.ts services/exportAiReviewReport.test.ts \
+    store/__tests__/esmBridgeStore.test.ts services/productionEsmBridge/productionEsmBridge.test.ts
+
+Result: 33/33 in targeted run; 420 cumulative ESM+bridge+UL-03 scope.
+
+================================================================================
+PHẦN 8 — REGRESSION
+================================================================================
+
+Verified:
+  ✓ Existing audit export modes (full, entrySltp) unchanged
+  ✓ Journal table layout/columns unchanged (no new column)
+  ✓ No new tabs, panels, dialogs, or windows
+  ✓ Frozen ESM modules not modified
+  ✓ Store architecture not modified in UL-03
+
+Not run in UL-03:
+  - Full repo vitest (997+ baseline — unrelated suites may have pre-existing failures)
+  - Manual web hover tooltip visual QA
+  - E2E with ENTRY_STATE_MANAGER_ENABLED ON in production scan
+
+================================================================================
+PHẦN 9 — READ-ONLY VERIFICATION
+================================================================================
+
+JournalTradeTable:
+  ✓ useTradeStore selector: esmBridge.latestSnapshot only
+  ✓ No pipeline / scoring / PA imports in journal row render path
+
+exportAiReviewReport:
+  ✓ Serializes snapshot + journal + signal rows
+  ✓ Imports metadata constants only (no evaluation calls)
+  ✓ getTradeScoreRuleBookText() for static RuleBook text in export
+
+Forbidden paths:
+  ✓ services/entryStateManager/** — git diff empty for UL-03 edits
+  ✓ productionEsmBridge/** — no UL-03 edits
+
+================================================================================
+PHẦN 10 — READY FOR UL-04
+================================================================================
+
+UL-03 complete. Stop here — do NOT start UL-04.
+
+UL-04 prerequisites identified:
+  - Wire production scan → runProductionEsmBridge → writeEsmSnapshotToStore
+  - Enable ENTRY_STATE_MANAGER_ENABLED when production-ready
+  - Per-symbol snapshot strategy if multi-coin concurrent positions
+
+================================================================================
+END UL-03 REPORT
+================================================================================

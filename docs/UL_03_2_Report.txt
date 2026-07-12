@@ -1,0 +1,192 @@
+================================================================================
+TRADESCORE V1.0.5 — UL-03.2 REPORT
+================================================================================
+Task:        UL-03.2 — Final UI Architecture Cleanup
+Date:        2026-07-12
+Type:        Presentation Rule + Export Metadata (NOT a new feature)
+Prerequisite: UL-03.1 — Architecture Alignment
+ESM Core:    2.0.0 (UNCHANGED — frozen)
+================================================================================
+
+TÓM TẮT
+-------
+Bổ sung Presentation Rule (Hint Priority SSOT) và Export Metadata cuối
+TradeScore_AI_Review.md. Không thay đổi layout, store architecture, hay
+frozen modules.
+
+Tests UL-03.2 scope: 409/409 PASS
+
+================================================================================
+PHẦN 1 — FILES CHANGED
+================================================================================
+
+utils/esmUiDisplay.ts
+  - ESM_HINT_PRIORITY SSOT: BLOCKED > LOCKED > WATCH > READY
+  - resolveHighestPriorityHint(candidates) — exactly one hint
+  - collectSnapshotHintCandidates() — multi-source candidates from snapshot
+  - Tooltip scoped to resolved hint only (collectFriendlyReasonsForHint)
+  - Badge/tooltip/hintCode all flow through priority resolver
+
+utils/esmUiDisplay.test.ts
+  - Priority resolver unit tests (+4)
+  - Single hintCode/badge alignment test
+
+utils/architectureExportMetadata.ts (NEW)
+  - UI_LAYER_VERSION = UL-03.2
+  - buildArchitectureVersionMatrix() — reads frozen metadata constants
+  - formatArchitectureVersionMatrix() — dotted alignment format
+  - resolveRuntimeFeatureFlags() — read-only ON/OFF snapshot
+  - formatFeatureFlagSummary()
+
+utils/architectureExportMetadata.test.ts (NEW)
+  - Version matrix + feature flag format tests (3)
+
+services/exportAiReviewReport.ts
+  - End sections: # Architecture Version Matrix
+  - End sections: # Feature Flags (ON/OFF)
+  - Report module → UL-03.2
+
+services/exportAiReviewReport.test.ts
+  - Asserts Version Matrix + Feature Flags sections present
+
+docs/UL_03_2_Report.txt
+  - This report
+
+================================================================================
+PHẦN 2 — FILES UNTOUCHED
+================================================================================
+
+services/entryStateManager/**          — FROZEN (read-only imports only)
+RuleBook / Detection Layer / State Machine internals
+Position Adviser
+Production Bridge logic
+Store architecture (snapshotBySymbol unchanged)
+Journal layout
+SignalBoard layout
+Export dropdown templates (Full / Entry-SLTP / AI Review)
+Frozen pipeline / mapping / PA modules
+
+================================================================================
+PHẦN 3 — HINT PRIORITY VERIFICATION
+================================================================================
+
+SSOT function:
+  resolveHighestPriorityHint(candidates)
+
+Priority (fixed):
+  BLOCKED > LOCKED > WATCH > READY
+
+Behavior:
+  ✓ Multiple candidates → single highest-priority hint
+  ✓ No concat, no list, no multiple badges
+  ✓ No valid RuleBook hint → null (observe display separate)
+  ✓ Tooltip reads resolved hint only — never mixed states
+  ✓ PA recommendation unchanged (JournalTradeTable not modified)
+
+Example:
+  candidates [READY, WATCH, BLOCKED] → ⓘ BLOCKED only
+
+================================================================================
+PHẦN 4 — VERSION MATRIX VERIFICATION
+================================================================================
+
+Section appended to TradeScore_AI_Review.md:
+
+  # Architecture Version Matrix
+
+Sources (metadata — not hardcoded where constant exists):
+  TradeScore Version.....BUILD_INFO.version (1.0.5)
+  ESM Version............MODULE_VERSION (2.0.0)
+  Detection Layer........DETECTION_LAYER_FROZEN_VERSION (0.6.2)
+  Pipeline...............ESM_PIPELINE_FROZEN_VERSION (1.5.0 — arch baseline)
+  Position Adviser.......POSITION_ADVISER_INTEGRATION_FROZEN_VERSION (1.9.0)
+  Mapping Bridge.........ENTRY_STATE_MAPPING_FROZEN_VERSION (2.0.0)
+  Production Bridge......PRODUCTION_ESM_BRIDGE_VERSION (UL-01.1)
+  Store Bridge...........ESM_STORE_BRIDGE_VERSION (UL-03.1)
+  UI Layer...............UI_LAYER_VERSION (UL-03.2)
+  Build Date.............BUILD_INFO.buildDate
+
+Followed by:
+
+  # Feature Flags
+  ENTRY_STATE_MANAGER_ENABLED....ON/OFF (esmBridge.enabled runtime)
+  POSITION_ADVISER_ENABLED.......ON/OFF (DEFAULT_POSITION_ADVISER_ENABLED)
+  RULEBOOK_ENABLED.............ON
+  AI_JOURNAL_ENABLED...........ON
+
+Single file only: TradeScore_AI_Review.md — no extra export files.
+
+================================================================================
+PHẦN 5 — REGRESSION
+================================================================================
+
+Command:
+  npx vitest run utils/esmUiDisplay.test.ts \
+    utils/architectureExportMetadata.test.ts \
+    services/exportAiReviewReport.test.ts \
+    store/__tests__/esmBridgeStore.test.ts \
+    services/entryStateManager
+
+Result: 409/409 PASS
+
+Verified:
+  ✓ Recommendation still PA-driven (no JournalTradeTable changes)
+  ✓ ESM generates hint only
+  ✓ Exactly one hint badge
+  ✓ Tooltip from resolved hint
+  ✓ No layout/column/panel changes
+  ✓ No frozen module edits
+  ✓ Existing export templates unchanged
+
+================================================================================
+PHẦN 6 — TEST COUNT
+================================================================================
+
+| Suite                              | Tests |
+|------------------------------------|-------|
+| entryStateManager (frozen)         | 382   |
+| esmUiDisplay (UL-03.2)             | 11    |
+| architectureExportMetadata (NEW)   | 3     |
+| exportAiReviewReport               | 2     |
+| esmBridgeStore                     | 11    |
+| UL-03.2 scoped run                 | 409   |
+
+New tests: +7 (4 priority + 1 alignment + 3 metadata)
+
+================================================================================
+PHẦN 7 — PRODUCTION IMPACT
+================================================================================
+
+Risk: MINIMAL — presentation + export metadata only.
+
+- Users see at most one ESM hint badge (highest severity wins)
+- Tooltip content aligned with winning hint
+- AI Review export richer for architecture review uploads
+- No runtime trading behavior change
+
+================================================================================
+PHẦN 8 — READY FOR UL-04
+================================================================================
+
+UL-03.2 complete. Stop here — do NOT start UL-04.
+
+Next: UL-04 production wiring (scan → bridge → snapshotBySymbol per coin).
+
+================================================================================
+ACCEPTANCE CHECKLIST
+================================================================================
+
+✓ UI không thay đổi
+✓ Recommendation giữ nguyên (PA)
+✓ Hint luôn chỉ một trạng thái
+✓ Hint Priority: BLOCKED > LOCKED > WATCH > READY
+✓ AI Review có Version Matrix + Feature Flag Summary
+✓ Chỉ một file TradeScore_AI_Review.md
+✓ Không sinh thêm file export
+✓ Không thay đổi template export hiện có
+✓ Không sửa module freeze
+✓ Regression tests PASS (409/409)
+
+================================================================================
+END UL-03.2 REPORT
+================================================================================
