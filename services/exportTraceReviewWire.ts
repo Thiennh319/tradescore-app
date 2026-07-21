@@ -831,6 +831,12 @@ function buildEntryTraceMarkdown(
       enabled: true,
     };
   });
+  // Single source for export field "RuleBook State" (DECISION CHAIN + ENTRY SUMMARY).
+  const ruleBookState = snap.hardBlocked
+    ? 'BLOCKED'
+    : snap.canEnter
+      ? 'PASS'
+      : 'WAIT';
   return buildEntryTraceExport({
     metadata: {
       version: '1',
@@ -872,7 +878,7 @@ function buildEntryTraceMarkdown(
       decision,
       confidence: snap.winrate,
       grade,
-      ruleBookState: snap.hardBlocked ? 'BLOCKED' : snap.canEnter ? 'PASS' : 'WAIT',
+      ruleBookState,
     },
   });
 }
