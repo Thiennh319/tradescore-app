@@ -88,7 +88,9 @@ function detectConflict(
   blockers: readonly EntryTraceBlockerItem[],
 ): EntryTraceConflict {
   const value = decision?.decision ?? null;
-  const blocking = blockers.filter((b) => b.type === 'HARD' || b.type === 'SOFT');
+  const blocking = blockers.filter(
+    (b) => b.type === 'HARD' || b.type === 'SOFT' || b.type === 'GROUP',
+  );
   const hardBlocks = blockers.filter((b) => b.type === 'HARD');
   const reasons: string[] = [];
 

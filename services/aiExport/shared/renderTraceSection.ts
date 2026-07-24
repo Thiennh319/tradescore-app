@@ -322,7 +322,7 @@ export function renderTraceAdjustmentLines(
   ]);
 }
 
-/** HARD BLOCK body lines (Score Trace). */
+/** HARD / GROUP BLOCK body lines (Score Trace). */
 export function renderTraceHardBlockLines(
   blocks: readonly TraceHardBlockBlock[],
 ): string[] {

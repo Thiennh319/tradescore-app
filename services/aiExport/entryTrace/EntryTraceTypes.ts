@@ -11,7 +11,7 @@ import type { AiExportScalar } from '../types';
 
 export type EntryTraceStatus = 'PASS' | 'FAIL' | 'WARNING' | 'SKIPPED';
 
-export type EntryTraceBlockerType = 'HARD' | 'SOFT' | 'UNLOCK';
+export type EntryTraceBlockerType = 'HARD' | 'SOFT' | 'UNLOCK' | 'GROUP';
 
 export type EntryTraceDecisionValue = 'ENTER' | 'WAIT' | 'AVOID';
 
@@ -100,6 +100,7 @@ export interface EntryTraceSummary {
   warnings?: AiExportScalar;
   failedChecks?: AiExportScalar;
   hardBlocks?: AiExportScalar;
+  groupBlocks?: AiExportScalar;
   softBlocks?: AiExportScalar;
   unlockRules?: AiExportScalar;
   decision?: AiExportScalar;

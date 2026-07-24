@@ -217,21 +217,37 @@ function buildRulebookReviewMarkdown(
 /**
  * TASK 17.6.1 — the engine's `hardBlocked` flag is defined as
  * `hardBlocks.length > 0 || groupBlocks.length > 0` (signalBoardScan).
- * The HARD BLOCK entries forwarded to exports therefore copy exactly
- * those two lists, so the flag and the section agree by construction.
+ * Score Trace/Review forward both lists in one section (Hard/Group Block),
+ * distinguished by ID prefix (HB- / GB-) and evidence label — not by treating
+ * every entry as a Hard Block.
  * (Mandatory rule violations stay in their own channels: penalties /
  * blocked rules / "Total Blocking Events".)
  */
+type HardOrGroupBlockEntry = {
+  readonly reason: string;
+  readonly kind: 'hard' | 'group';
+};
+
 function hardBlockEntriesOf(
   snap: ReturnType<typeof resolveSignalRow>,
-): readonly string[] {
+): readonly HardOrGroupBlockEntry[] {
   // Legacy cached rows carry no per-side lists; their `mandatoryViolations`
   // was the only recorded block list, so it remains the copied fallback.
   const sideHardBlocks =
     snap.direction === 'LONG'
       ? snap.longHardBlocks ?? snap.mandatoryViolations ?? []
       : snap.shortHardBlocks ?? snap.mandatoryViolations ?? [];
-  return [...sideHardBlocks, ...(snap.groupBlocks ?? [])];
+  return [
+    ...sideHardBlocks.map((reason) => ({ reason, kind: 'hard' as const })),
+    ...(snap.groupBlocks ?? []).map((reason) => ({
+      reason,
+      kind: 'group' as const,
+    })),
+  ];
+}
+
+function evidenceLabelForBlockKind(kind: HardOrGroupBlockEntry['kind']): string {
+  return kind === 'hard' ? 'Hard Block' : 'Group Block';
 }
 
 function buildScoreReviewMarkdown(
@@ -264,11 +280,13 @@ function buildScoreReviewMarkdown(
       currentScore: snap.score,
       hardBlocked: snap.hardBlocked,
     },
-    hardBlocks: hardBlockEntriesOf(snap).map((name) => ({
-      rule: name,
-      reason: name,
+    hardBlocks: hardBlockEntriesOf(snap).map((entry) => ({
+      rule: entry.reason,
+      reason: entry.reason,
       priority: 'CRITICAL',
-      evidence: [{ label: 'Hard Block', value: name }],
+      evidence: [
+        { label: evidenceLabelForBlockKind(entry.kind), value: entry.reason },
+      ],
     })),
     decision: {
       decision: snap.decisionLabel,
@@ -319,8 +337,8 @@ function buildEntryReviewMarkdown(
 ): string {
   const snap = resolveSignalRow(row, scorerVersion);
   const layers = snap.layers ?? [];
-  // TASK 17.6.1 — one label, one concept: the three engine block lists are
-  // forwarded separately instead of being merged under a single "HARD" label.
+  // TASK 17.6.1 — hard + group lists forwarded together; Entry Review still
+  // separates score blocks. Hard vs Group distinguished via evidence label.
   const hardBlocks = hardBlockEntriesOf(snap);
   const scoreBlocks =
     snap.direction === 'LONG'
@@ -350,8 +368,9 @@ function buildEntryReviewMarkdown(
       passedChecks: layers.filter((l) => l.passed).length,
       failedChecks: layers.filter((l) => !l.passed).length,
       warnings: (snap.scoringWarnings ?? []).join('; ') || undefined,
-      hardBlocks: hardBlocks.length,
-      softBlocks: (snap.groupBlocks ?? []).length,
+      hardBlocks: hardBlocks.filter((e) => e.kind === 'hard').length,
+      groupBlocks: hardBlocks.filter((e) => e.kind === 'group').length,
+      softBlocks: scoreBlocks.length,
     },
     decisionTree: [
       { stage: 'Trend', result: row.trend, detail: `Confidence ${row.regimeConfidence}` },
@@ -361,7 +380,7 @@ function buildEntryReviewMarkdown(
         result: resolveFinalEntryStatus(row, scorerVersion),
         detail: snap.decisionDisplay,
       },
-      { stage: 'HardBlocked State', result: snap.hardBlocked ? 'YES' : 'NO', detail: hardBlocks.join('; ') },
+      { stage: 'HardBlocked State', result: snap.hardBlocked ? 'YES' : 'NO', detail: hardBlocks.map((e) => e.reason).join('; ') },
       {
         stage: 'Entry Permission',
         result: snap.canEnter ? 'YES' : 'NO',
@@ -385,14 +404,19 @@ function buildEntryReviewMarkdown(
       source: `Layer ${layer.layer}`,
     })),
     blockers: [
-      ...hardBlocks.map((name) => ({
-        type: 'HARD',
-        rule: name,
+      ...hardBlocks.map((entry) => ({
+        type: entry.kind === 'hard' ? 'HARD' : 'GROUP',
+        rule: entry.reason,
         priority: 'CRITICAL',
-        trigger: name,
-        reason: name,
+        trigger: entry.reason,
+        reason: entry.reason,
         override: 'NO',
-        evidence: [{ label: 'Hard Block', value: name }],
+        evidence: [
+          {
+            label: evidenceLabelForBlockKind(entry.kind),
+            value: entry.reason,
+          },
+        ],
       })),
       ...scoreBlocks.map((name) => ({
         type: 'SCORE',
@@ -780,16 +804,31 @@ function buildScoreTraceMarkdown(
         enabled: true,
       };
     }),
-    // TASK 17.6.1 — HARD BLOCK entries copy exactly the engine lists that
-    // define the `hardBlocked` flag; the merged block list size is reported
-    // separately ("Total Blocking Events" in the input snapshot).
-    hardBlocks: hardBlockEntriesOf(snap).map((name, index) => ({
-      id: `HB-${index + 1}`,
-      rule: name,
-      reason: name,
-      overrideScore: true,
-      evidence: [{ label: 'Hard Block', value: name }],
-    })),
+    // TASK 17.6.1 — Hard/Group Block entries copy the two lists that define
+    // `hardBlocked`; HB-/GB- prefixes and evidence labels distinguish source.
+    // Merged block list size is reported separately ("Total Blocking Events").
+    hardBlocks: (() => {
+      let hardIdx = 0;
+      let groupIdx = 0;
+      return hardBlockEntriesOf(snap).map((entry) => {
+        const id =
+          entry.kind === 'hard'
+            ? `HB-${++hardIdx}`
+            : `GB-${++groupIdx}`;
+        return {
+          id,
+          rule: entry.reason,
+          reason: entry.reason,
+          overrideScore: true,
+          evidence: [
+            {
+              label: evidenceLabelForBlockKind(entry.kind),
+              value: entry.reason,
+            },
+          ],
+        };
+      });
+    })(),
     bonuses: [],
     penalties: [],
     summary: {
@@ -858,21 +897,27 @@ function buildEntryTraceMarkdown(
       recommendation: snap.decisionLabel,
     },
     checks,
-    // TASK 17.6.1 — "HARD" blockers copy exactly the engine hard block
-    // lists; the merged block list size is reported via the input snapshot
-    // ("Total Blocking Events"), not relabeled as HARD.
-    blockers: hardBlocks.map((name) => ({
-      type: 'HARD' as const,
-      rule: name,
-      reason: name,
-      evidence: [{ label: 'Hard Block', value: name }],
+    // TASK 17.6.1 — blockers copy hard + group lists that define `hardBlocked`;
+    // type HARD vs GROUP matches entry.kind. Merged size stays in input snapshot
+    // ("Total Blocking Events").
+    blockers: hardBlocks.map((entry) => ({
+      type: entry.kind === 'hard' ? ('HARD' as const) : ('GROUP' as const),
+      rule: entry.reason,
+      reason: entry.reason,
+      evidence: [
+        {
+          label: evidenceLabelForBlockKind(entry.kind),
+          value: entry.reason,
+        },
+      ],
     })),
-    // ENTRY SUMMARY mirrors ENTRY DECISION / CHECKLIST / BLOCKERS (copy only).
+    // ENTRY SUMMARY — Option C: Hard / Group split; Soft stays 0 (no soft source in Trace wire).
     entrySummary: {
       passedChecks: checks.filter((c) => c.status === 'PASS').length,
       warnings: checks.filter((c) => c.status === 'WARNING').length,
       failedChecks: checks.filter((c) => c.status === 'FAIL').length,
-      hardBlocks: hardBlocks.length,
+      hardBlocks: hardBlocks.filter((e) => e.kind === 'hard').length,
+      groupBlocks: hardBlocks.filter((e) => e.kind === 'group').length,
       softBlocks: 0,
       unlockRules: 0,
       decision,

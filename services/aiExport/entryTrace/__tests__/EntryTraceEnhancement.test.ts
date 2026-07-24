@@ -77,6 +77,7 @@ describe('TASK 16.4.1 Entry Trace Export Enhancement', () => {
     expect(summary).toContain('Warnings: 1');
     expect(summary).toContain('Failed Checks: 1');
     expect(summary).toContain('Hard Blocks: 1');
+    expect(summary).toContain('Group Blocks: UNAVAILABLE');
     expect(summary).toContain('Soft Blocks: 0');
     expect(summary).toContain('Unlock Rules: 1');
     expect(summary).toContain('Decision: WAIT');

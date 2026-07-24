@@ -115,6 +115,7 @@ function blockerBlock(blocker: EntryTraceBlockerItem): string[] {
 function blockers(trace: EntryTrace): string[] {
   const counts = {
     hard: trace.blockers.filter((b) => b.type === 'HARD').length,
+    group: trace.blockers.filter((b) => b.type === 'GROUP').length,
     soft: trace.blockers.filter((b) => b.type === 'SOFT').length,
     unlock: trace.blockers.filter((b) => b.type === 'UNLOCK').length,
   };
@@ -124,6 +125,7 @@ function blockers(trace: EntryTrace): string[] {
   ]);
   return [
     kv('Hard Block', counts.hard),
+    kv('Group Block', counts.group),
     kv('Soft Block', counts.soft),
     kv('Unlock', counts.unlock),
     '',
@@ -238,6 +240,7 @@ function entrySummary(trace: EntryTrace): string[] {
     kv('Warnings', summary.warnings),
     kv('Failed Checks', summary.failedChecks),
     kv('Hard Blocks', summary.hardBlocks),
+    kv('Group Blocks', summary.groupBlocks),
     kv('Soft Blocks', summary.softBlocks),
     kv('Unlock Rules', summary.unlockRules),
     kv('Decision', summary.decision),

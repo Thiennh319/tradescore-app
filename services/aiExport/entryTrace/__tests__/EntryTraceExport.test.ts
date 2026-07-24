@@ -198,10 +198,42 @@ describe('TASK 16.4 Entry Decision Trace Export', () => {
   it('Hard Block — counted and rendered with rule, priority, override', () => {
     const md = buildEntryTraceExport(fullInput());
     expect(md).toContain('Hard Block: 1');
+    expect(md).toContain('Group Block: 0');
     expect(md).toContain('Type: HARD');
     expect(md).toContain('Rule: FUNDING_EXTREME');
     expect(md).toContain('Override: YES');
     expect(md).toContain('Priority: 95');
+  });
+
+  it('Group Block — counted separately from Hard; Type GROUP', () => {
+    const md = buildEntryTraceExport({
+      decision: { decision: 'WAIT', reason: 'Group A below minimum' },
+      blockers: [
+        {
+          type: 'GROUP',
+          rule: 'Nhóm A (Xu hướng) 2.1/5đ < 2.5đ',
+          reason: 'Nhóm A (Xu hướng) 2.1/5đ < 2.5đ',
+          evidence: [
+            {
+              label: 'Group Block',
+              value: 'Nhóm A (Xu hướng) 2.1/5đ < 2.5đ',
+            },
+          ],
+        },
+      ],
+      entrySummary: {
+        hardBlocks: 0,
+        groupBlocks: 1,
+        softBlocks: 0,
+      },
+    });
+    expect(md).toContain('Hard Block: 0');
+    expect(md).toContain('Group Block: 1');
+    expect(md).toContain('Type: GROUP');
+    expect(md).toContain('Rule: Nhóm A (Xu hướng) 2.1/5đ < 2.5đ');
+    expect(md).toContain('Hard Blocks: 0');
+    expect(md).toContain('Group Blocks: 1');
+    expect(md).toContain('Conflict: NO');
   });
 
   it('Soft Block — counted separately with its own evidence', () => {
@@ -227,12 +259,30 @@ describe('TASK 16.4 Entry Decision Trace Export', () => {
     expect(waitNoBlocker).toContain('Conflict: YES');
     expect(waitNoBlocker).toContain('Reason: WAIT without blocker');
 
+    const waitWithGroupOnly = buildEntryTraceExport({
+      decision: { decision: 'WAIT', reason: 'Group minimum' },
+      blockers: [
+        {
+          type: 'GROUP',
+          rule: 'Nhóm A (Xu hướng) 2.1/5đ < 2.5đ',
+          reason: 'Nhóm A (Xu hướng) 2.1/5đ < 2.5đ',
+        },
+      ],
+    });
+    expect(waitWithGroupOnly).toContain('Conflict: NO');
+
     const enterWithHard = buildEntryTrace({
       decision: { decision: 'ENTER' },
       blockers: [{ type: 'HARD', rule: 'FUNDING_EXTREME' }],
     });
     expect(enterWithHard.conflict.detected).toBe(true);
     expect(enterWithHard.conflict.reasons[0]).toContain('ENTER despite hard block');
+
+    const enterWithGroupOnly = buildEntryTrace({
+      decision: { decision: 'ENTER' },
+      blockers: [{ type: 'GROUP', rule: 'Nhóm A' }],
+    });
+    expect(enterWithGroupOnly.conflict.detected).toBe(false);
 
     const consistent = buildEntryTrace(fullInput());
     expect(consistent.conflict.detected).toBe(false);
