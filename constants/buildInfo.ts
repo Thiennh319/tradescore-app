@@ -1,6 +1,6 @@
 /** Release metadata — đồng bộ BUILD_INFO APK/EXE và guideline. */
 export const BUILD_INFO = {
-  version: '1.0.5',
+  version: '1.0.8',
   buildDate: '2026-07-05',
   changelog: [
     'Momentum 1H Engine (Volume + CVD)',
