@@ -2,7 +2,7 @@
   "expo": {
     "name": "TradeScore",
     "slug": "TradeScore",
-    "version": "1.0.5",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.tradescore.app",
-      "versionCode": 9,
+      "versionCode": 12,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
