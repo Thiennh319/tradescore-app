@@ -851,6 +851,11 @@ function buildEntryTraceMarkdown(
   const grade = snap.decisionDisplay;
   const layers = snap.layers ?? [];
   const hardBlocks = hardBlockEntriesOf(snap);
+  // Same per-side Score Block list as BLOCKING SUMMARY / BLOCKING EVENTS ORIGIN
+  // ("Score Blocks (block reasons)" / blockReasons). Soft only — not Hard/Group.
+  const sideScoreBlocks =
+    (snap.direction === 'LONG' ? snap.longBlockReasons : snap.shortBlockReasons) ??
+    [];
   const checks = layers.map((layer) => {
     const status = layerTraceStatus(layer.passed, layer.isMandatoryViolation);
     return {
@@ -898,27 +903,36 @@ function buildEntryTraceMarkdown(
     },
     checks,
     // TASK 17.6.1 — blockers copy hard + group lists that define `hardBlocked`;
-    // type HARD vs GROUP matches entry.kind. Merged size stays in input snapshot
-    // ("Total Blocking Events").
-    blockers: hardBlocks.map((entry) => ({
-      type: entry.kind === 'hard' ? ('HARD' as const) : ('GROUP' as const),
-      rule: entry.reason,
-      reason: entry.reason,
-      evidence: [
-        {
-          label: evidenceLabelForBlockKind(entry.kind),
-          value: entry.reason,
-        },
-      ],
-    })),
-    // ENTRY SUMMARY — Option C: Hard / Group split; Soft stays 0 (no soft source in Trace wire).
+    // type HARD vs GROUP matches entry.kind. Soft = Score Block list (blockReasons)
+    // so Soft Block count matches BLOCKING SUMMARY "Score Blocks (block reasons)".
+    // Merged size stays in input snapshot ("Total Blocking Events").
+    blockers: [
+      ...hardBlocks.map((entry) => ({
+        type: entry.kind === 'hard' ? ('HARD' as const) : ('GROUP' as const),
+        rule: entry.reason,
+        reason: entry.reason,
+        evidence: [
+          {
+            label: evidenceLabelForBlockKind(entry.kind),
+            value: entry.reason,
+          },
+        ],
+      })),
+      ...sideScoreBlocks.map((reason) => ({
+        type: 'SOFT' as const,
+        rule: reason,
+        reason,
+        evidence: [{ label: 'Score Block', value: reason }],
+      })),
+    ],
+    // ENTRY SUMMARY — Hard / Group / Soft split; Soft = Score Block list size.
     entrySummary: {
       passedChecks: checks.filter((c) => c.status === 'PASS').length,
       warnings: checks.filter((c) => c.status === 'WARNING').length,
       failedChecks: checks.filter((c) => c.status === 'FAIL').length,
       hardBlocks: hardBlocks.filter((e) => e.kind === 'hard').length,
       groupBlocks: hardBlocks.filter((e) => e.kind === 'group').length,
-      softBlocks: 0,
+      softBlocks: sideScoreBlocks.length,
       unlockRules: 0,
       decision,
       confidence: snap.winrate,
