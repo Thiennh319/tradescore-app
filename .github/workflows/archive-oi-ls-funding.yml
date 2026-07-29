@@ -1,0 +1,40 @@
+name: Archive OI/LS funding (NEAR)
+
+on:
+  schedule:
+    - cron: '0 * * * *' # every hour UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archive-oi-ls-near
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Collect OI/LS/funding snapshot
+        run: npx --yes tsx scripts/archive-oi-ls-funding.ts
+
+      - name: Commit archive if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/market-archive/nearusdt_1h.csv
+          if git diff --staged --quiet; then
+            echo "No archive changes"
+            exit 0
+          fi
+          git commit -m "chore(archive): NEAR OI/LS hourly snapshot"
+          git push
