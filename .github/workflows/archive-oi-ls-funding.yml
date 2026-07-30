@@ -1,4 +1,4 @@
-name: Archive OI/LS funding (NEAR)
+name: Archive OI/LS funding (multi)
 
 on:
   schedule:
@@ -31,10 +31,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/market-archive/nearusdt_1h.csv
+          git add data/market-archive/*.csv
           if git diff --staged --quiet; then
             echo "No archive changes"
             exit 0
           fi
-          git commit -m "chore(archive): NEAR OI/LS hourly snapshot"
+          git commit -m "chore(archive): OI/LS hourly snapshot (NEAR/BTC/SOL/BNB)"
           git push

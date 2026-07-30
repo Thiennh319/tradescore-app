@@ -1,8 +1,13 @@
 /**
- * Check forward archive progress for NEARUSDT OI/LS/funding.
+ * Check forward archive progress for OI/LS/funding (multi-symbol).
  *
- * Run: npx tsx scripts/check-market-archive-progress.ts
- * Optional: --symbol NEARUSDT --ready-days 90 --min-coverage 95
+ * Run all symbols:
+ *   npx tsx scripts/check-market-archive-progress.ts
+ *
+ * One symbol:
+ *   npx tsx scripts/check-market-archive-progress.ts --symbol BTCUSDT
+ *
+ * Optional: --ready-days 90 --min-coverage 95 --csv path/to/file.csv
  */
 
 import fs from 'node:fs';
@@ -11,7 +16,8 @@ import { fileURLToPath } from 'node:url';
 
 const MS_1H = 3_600_000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CSV = path.resolve(__dirname, '../data/market-archive/nearusdt_1h.csv');
+const ARCHIVE_DIR = path.resolve(__dirname, '../data/market-archive');
+const DEFAULT_SYMBOLS = ['NEARUSDT', 'BTCUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
 
 type Row = {
   timestamp: number;
@@ -46,6 +52,10 @@ function splitCsvLine(line: string): string[] {
   }
   cols.push(cur);
   return cols;
+}
+
+function csvPathForSymbol(symbol: string): string {
+  return path.join(ARCHIVE_DIR, `${symbol.toLowerCase()}_1h.csv`);
 }
 
 function loadRows(csvPath: string): Row[] {
@@ -156,31 +166,42 @@ export function analyzeArchive(
 }
 
 function parseArgs(argv: string[]): {
-  csv: string;
+  symbols: string[] | null;
+  csv: string | null;
   readyDays: number;
   minCoverage: number;
 } {
-  let csv = DEFAULT_CSV;
+  let symbol: string | null = null;
+  let csv: string | null = null;
   let readyDays = 90;
   let minCoverage = 95;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--csv') csv = path.resolve(argv[++i] ?? csv);
+    if (argv[i] === '--symbol') symbol = (argv[++i] ?? '').toUpperCase();
+    if (argv[i] === '--csv') csv = path.resolve(argv[++i] ?? '');
     if (argv[i] === '--ready-days') readyDays = Number(argv[++i] ?? readyDays);
     if (argv[i] === '--min-coverage') minCoverage = Number(argv[++i] ?? minCoverage);
   }
-  return { csv, readyDays, minCoverage };
+  return {
+    symbols: symbol ? [symbol] : csv ? null : [...DEFAULT_SYMBOLS],
+    csv,
+    readyDays,
+    minCoverage,
+  };
 }
 
-function main(): void {
-  const opts = parseArgs(process.argv.slice(2));
-  const rows = loadRows(opts.csv);
-  const r = analyzeArchive(rows, {
-    readyDays: opts.readyDays,
-    minCoverage: opts.minCoverage,
-  });
+function printOne(
+  label: string,
+  csvPath: string,
+  opts: { readyDays: number; minCoverage: number },
+  verboseGaps: boolean,
+): void {
+  const rows = loadRows(csvPath);
+  const fileBytes = fs.existsSync(csvPath) ? fs.statSync(csvPath).size : 0;
+  const r = analyzeArchive(rows, opts);
 
-  console.log('=== Market archive progress ===');
-  console.log(`csv: ${opts.csv}`);
+  console.log(`--- ${label} ---`);
+  console.log(`csv: ${csvPath}`);
+  console.log(`file_bytes: ${fileBytes}`);
   console.log(`rows_useful: ${r.n}`);
   console.log(`first_ts: ${r.first_ts == null ? 'n/a' : fmtIso(r.first_ts)}`);
   console.log(`last_ts:  ${r.last_ts == null ? 'n/a' : fmtIso(r.last_ts)}`);
@@ -189,15 +210,46 @@ function main(): void {
   console.log(`actual_ok_hours: ${r.actual_ok_hours}`);
   console.log(`coverage_pct: ${r.coverage_pct.toFixed(2)}%`);
   console.log(`gaps: ${r.gap_list.length}`);
-  for (const g of r.gap_list.slice(0, 20)) {
-    console.log(`  - ${g.start} → ${g.end} (${g.hours}h)`);
-  }
-  if (r.gap_list.length > 20) {
-    console.log(`  … +${r.gap_list.length - 20} more`);
+  if (verboseGaps) {
+    for (const g of r.gap_list.slice(0, 20)) {
+      console.log(`  - ${g.start} → ${g.end} (${g.hours}h)`);
+    }
+    if (r.gap_list.length > 20) {
+      console.log(`  … +${r.gap_list.length - 20} more`);
+    }
   }
   console.log(
     `ready_${opts.readyDays}d (≥${opts.minCoverage}% coverage): ${r.ready_90d ? 'YES' : 'NO'}`,
   );
+  console.log('');
+}
+
+function main(): void {
+  const opts = parseArgs(process.argv.slice(2));
+
+  console.log('=== Market archive progress ===');
+  console.log('');
+
+  if (opts.csv) {
+    printOne(path.basename(opts.csv), opts.csv, opts, true);
+    return;
+  }
+
+  const symbols = opts.symbols ?? [...DEFAULT_SYMBOLS];
+  const multi = symbols.length > 1;
+  for (const symbol of symbols) {
+    printOne(symbol, csvPathForSymbol(symbol), opts, !multi);
+  }
+
+  if (multi) {
+    let totalBytes = 0;
+    for (const symbol of symbols) {
+      const p = csvPathForSymbol(symbol);
+      if (fs.existsSync(p)) totalBytes += fs.statSync(p).size;
+    }
+    console.log('=== Summary (4 symbols) ===');
+    console.log(`total_file_bytes: ${totalBytes} (~${(totalBytes / 1024).toFixed(2)} KB)`);
+  }
 }
 
 const isDirectRun =

@@ -2,14 +2,25 @@
 
 **Phương án C** — tự lưu điểm 1h để sau này backtest 90d+ không phụ thuộc trần Binance ~30 ngày.
 
-## Scope (phase 1)
+## Scope
 
 | | |
 |---|---|
-| Symbol | **NEARUSDT** only |
-| Cadence | 1 điểm / giờ (UTC bar open) |
+| Symbols | **NEARUSDT**, **BTCUSDT**, **SOLUSDT**, **BNBUSDT** |
+| Cadence | 1 điểm / giờ / symbol (UTC bar open) |
 | Trigger | GitHub Actions — `.github/workflows/archive-oi-ls-funding.yml` |
-| Storage | `nearusdt_1h.csv` (commit vào repo) |
+| Storage | **1 CSV / symbol** (Cách B — file tách riêng) |
+
+### File CSV
+
+| Symbol | Path |
+|--------|------|
+| NEARUSDT | `nearusdt_1h.csv` (giữ nguyên — dữ liệu cũ không migrate) |
+| BTCUSDT | `btcusdt_1h.csv` |
+| SOLUSDT | `solusdt_1h.csv` |
+| BNBUSDT | `bnbusdt_1h.csv` |
+
+Mỗi symbol lỗi API không làm hỏng symbol khác (collector xử lý độc lập từng coin).
 
 ## Schema CSV
 
@@ -39,17 +50,26 @@ Collector: `scripts/archive-oi-ls-funding.ts` (raw `fetch`, không qua AsyncStor
 
 ## GitHub Actions
 
-- Workflow: `archive-oi-ls-funding.yml`
+- Workflow: `archive-oi-ls-funding.yml` (name: *Archive OI/LS funding (multi)*)
 - Cron: `0 * * * *` (mỗi giờ UTC) + `workflow_dispatch` (chạy tay)
-- Sau mỗi lần chạy: nếu CSV đổi → commit `chore(archive): NEAR OI/LS hourly snapshot` + push
-- **`schedule` chỉ chạy trên default branch** (local repo có nhánh `master` — xác nhận tên default trên GitHub trước khi merge)
+- Sau mỗi lần chạy: nếu CSV đổi → `git add data/market-archive/*.csv` → commit + push
+- **`schedule` chỉ chạy trên default branch**
 
 Repo **public** → Actions schedule + phút thường không bị giới hạn như private Free.
 
 ## Kiểm tra tiến độ
 
+Tất cả 4 symbol (tóm tắt):
+
 ```bash
 npx tsx scripts/check-market-archive-progress.ts
+```
+
+Một symbol:
+
+```bash
+npx tsx scripts/check-market-archive-progress.ts --symbol BTCUSDT
+npx tsx scripts/check-market-archive-progress.ts --symbol NEARUSDT
 ```
 
 In ra: `span_days`, `coverage_pct`, `gap_list`, `ready_90d` (mặc định ≥90 ngày và coverage ≥95%).
@@ -60,6 +80,12 @@ In ra: `span_days`, `coverage_pct`, `gap_list`, `ready_90d` (mặc định ≥90
 npx tsx scripts/archive-oi-ls-funding.ts
 ```
 
+Thu thập song song tuần tự cả 4 symbol vào 4 file CSV tương ứng.
+
 ## Heal gap
 
-Mỗi lần chạy merge thêm ~24h OI/LS hist gần nhất để vá nếu 1 lần Action bị skip/fail.
+Mỗi lần chạy, mỗi symbol merge thêm ~24h OI/LS hist gần nhất để vá nếu 1 lần Action bị skip/fail.
+
+## Dung lượng (ước tính)
+
+~130–150 bytes / dòng. 4 symbol × 24h × 365d ≈ ~5.3 MB/năm — rất nhỏ so với giới hạn GitHub.

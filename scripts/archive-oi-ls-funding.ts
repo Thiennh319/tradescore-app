@@ -1,9 +1,10 @@
 /**
- * Forward archive collector — NEARUSDT OI / L/S / funding (1h).
+ * Forward archive collector — multi-symbol OI / L/S / funding (1h).
  *
- * - Raw fetch to Binance public Futures endpoints (same URLs as binanceApi /
- *   backtest-v4-near-90d.ts). No AsyncStorage / no scorerV4.
- * - Upserts rows into data/market-archive/nearusdt_1h.csv
+ * Symbols: NEARUSDT, BTCUSDT, SOLUSDT, BNBUSDT
+ * - Raw fetch to Binance public Futures endpoints (same URLs as before).
+ * - One CSV per symbol under data/market-archive/{symbol_lower}_1h.csv
+ * - Per-symbol isolation: one symbol failing must not abort the others
  * - Heal: merge last ~24h of OI/LS hist when available
  *
  * Run: npx tsx scripts/archive-oi-ls-funding.ts
@@ -14,7 +15,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BINANCE_BASE = 'https://fapi.binance.com';
-const SYMBOL = 'NEARUSDT';
+const SYMBOLS = ['NEARUSDT', 'BTCUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
+export type ArchiveSymbol = (typeof SYMBOLS)[number];
+
 const MS_1H = 3_600_000;
 const FETCH_GAP_MS = 200;
 const HEAL_HOURS = 24;
@@ -22,7 +25,7 @@ const SOURCE_FORWARD = 'forward_archive';
 const SOURCE_HEAL = 'api_heal_24h';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CSV_PATH = path.resolve(__dirname, '../data/market-archive/nearusdt_1h.csv');
+const ARCHIVE_DIR = path.resolve(__dirname, '../data/market-archive');
 
 const CSV_HEADER =
   'timestamp,timestamp_iso,symbol,oi,ls_top_ratio,ls_global_ratio,funding_rate,source,status,error,collected_at';
@@ -42,6 +45,18 @@ type ArchiveRow = {
   error: string;
   collected_at: number;
 };
+
+export type SymbolArchiveResult = {
+  symbol: string;
+  changed: boolean;
+  rowsWritten: number;
+  currentHour: number;
+  error?: string;
+};
+
+function csvPathForSymbol(symbol: string): string {
+  return path.join(ARCHIVE_DIR, `${symbol.toLowerCase()}_1h.csv`);
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -76,7 +91,7 @@ function rowToCsv(r: ArchiveRow): string {
   ].join(',');
 }
 
-function parseCsv(text: string): ArchiveRow[] {
+function parseCsv(text: string, fallbackSymbol: string): ArchiveRow[] {
   const lines = text
     .replace(/^\uFEFF/, '')
     .trim()
@@ -92,7 +107,7 @@ function parseCsv(text: string): ArchiveRow[] {
     out.push({
       timestamp,
       timestamp_iso: cols[1] ?? new Date(timestamp).toISOString(),
-      symbol: cols[2] || SYMBOL,
+      symbol: cols[2] || fallbackSymbol,
       oi: cols[3] === '' ? null : Number(cols[3]),
       ls_top_ratio: cols[4] === '' ? null : Number(cols[4]),
       ls_global_ratio: cols[5] === '' ? null : Number(cols[5]),
@@ -135,19 +150,19 @@ function splitCsvLine(line: string): string[] {
   return cols;
 }
 
-function loadExisting(): Map<number, ArchiveRow> {
+function loadExisting(csvPath: string, symbol: string): Map<number, ArchiveRow> {
   const map = new Map<number, ArchiveRow>();
-  if (!fs.existsSync(CSV_PATH)) return map;
-  const rows = parseCsv(fs.readFileSync(CSV_PATH, 'utf8'));
+  if (!fs.existsSync(csvPath)) return map;
+  const rows = parseCsv(fs.readFileSync(csvPath, 'utf8'), symbol);
   for (const r of rows) map.set(r.timestamp, r);
   return map;
 }
 
-function writeAll(rows: Map<number, ArchiveRow>): void {
-  fs.mkdirSync(path.dirname(CSV_PATH), { recursive: true });
+function writeAll(csvPath: string, rows: Map<number, ArchiveRow>): void {
+  fs.mkdirSync(path.dirname(csvPath), { recursive: true });
   const sorted = [...rows.values()].sort((a, b) => a.timestamp - b.timestamp);
   const body = sorted.map(rowToCsv).join('\n');
-  fs.writeFileSync(CSV_PATH, `${CSV_HEADER}\n${body}${sorted.length ? '\n' : ''}`, 'utf8');
+  fs.writeFileSync(csvPath, `${CSV_HEADER}\n${body}${sorted.length ? '\n' : ''}`, 'utf8');
 }
 
 async function fetchJson(
@@ -190,12 +205,12 @@ async function fetchJson(
   }
 }
 
-async function fetchOiHistRecent(limit = 30): Promise<{
-  points: { timestamp: number; oi: number }[];
-  err: string;
-}> {
+async function fetchOiHistRecent(
+  symbol: string,
+  limit = 30,
+): Promise<{ points: { timestamp: number; oi: number }[]; err: string }> {
   const r = await fetchJson('/futures/data/openInterestHist', {
-    symbol: SYMBOL,
+    symbol,
     period: '1h',
     limit,
   });
@@ -211,12 +226,12 @@ async function fetchOiHistRecent(limit = 30): Promise<{
   return { points, err: '' };
 }
 
-async function fetchLsHistRecent(limit = 30): Promise<{
-  points: { timestamp: number; ratio: number }[];
-  err: string;
-}> {
+async function fetchLsHistRecent(
+  symbol: string,
+  limit = 30,
+): Promise<{ points: { timestamp: number; ratio: number }[]; err: string }> {
   const r = await fetchJson('/futures/data/topLongShortAccountRatio', {
-    symbol: SYMBOL,
+    symbol,
     period: '1h',
     limit,
   });
@@ -232,9 +247,11 @@ async function fetchLsHistRecent(limit = 30): Promise<{
   return { points, err: '' };
 }
 
-async function fetchLatestFunding(): Promise<{ rate: number | null; err: string }> {
+async function fetchLatestFunding(
+  symbol: string,
+): Promise<{ rate: number | null; err: string }> {
   const r = await fetchJson('/fapi/v1/fundingRate', {
-    symbol: SYMBOL,
+    symbol,
     limit: 1,
   });
   if (!r.ok || !Array.isArray(r.json) || r.json.length === 0) {
@@ -298,21 +315,21 @@ function upsert(
   return false;
 }
 
-export async function runArchiveCollector(): Promise<{
-  changed: boolean;
-  rowsWritten: number;
-  currentHour: number;
-}> {
+/** Collect + upsert for a single symbol. Throws only on unexpected fatal I/O. */
+export async function runArchiveCollectorForSymbol(
+  symbol: string,
+): Promise<SymbolArchiveResult> {
+  const csvPath = csvPathForSymbol(symbol);
   const collectedAt = Date.now();
   const currentHour = floorHourUtc(collectedAt);
-  const existing = loadExisting();
+  const existing = loadExisting(csvPath, symbol);
   const beforeSize = existing.size;
   let changed = false;
 
   const [oiHist, lsHist, funding] = await Promise.all([
-    fetchOiHistRecent(HEAL_HOURS + 2),
-    fetchLsHistRecent(HEAL_HOURS + 2),
-    fetchLatestFunding(),
+    fetchOiHistRecent(symbol, HEAL_HOURS + 2),
+    fetchLsHistRecent(symbol, HEAL_HOURS + 2),
+    fetchLatestFunding(symbol),
   ]);
 
   const oiByTs = new Map(oiHist.points.map((p) => [p.timestamp, p.oi]));
@@ -336,7 +353,7 @@ export async function runArchiveCollector(): Promise<{
     const base: ArchiveRow = {
       timestamp: ts,
       timestamp_iso: new Date(ts).toISOString(),
-      symbol: SYMBOL,
+      symbol,
       oi,
       ls_top_ratio: ls,
       ls_global_ratio: null, // app uses top→global copy; leave null until explicit global fetch
@@ -358,7 +375,7 @@ export async function runArchiveCollector(): Promise<{
     const fail: ArchiveRow = {
       timestamp: currentHour,
       timestamp_iso: new Date(currentHour).toISOString(),
-      symbol: SYMBOL,
+      symbol,
       oi: null,
       ls_top_ratio: null,
       ls_global_ratio: null,
@@ -377,47 +394,90 @@ export async function runArchiveCollector(): Promise<{
     changed = true;
   }
 
-  if (changed || existing.size !== beforeSize || !fs.existsSync(CSV_PATH)) {
-    writeAll(existing);
+  if (changed || existing.size !== beforeSize || !fs.existsSync(csvPath)) {
+    writeAll(csvPath, existing);
     changed = true;
   }
 
   console.log(
-    `[archive] symbol=${SYMBOL} hour=${new Date(currentHour).toISOString()} rows=${existing.size} changed=${changed} oiPts=${oiHist.points.length} lsPts=${lsHist.points.length}`,
+    `[archive] symbol=${symbol} hour=${new Date(currentHour).toISOString()} rows=${existing.size} changed=${changed} oiPts=${oiHist.points.length} lsPts=${lsHist.points.length}`,
   );
-  return { changed, rowsWritten: existing.size, currentHour };
+  return { symbol, changed, rowsWritten: existing.size, currentHour };
+}
+
+/**
+ * Run all configured symbols sequentially (rate-limit friendly).
+ * Each symbol is try/caught independently.
+ */
+export async function runArchiveCollector(
+  symbols: readonly string[] = SYMBOLS,
+): Promise<{
+  changed: boolean;
+  results: SymbolArchiveResult[];
+}> {
+  const results: SymbolArchiveResult[] = [];
+  let anyChanged = false;
+
+  for (const symbol of symbols) {
+    try {
+      const r = await runArchiveCollectorForSymbol(symbol);
+      results.push(r);
+      if (r.changed) anyChanged = true;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[archive] symbol=${symbol} fatal (isolated):`, e);
+      results.push({
+        symbol,
+        changed: false,
+        rowsWritten: 0,
+        currentHour: floorHourUtc(Date.now()),
+        error: msg,
+      });
+      // Best-effort gap marker for this symbol only
+      try {
+        const collectedAt = Date.now();
+        const currentHour = floorHourUtc(collectedAt);
+        const csvPath = csvPathForSymbol(symbol);
+        const existing = loadExisting(csvPath, symbol);
+        existing.set(currentHour, {
+          timestamp: currentHour,
+          timestamp_iso: new Date(currentHour).toISOString(),
+          symbol,
+          oi: null,
+          ls_top_ratio: null,
+          ls_global_ratio: null,
+          funding_rate: null,
+          source: SOURCE_FORWARD,
+          status: 'error',
+          error: msg,
+          collected_at: collectedAt,
+        });
+        writeAll(csvPath, existing);
+        anyChanged = true;
+        results[results.length - 1]!.changed = true;
+        results[results.length - 1]!.rowsWritten = existing.size;
+      } catch {
+        // leave as-is; other symbols continue
+      }
+    }
+  }
+
+  return { changed: anyChanged, results };
 }
 
 async function main(): Promise<void> {
   try {
-    await runArchiveCollector();
+    const { results } = await runArchiveCollector();
+    for (const r of results) {
+      if (r.error) {
+        console.warn(`[archive] ${r.symbol} ended with error: ${r.error}`);
+      }
+    }
     // Exit 0 even on partial data so Actions stays green; gaps are in CSV status.
     process.exitCode = 0;
   } catch (e) {
-    console.error('[archive] fatal', e);
-    // Still try to leave a gap marker if possible
-    try {
-      const collectedAt = Date.now();
-      const currentHour = floorHourUtc(collectedAt);
-      const existing = loadExisting();
-      existing.set(currentHour, {
-        timestamp: currentHour,
-        timestamp_iso: new Date(currentHour).toISOString(),
-        symbol: SYMBOL,
-        oi: null,
-        ls_top_ratio: null,
-        ls_global_ratio: null,
-        funding_rate: null,
-        source: SOURCE_FORWARD,
-        status: 'error',
-        error: e instanceof Error ? e.message : String(e),
-        collected_at: collectedAt,
-      });
-      writeAll(existing);
-      process.exitCode = 0;
-    } catch {
-      process.exitCode = 1;
-    }
+    console.error('[archive] fatal (all symbols)', e);
+    process.exitCode = 1;
   }
 }
 
@@ -428,3 +488,5 @@ const isDirectRun =
 if (isDirectRun) {
   void main();
 }
+
+export { SYMBOLS, csvPathForSymbol, ARCHIVE_DIR };
