@@ -23,7 +23,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+- name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
+      - name: Debug - check runner IP and region
+        run: |
+          echo "Public IP: $(curl -s https://api.ipify.org)"
+          curl -s https://ipapi.co/json/ | jq '.country_name, .region, .city'
+
+      - name: Debug - test Binance Futures endpoints directly
+        run: |
+          echo "== premiumIndex (funding) =="
+          curl -s "https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BNBUSDT"
+          echo ""
+          echo "== openInterestHist (OI) =="
+          curl -s "https://fapi.binance.com/futures/data/openInterestHist?symbol=BNBUSDT&period=1h&limit=5"
+          echo ""
+          echo "== topLongShortAccountRatio =="
+          curl -s "https://fapi.binance.com/futures/data/topLongShortAccountRatio?symbol=BNBUSDT&period=1h&limit=5"
+          echo ""
+          echo "== globalLongShortAccountRatio =="
+          curl -s "https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BNBUSDT&period=1h&limit=5"
+
+      - name: Collect OI/LS/funding snapshot
+        run: npx --yes tsx scripts/archive-oi-ls-funding.ts
       - name: Collect OI/LS/funding snapshot
         run: npx --yes tsx scripts/archive-oi-ls-funding.ts
 
