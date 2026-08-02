@@ -8,6 +8,8 @@ import { L11SqueezeExpandV4, type L11LayerExpandV4Props } from './L11SqueezeExpa
 interface LayerCardProps {
   layers: LayerResult[];
   title?: string;
+  /** NEAR SHORT S3 — hiện "tín hiệu mạnh" cạnh L3 khi signalTags có STRONG_L3 */
+  strongL3Label?: boolean;
   /** V4 — mở rộng L6 Funding State */
   l6ExpandV4?: L6LayerExpandV4Props;
   /** V4 — L11 Squeeze Risk (bổ sung, không nằm trong thang 15 điểm) */
@@ -15,7 +17,13 @@ interface LayerCardProps {
 }
 
 /** Danh sách chi tiết điểm 10 lớp chấm điểm + L11 Squeeze Risk (V4). */
-export function LayerCard({ layers, title, l6ExpandV4, l11ExpandV4 }: LayerCardProps) {
+export function LayerCard({
+  layers,
+  title,
+  strongL3Label,
+  l6ExpandV4,
+  l11ExpandV4,
+}: LayerCardProps) {
   if (layers.length === 0) {
     return (
       <View style={styles.card}>
@@ -56,6 +64,9 @@ export function LayerCard({ layers, title, l6ExpandV4, l11ExpandV4 }: LayerCardP
                 {layer.isMandatoryViolation ? '⚠ ' : ''}
                 {layer.reason}
               </Text>
+            ) : null}
+            {layer.layer === 3 && strongL3Label ? (
+              <Text style={styles.strongL3}>tín hiệu mạnh</Text>
             ) : null}
             {layer.layer === 6 && l6ExpandV4 ? (
               <L6FundingExpandV4 {...l6ExpandV4} />
@@ -126,5 +137,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.textMuted,
     lineHeight: 14,
+  },
+  strongL3: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.accent,
+    marginTop: 2,
   },
 });

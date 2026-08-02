@@ -54,6 +54,7 @@ import { getWhaleRadarSnapshotsSync } from './whaleRadarPersist';
 import { buildAnalysisInputFromMarket } from './analysisInput';
 import type { SqueezeRiskInput, SqueezeRiskResult } from '../types/squeezeRisk';
 import { calculateSqueezeRisk } from './squeezeRiskEngine';
+import { resolveNearShortL3Gate } from '../config/nearV4LayerGates';
 
 import type { AnalysisInput } from './analysisInput';
 import {
@@ -135,6 +136,11 @@ export interface DirectionalScoreV4 {
   winrate: string;
   /** L9 là chặn duy nhất — không hiển thị điểm tổng chính thức */
   awaitingRescore: boolean;
+  /**
+   * NEAR SHORT only — UI badge (S3 L3≥2). Không ảnh hưởng canEnter.
+   * @see config/nearV4LayerGates.ts
+   */
+  signalTags?: ReadonlyArray<'STRONG_L3'>;
 }
 
 export interface ScoringResultV4 {
@@ -947,6 +953,24 @@ function psychologyChecklistForV4(input: AnalysisInputV4): PsychologyChecklistV3
   };
 }
 
+/** Reason copy for L10 checklist count — display text only, no score impact. */
+function psychologyChecklistReasonText(checked: number): string {
+  switch (checked) {
+    case 5:
+      return '5/5 mục — đạt tối đa';
+    case 4:
+      return '4/5 mục — đạt';
+    case 3:
+      return '3/5 mục — đạt tối thiểu';
+    case 2:
+      return '2/5 mục — chưa đủ, tâm lý chưa sẵn sàng';
+    case 1:
+      return '1/5 mục — không đạt';
+    default:
+      return '0/5 mục — không đạt';
+  }
+}
+
 export function scoreL10V4(
   checklist: PsychologyChecklistV3,
   todayStats: TodayStats,
@@ -991,10 +1015,8 @@ export function scoreL10V4(
     score = Math.max(0, score - 0.5);
   }
 
-  const reason =
-    checked === total
-      ? `${checked}/${total} mục — sẵn sàng`
-      : `${checked}/${total} mục — chưa đủ`;
+  // Reason text only — PASS/block thresholds & score unchanged.
+  const reason = psychologyChecklistReasonText(checked);
 
   return {
     layerResult: layerC(10, score, reason),
@@ -1160,6 +1182,12 @@ export function scoreAnalysisV4(
     if (l3.score < 1) {
       hardBlocks.push(`L3 MACD vi phạm — ${l3.reason}`);
     }
+    // S1/S3 NEAR-only SHORT — post-score; không sửa scoreL3V4.
+    const nearShortL3 = resolveNearShortL3Gate(input.symbol, direction, l3.score);
+    if (nearShortL3.hardBlockReason) {
+      hardBlocks.push(nearShortL3.hardBlockReason);
+    }
+    const signalTags = nearShortL3.signalTags;
 
     const l5aRes = scoreL5aV4(direction, input.cvdPoints, {
       currentPrice: input.currentPrice,
@@ -1308,6 +1336,7 @@ export function scoreAnalysisV4(
       decisionColor: info.color,
       winrate: awaitingRescore ? '—' : info.winrate,
       awaitingRescore,
+      ...(signalTags.length > 0 ? { signalTags } : {}),
     };
   };
 

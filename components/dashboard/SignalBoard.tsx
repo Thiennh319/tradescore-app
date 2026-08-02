@@ -1,9 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Clipboard,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -14,6 +16,7 @@ import {
   COLORS,
   HARD_BLOCK_RULES_V4,
   TRADE_PLAN_V3_CONFIG,
+  TRADE_SYMBOLS,
   type AppTradeSymbol,
   type LayerResult,
   type MarketTrend,
@@ -23,6 +26,7 @@ import {
   type TradePlanV3,
 } from '../../constants/scoring';
 import { PANEL, RADIUS, SPACING } from '../../constants/theme';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import type { StrategySource } from '../../constants/aiJournal';
 import { symbolLabelVi, vi } from '../../constants/vi';
 import type { SignalRow } from '../../hooks/useSignalBoard';
@@ -48,6 +52,7 @@ import { ScoreRing } from '../ScoreRing';
 import { TradeRecommendationTable, type ManualTradeSetup } from '../TradeRecommendationTable';
 import { TradePlanV3View } from '../TradePlanV3View';
 import { useTradeStore } from '../../store/useTradeStore';
+import { useV41Store } from '../../store/useV41Store';
 import type { useLockedPlanMonitor } from '../../hooks/useLockedPlanMonitor';
 import type { LockedTradePlan } from '../../constants/aiJournal';
 import { GRACE_ATR_MULTIPLIER, resolveGraceAtr } from '../../services/gracePeriod';
@@ -57,28 +62,53 @@ import {
   explainSL,
   explainTP,
 } from '../../services/tradePlanExplainer';
-import { exportTradeScoreAuditPackage } from '../../services/exportService';
 import {
-  ENTRY_SLTP_AUDIT_PACKAGE_FILENAME,
-  exportEntrySltpAuditPackage,
-} from '../../services/exportEntrySltpAuditPackage';
+  exportTraceOrReviewMarkdown,
+  type TraceReviewExportKind,
+} from '../../services/exportTraceReviewWire';
+import { exportRuleScoreBundle } from '../../services/exportRuleScoreBundle';
 import {
-  AI_REVIEW_REPORT_FILENAME,
-  exportAiReviewReport,
-} from '../../services/exportAiReviewReport';
+  AUDIT_EXPORT_COIN_OPTIONS,
+  auditExportCoinDotColor,
+  auditExportCoinLabel,
+  exportFilenameForCoin,
+  resolveExportCoinGate,
+  resolveHealthyExportCoins,
+  type AuditExportCoinSelection,
+} from '../../services/exportAuditCoin';
+import type { MarketIntelligenceSnapshot } from '../../services/v41/types';
 import { TradePlanModal } from './TradePlanModal';
+import { isU1DirectionButtonEnabled } from './signalBoardU1';
 import { formatUsdPrice } from '../../utils/formatPrice';
 
-type AuditExportMode = 'full' | 'entrySltp' | 'aiReview';
+type AppExportKind = 'trace-rule-score-bundle' | TraceReviewExportKind;
 
-const AUDIT_EXPORT_OPTIONS: { id: AuditExportMode; label: string }[] = [
-  { id: 'full', label: 'Full Audit (L1-L11 Scoring)' },
-  { id: 'entrySltp', label: 'Entry / SL / TP Audit' },
-  { id: 'aiReview', label: 'AI Review Report' },
+type AuditExportOption =
+  | { kind: 'item'; id: AppExportKind; label: string }
+  | { kind: 'header'; label: string };
+
+const AUDIT_EXPORT_OPTIONS: AuditExportOption[] = [
+  { kind: 'header', label: 'Bundle' },
+  { kind: 'item', id: 'trace-rule-score-bundle', label: 'Rule + Score Bundle' },
+  { kind: 'header', label: 'Trace' },
+  { kind: 'item', id: 'trace-rulebook', label: 'RuleBook Trace' },
+  { kind: 'item', id: 'trace-score', label: 'Score Trace' },
+  { kind: 'item', id: 'trace-entry', label: 'Entry Trace' },
+  { kind: 'item', id: 'trace-position', label: 'Position Trace' },
+  { kind: 'item', id: 'trace-tradeplan', label: 'TradePlan Trace' },
+  { kind: 'header', label: 'Review' },
+  { kind: 'item', id: 'review-rulebook', label: 'RuleBook Review' },
+  { kind: 'item', id: 'review-score', label: 'Score Review' },
+  { kind: 'item', id: 'review-entry', label: 'Entry Review' },
+  { kind: 'item', id: 'review-position', label: 'Position Review' },
+  { kind: 'item', id: 'review-tradeplan', label: 'TradePlan Review' },
 ];
 
-function auditExportLabel(mode: AuditExportMode): string {
-  return AUDIT_EXPORT_OPTIONS.find((opt) => opt.id === mode)?.label ?? mode;
+function auditExportLabel(mode: AppExportKind): string {
+  const hit = AUDIT_EXPORT_OPTIONS.find(
+    (opt) => opt.kind === 'item' && opt.id === mode,
+  );
+  return hit && hit.kind === 'item' ? hit.label : mode;
 }
 
 const CARD_DANGER = '#EF4444';
@@ -330,7 +360,10 @@ function hasCvdHardBlock(lines: string[]): boolean {
 
 function hasMacdHardBlock(lines: string[]): boolean {
   return lines.some(
-    (r) => r.startsWith('L3 MACD vi phạm') || /MACD vi phạm/i.test(r),
+    (r) =>
+      r.startsWith('L3 MACD vi phạm') ||
+      /MACD vi phạm/i.test(r) ||
+      /NEAR SHORT — L3 MACD/i.test(r),
   );
 }
 
@@ -642,6 +675,22 @@ async function saveAndShareNativeFile(
   throw new Error('Sharing không khả dụng');
 }
 
+async function copyExportMarkdown(content: string): Promise<boolean> {
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.clipboard?.writeText
+    ) {
+      await navigator.clipboard.writeText(content);
+      return true;
+    }
+    Clipboard.setString(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function SignalBoard({
   rows,
   loading,
@@ -660,16 +709,21 @@ export function SignalBoard({
 }: SignalBoardProps) {
   const [planSymbol, setPlanSymbol] = useState<AppTradeSymbol | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [auditExportMode, setAuditExportMode] = useState<AuditExportMode>('full');
+  const [auditExportMode, setAuditExportMode] =
+    useState<AppExportKind>('trace-rule-score-bundle');
+  const [auditExportCoin, setAuditExportCoin] =
+    useState<AuditExportCoinSelection>('ALL');
   const [auditMenuOpen, setAuditMenuOpen] = useState(false);
+  const [coinMenuOpen, setCoinMenuOpen] = useState(false);
   const [auditMenuPos, setAuditMenuPos] = useState({ top: 0, right: 0, width: 220 });
+  const [coinMenuPos, setCoinMenuPos] = useState({ top: 0, right: 0, width: 200 });
   const auditMenuTriggerRef = useRef<View>(null);
+  const coinMenuTriggerRef = useRef<View>(null);
   const [exportToast, setExportToast] = useState<string | null>(null);
   const scorerVersion = useTradeStore((s) => s.scorerVersion);
   const setScorerVersion = useTradeStore((s) => s.setScorerVersion);
   const esmBridge = useTradeStore((s) => s.esmBridge);
-  const getVisibleAiJournal = useTradeStore((s) => s.getVisibleAiJournal);
-  const getAccountHistory = useTradeStore((s) => s.getAccountHistory);
+  const aiTradeJournal = useTradeStore((s) => s.aiTradeJournal);
   const boardStrategySource =
     (scorerVersion === 'v3' ? vi.signalBoard.scorerV3 : vi.signalBoard.scorerV4) as StrategySource;
 
@@ -686,80 +740,135 @@ export function SignalBoard({
     setTimeout(() => setExportToast(null), 4000);
   }, []);
 
+  const exportCoinGate = resolveExportCoinGate(auditExportCoin, rows, loading);
+  const exportDisabled = exporting || exportCoinGate.disabled;
+
   const handleExportAuditPackage = useCallback(async () => {
-    if (exporting || rows.length === 0) return;
+    if (exporting) return;
+    const gate = resolveExportCoinGate(auditExportCoin, rows, loading);
+    if (gate.disabled) {
+      showExportToast(gate.reason ?? 'Export không khả dụng.');
+      return;
+    }
     setExporting(true);
     try {
-      const isEntrySltp = auditExportMode === 'entrySltp';
-      const isAiReview = auditExportMode === 'aiReview';
-      const journal = getVisibleAiJournal();
-      const pendingOrders = journal.filter((e) => e.outcome.status === 'PENDING');
-      const runningOrders = journal.filter((e) => e.outcome.status === 'OPEN');
-
-      const content = isAiReview
-        ? exportAiReviewReport({
-            generatedAt: new Date().toISOString(),
-            scorerVersion,
-            signalRows: rows,
-            esmBridge,
-            journalEntries: journal,
-            pendingOrders,
-            runningOrders,
-            closedTrades: journal.filter(
-              (e) => e.outcome.status === 'WIN' || e.outcome.status === 'LOSS',
-            ),
-            accountHistory: getAccountHistory(),
-          })
-        : isEntrySltp
-          ? exportEntrySltpAuditPackage(rows, scorerVersion)
-          : exportTradeScoreAuditPackage(rows, scorerVersion);
-
-      const filename = isAiReview
-        ? AI_REVIEW_REPORT_FILENAME
-        : isEntrySltp
-          ? ENTRY_SLTP_AUDIT_PACKAGE_FILENAME
-          : 'TradeScore_Audit_Package.txt';
-
-      const mime = isAiReview
-        ? 'text/markdown;charset=utf-8'
-        : 'text/plain;charset=utf-8';
-
-      if (Platform.OS === 'web') {
-        downloadTextFileWeb(filename, content, mime);
-      } else {
-        await saveAndShareNativeFile(filename, content, mime);
+      const openTrades = aiTradeJournal.filter(
+        (t) => t.outcome.status === 'OPEN' && !t.archived,
+      );
+      // Same surface as alert runner: getSymbolState(symbol).lastSnapshot — no recompute.
+      const v41SnapshotBySymbol: Partial<Record<string, MarketIntelligenceSnapshot>> =
+        {};
+      const v41Get = useV41Store.getState().getSymbolState;
+      for (const trade of openTrades) {
+        const snap = v41Get(trade.symbol).lastSnapshot;
+        if (snap != null && v41SnapshotBySymbol[trade.symbol] == null) {
+          v41SnapshotBySymbol[trade.symbol] = snap;
+        }
+      }
+      const exportedAt = new Date().toISOString();
+      const coins = resolveHealthyExportCoins(auditExportCoin, rows);
+      if (coins.length === 0) {
+        showExportToast('Không có coin nào sẵn sàng export.');
+        return;
       }
 
-      const toastLabel = isAiReview
-        ? `✅ AI Review — ${filename}`
-        : `✅ Audit Package — ${rows.length} coin — ${filename}`;
-      showExportToast(toastLabel);
+      const delivered: string[] = [];
+      let copiedAny = false;
+      for (const coin of coins) {
+        const context = {
+          rows,
+          scorerVersion,
+          esmBridge,
+          exportedAt,
+          openTrades,
+          v41SnapshotBySymbol,
+          coin,
+        };
+        const result =
+          auditExportMode === 'trace-rule-score-bundle'
+            ? exportRuleScoreBundle(context)
+            : exportTraceOrReviewMarkdown(auditExportMode, context);
+        if (!result.ok) {
+          showExportToast(`${coin}: ${result.message}`);
+          continue;
+        }
+        const filename = exportFilenameForCoin(result.filename, coin);
+        const copied = await copyExportMarkdown(result.markdown);
+        copiedAny = copiedAny || copied;
+        if (Platform.OS === 'web') {
+          downloadTextFileWeb(
+            filename,
+            result.markdown,
+            'text/markdown;charset=utf-8',
+          );
+        } else {
+          await saveAndShareNativeFile(filename, result.markdown, 'text/markdown');
+        }
+        delivered.push(filename);
+      }
+
+      if (delivered.length === 0) {
+        showExportToast('❌ Export failed.');
+        return;
+      }
+      const delivery = Platform.OS === 'web' ? 'downloaded' : 'shared';
+      const copyStatus = copiedAny ? 'copied + ' : '';
+      const coinNote =
+        auditExportCoin === 'ALL'
+          ? `Tất cả (${delivered.length}/${TRADE_SYMBOLS.length})`
+          : auditExportCoinLabel(auditExportCoin);
+      showExportToast(
+        `✅ ${auditExportLabel(auditExportMode)} · ${coinNote} — ${copyStatus}${delivery} — ${delivered.join(', ')}`,
+      );
     } catch {
-      showExportToast('❌ Xuất Audit Package thất bại');
+      showExportToast('❌ Export failed.');
     } finally {
       setExporting(false);
     }
   }, [
+    aiTradeJournal,
+    auditExportCoin,
     auditExportMode,
     esmBridge,
     exporting,
-    getAccountHistory,
-    getVisibleAiJournal,
+    loading,
     rows,
     scorerVersion,
     showExportToast,
   ]);
 
   const openAuditExportMenu = useCallback(() => {
+    setCoinMenuOpen(false);
     auditMenuTriggerRef.current?.measureInWindow((x, y, width, height) => {
-      setAuditMenuPos({ top: y + height + 4, right: x + width, width: Math.max(width, 220) });
+      setAuditMenuPos({
+        top: y + height + 4,
+        right: x + width,
+        width: Math.max(width, 260),
+      });
       setAuditMenuOpen(true);
     });
   }, []);
 
-  const pickAuditExportMode = useCallback((mode: AuditExportMode) => {
+  const openCoinExportMenu = useCallback(() => {
+    setAuditMenuOpen(false);
+    coinMenuTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      setCoinMenuPos({
+        top: y + height + 4,
+        right: x + width,
+        width: Math.max(width, 200),
+      });
+      setCoinMenuOpen(true);
+    });
+  }, []);
+
+  const pickAuditExportMode = useCallback((mode: AppExportKind) => {
     setAuditExportMode(mode);
     setAuditMenuOpen(false);
+  }, []);
+
+  const pickAuditExportCoin = useCallback((coin: AuditExportCoinSelection) => {
+    setAuditExportCoin(coin);
+    setCoinMenuOpen(false);
   }, []);
 
   return (
@@ -807,16 +916,44 @@ export function SignalBoard({
           </View>
           <View style={styles.headerActions}>
             <View style={styles.auditExportWrap}>
+              <View ref={coinMenuTriggerRef} collapsable={false}>
+                <Pressable
+                  onPress={openCoinExportMenu}
+                  disabled={exporting}
+                  accessibilityRole="button"
+                  accessibilityLabel="Chọn coin để Export Trace"
+                  accessibilityState={{ expanded: coinMenuOpen }}
+                  style={({ pressed }) => [
+                    styles.auditModeBtn,
+                    coinMenuOpen && styles.auditModeBtnOpen,
+                    exporting && styles.exportBtnDisabled,
+                    pressed && !exporting && styles.exportBtnPressed,
+                    webPointer,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.auditCoinDot,
+                      { backgroundColor: auditExportCoinDotColor(auditExportCoin) },
+                    ]}
+                  />
+                  <Text style={styles.auditModeBtnText} numberOfLines={1}>
+                    {auditExportCoinLabel(auditExportCoin)}
+                  </Text>
+                  <Text style={styles.auditModeChevron}>▾</Text>
+                </Pressable>
+              </View>
               <View ref={auditMenuTriggerRef} collapsable={false}>
                 <Pressable
                   onPress={openAuditExportMenu}
-                  disabled={exporting || rows.length === 0}
+                  disabled={exporting}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: auditMenuOpen }}
                   style={({ pressed }) => [
                     styles.auditModeBtn,
-                    (exporting || rows.length === 0) && styles.exportBtnDisabled,
-                    pressed && !exporting && rows.length > 0 && styles.exportBtnPressed,
+                    auditMenuOpen && styles.auditModeBtnOpen,
+                    exporting && styles.exportBtnDisabled,
+                    pressed && !exporting && styles.exportBtnPressed,
                     webPointer,
                   ]}
                 >
@@ -828,17 +965,22 @@ export function SignalBoard({
               </View>
               <Pressable
                 onPress={() => void handleExportAuditPackage()}
-                disabled={exporting || rows.length === 0}
-                accessibilityLabel="TradeScore Audit Package"
+                disabled={exportDisabled}
+                accessibilityLabel="Export selected bundle, Trace, or Review"
+                accessibilityHint={exportCoinGate.reason ?? undefined}
+                accessibilityState={{ disabled: exportDisabled }}
+                {...(Platform.OS === 'web' && exportCoinGate.reason
+                  ? ({ title: exportCoinGate.reason } as Record<string, string>)
+                  : {})}
                 style={({ pressed }) => [
                   styles.exportBtn,
-                  (exporting || rows.length === 0) && styles.exportBtnDisabled,
-                  pressed && !exporting && rows.length > 0 && styles.exportBtnPressed,
+                  exportDisabled && styles.exportBtnDisabled,
+                  pressed && !exportDisabled && styles.exportBtnPressed,
                   webPointer,
                 ]}
               >
                 <Text style={styles.exportBtnText}>
-                  {exporting ? '⏳ Đang xuất...' : '📄 Audit Package'}
+                  {exporting ? '⏳ Đang xuất...' : '📄 Export'}
                 </Text>
               </Pressable>
             </View>
@@ -921,6 +1063,58 @@ export function SignalBoard({
         </View>
       </View>
       <Modal
+        visible={coinMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCoinMenuOpen(false)}
+      >
+        <Pressable style={styles.auditMenuBackdrop} onPress={() => setCoinMenuOpen(false)}>
+          <Pressable
+            style={[
+              styles.auditMenu,
+              {
+                top: coinMenuPos.top,
+                left: coinMenuPos.right - coinMenuPos.width,
+                minWidth: coinMenuPos.width,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.auditMenuHeader}>
+              <Text style={styles.auditMenuHeaderText}>CHỌN COIN</Text>
+            </View>
+            {AUDIT_EXPORT_COIN_OPTIONS.map((opt) => {
+              const active = opt.id === auditExportCoin;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => pickAuditExportCoin(opt.id)}
+                  style={[
+                    styles.auditMenuOption,
+                    opt.treeChild && styles.auditCoinTreeChild,
+                    active && styles.auditMenuOptionActive,
+                  ]}
+                >
+                  <View style={styles.auditCoinOptionLeft}>
+                    <View style={[styles.auditCoinDot, { backgroundColor: opt.color }]} />
+                    <Text
+                      style={[
+                        styles.auditMenuOptionText,
+                        active && styles.auditMenuOptionTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {opt.label}
+                    </Text>
+                  </View>
+                  {active ? <Text style={styles.auditMenuCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+      <Modal
         visible={auditMenuOpen}
         transparent
         animationType="fade"
@@ -938,7 +1132,15 @@ export function SignalBoard({
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            {AUDIT_EXPORT_OPTIONS.map((opt) => {
+            <ScrollView style={styles.auditMenuScroll} nestedScrollEnabled>
+            {AUDIT_EXPORT_OPTIONS.map((opt, index) => {
+              if (opt.kind === 'header') {
+                return (
+                  <View key={`header-${index}`} style={styles.auditMenuHeader}>
+                    <Text style={styles.auditMenuHeaderText}>{opt.label}</Text>
+                  </View>
+                );
+              }
               const active = opt.id === auditExportMode;
               return (
                 <Pressable
@@ -956,6 +1158,7 @@ export function SignalBoard({
                 </Pressable>
               );
             })}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -969,8 +1172,9 @@ export function SignalBoard({
 }
 
 function SkeletonCard() {
+  const { signalCardLayout } = useResponsiveLayout();
   return (
-    <View style={[styles.card, styles.cardSkeleton]}>
+    <View style={[styles.card, signalCardLayout, styles.cardSkeleton]}>
       <ActivityIndicator color={COLORS.accent} />
     </View>
   );
@@ -1007,6 +1211,7 @@ function SignalCard({
   onPendingOrder?: (row: SignalRow, setup: ManualTradeSetup) => void;
   onRecordSkippedSetup?: (row: SignalRow, setupDirection?: TradeDirection) => void;
 }) {
+  const { signalCardLayout } = useResponsiveLayout();
   const [showLayers, setShowLayers] = useState(false);
   const [confirmManual, setConfirmManual] = useState(false);
   const [manualSetup, setManualSetup] = useState<ManualTradeSetup | null>(null);
@@ -1127,12 +1332,21 @@ function SignalCard({
   const btcDisplay = btcSummaryDisplay(btcChange24h);
   const longReady = isDirectionReady('LONG', snap, row, blockReasons);
   const shortReady = isDirectionReady('SHORT', snap, row, blockReasons);
+  const longBtnEnabled = isU1DirectionButtonEnabled({
+    side: 'LONG',
+    officialDirection: snap.direction,
+    isAmbiguous,
+    directionReady: longReady,
+  });
+  const shortBtnEnabled = isU1DirectionButtonEnabled({
+    side: 'SHORT',
+    officialDirection: snap.direction,
+    isAmbiguous,
+    directionReady: shortReady,
+  });
 
-  const rowWithSnapshots = row as SignalRowWithDirSnapshots;
-  const longScoreActive =
-    snap.longScore >= 9 && rowWithSnapshots.longSnapshot?.canEnter === true;
-  const shortScoreActive =
-    snap.shortScore >= 9 && rowWithSnapshots.shortSnapshot?.canEnter === true;
+  const longScoreActive = longBtnEnabled;
+  const shortScoreActive = shortBtnEnabled;
   const totalScoreValue = displayScore ?? snap.score;
   const totalScoreColor =
     totalScoreValue != null
@@ -1140,7 +1354,7 @@ function SignalCard({
       : COLORS.textMuted;
 
   return (
-    <View style={[styles.card, { borderColor: COLORS.border }]}>
+    <View style={[styles.card, signalCardLayout, { borderColor: COLORS.border }]}>
       <View style={styles.cardTop}>
         <View style={styles.pairRow}>
           <View style={[styles.icon, { backgroundColor: iconColor }]}>
@@ -1229,45 +1443,62 @@ function SignalCard({
               BTC: {btcPctLabel} {btcDisplay.icon}
             </Text>
           </View>
+          {snap.signalTags?.includes('STRONG_L3') ? (
+            <Text style={styles.strongL3Hint}>
+              L3 MACD — tín hiệu mạnh
+            </Text>
+          ) : null}
 
           <View style={styles.directionBtnRow}>
             <Pressable
+              disabled={!longBtnEnabled}
+              accessibilityState={{ disabled: !longBtnEnabled }}
               onPress={() => {
+                if (!longBtnEnabled) return;
                 setModalDir('LONG');
                 setModalVisible(true);
               }}
               style={({ pressed }) => [
                 styles.directionBtn,
-                longReady ? styles.directionBtnLongReady : styles.directionBtnIdle,
-                pressed && styles.scanBtnPressed,
+                longBtnEnabled ? styles.directionBtnLongReady : styles.directionBtnIdle,
+                pressed && longBtnEnabled && styles.scanBtnPressed,
                 webPointer,
               ]}
             >
               <Text
                 style={[
                   styles.directionBtnText,
-                  longReady ? styles.directionBtnTextReady : styles.directionBtnTextIdle,
+                  longBtnEnabled
+                    ? styles.directionBtnTextReady
+                    : styles.directionBtnTextIdle,
                 ]}
               >
                 LONG  {snap.longScore.toFixed(1)}
               </Text>
             </Pressable>
             <Pressable
+              disabled={!shortBtnEnabled}
+              accessibilityState={{ disabled: !shortBtnEnabled }}
               onPress={() => {
+                if (!shortBtnEnabled) return;
                 setModalDir('SHORT');
                 setModalVisible(true);
               }}
               style={({ pressed }) => [
                 styles.directionBtn,
-                shortReady ? styles.directionBtnShortReady : styles.directionBtnIdle,
-                pressed && styles.scanBtnPressed,
+                shortBtnEnabled
+                  ? styles.directionBtnShortReady
+                  : styles.directionBtnIdle,
+                pressed && shortBtnEnabled && styles.scanBtnPressed,
                 webPointer,
               ]}
             >
               <Text
                 style={[
                   styles.directionBtnText,
-                  shortReady ? styles.directionBtnTextReady : styles.directionBtnTextIdle,
+                  shortBtnEnabled
+                    ? styles.directionBtnTextReady
+                    : styles.directionBtnTextIdle,
                 ]}
               >
                 SHORT  {snap.shortScore.toFixed(1)}
@@ -1309,11 +1540,7 @@ function SignalCard({
             tp3Explain={explainTP(row, 3, modalDir)}
             blockInfo={explainBlocks(row, modalDir)}
             canEnter={
-              modalDir === 'LONG'
-                ? rowWithSnapshots.longSnapshot?.canEnter ??
-                  isDirectionReady('LONG', snap, row, blockReasons)
-                : rowWithSnapshots.shortSnapshot?.canEnter ??
-                  isDirectionReady('SHORT', snap, row, blockReasons)
+              modalDir === 'LONG' ? longBtnEnabled : shortBtnEnabled
             }
           />
 
@@ -1415,6 +1642,7 @@ function SignalCard({
                   ) : null}
                   <LayerCard
                     layers={snap.layers}
+                    strongL3Label={snap.signalTags?.includes('STRONG_L3') === true}
                     l6ExpandV4={
                       scorerVersion === 'v4' && row.l6Detail
                         ? {
@@ -1783,24 +2011,27 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.sm,
   },
   auditExportWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING.xs,
   },
   auditModeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.sm,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     maxWidth: 160,
+  },
+  auditModeBtnOpen: {
+    borderColor: 'rgba(240, 185, 11, 0.45)',
   },
   auditModeBtnText: {
     flex: 1,
@@ -1811,6 +2042,21 @@ const styles = StyleSheet.create({
   auditModeChevron: {
     fontSize: 10,
     color: COLORS.textMuted,
+  },
+  auditCoinDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  auditCoinOptionLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  auditCoinTreeChild: {
+    paddingLeft: 28,
   },
   auditMenuBackdrop: {
     flex: 1,
@@ -1823,11 +2069,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
+    maxHeight: 420,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 16,
+  },
+  auditMenuHeader: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 4,
+    backgroundColor: COLORS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  auditMenuHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    letterSpacing: 0.3,
+  },
+  auditMenuScroll: {
+    maxHeight: 420,
   },
   auditMenuOption: {
     flexDirection: 'row',
@@ -1930,11 +2194,6 @@ const styles = StyleSheet.create({
   versionPillTextActive: {
     color: COLORS.accent,
   },
-  subtitle: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
   scanBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -2035,11 +2294,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  statusBadgeSubtitle: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.85)',
-  },
   scoreTier1Row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -2094,6 +2348,13 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontVariant: ['tabular-nums'],
   },
+  strongL3Hint: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.accent,
+    paddingHorizontal: 12,
+    paddingBottom: 6,
+  },
   directionBtnRow: {
     flexDirection: 'row',
     gap: 8,
@@ -2130,46 +2391,6 @@ const styles = StyleSheet.create({
   },
   directionBtnTextIdle: {
     color: COLORS.textMuted,
-  },
-  directionModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.lg,
-  },
-  directionModalCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  directionModalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-  },
-  directionModalHint: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
-  directionModalClose: {
-    marginTop: SPACING.sm,
-    alignSelf: 'flex-end',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  directionModalCloseText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
   },
   pairRow: {
     flexDirection: 'row',
@@ -2526,20 +2747,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#02110A',
     letterSpacing: 0.4,
-  },
-  openTag: {
-    marginTop: SPACING.sm,
-    paddingVertical: 8,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-  openTagText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
   },
   detailToggle: {
     flexDirection: 'row',

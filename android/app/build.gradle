@@ -81,6 +81,17 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def releaseStoreFile = System.getenv("TRADESCORE_RELEASE_STORE_FILE")
+def releaseStorePassword = System.getenv("TRADESCORE_RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("TRADESCORE_RELEASE_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("TRADESCORE_RELEASE_KEY_PASSWORD")
+def releaseSigningConfigured = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { it != null && !it.isBlank() }
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -104,15 +115,23 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (releaseSigningConfigured) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -129,6 +148,19 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    def buildsReleaseApk = graph.allTasks.any {
+        it.path == ':app:assembleRelease' || it.path == ':app:packageRelease'
+    }
+    if (buildsReleaseApk && !releaseSigningConfigured) {
+        throw new GradleException(
+            "Release signing is required. Set TRADESCORE_RELEASE_STORE_FILE, " +
+            "TRADESCORE_RELEASE_STORE_PASSWORD, TRADESCORE_RELEASE_KEY_ALIAS, " +
+            "and TRADESCORE_RELEASE_KEY_PASSWORD."
+        )
     }
 }
 

@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { BUILD_INFO } from '../constants/buildInfo';
 import { DEFAULT_ESM_BRIDGE_STATE } from '../store/esmBridgeTypes';
 import {
   UI_LAYER_VERSION,
@@ -15,7 +16,7 @@ import {
 describe('architectureExportMetadata — UL-03.2', () => {
   it('builds version matrix from module metadata', () => {
     const matrix = buildArchitectureVersionMatrix('2026-07-12T15:00:00.000Z');
-    expect(matrix.tradeScoreVersion).toBe('1.0.5');
+    expect(matrix.tradeScoreVersion).toBe(BUILD_INFO.version);
     expect(matrix.esmVersion).toBe('2.0.0');
     expect(matrix.detectionLayerVersion).toBe('0.6.2');
     expect(matrix.pipelineVersion).toBe('1.5.0');
@@ -29,7 +30,7 @@ describe('architectureExportMetadata — UL-03.2', () => {
       buildArchitectureVersionMatrix('2026-07-12T15:00:00.000Z'),
     );
     expect(text).toContain('TradeScore Version');
-    expect(text).toContain('1.0.5');
+    expect(text).toContain(BUILD_INFO.version);
     expect(text).toContain('UI Layer');
     expect(text).toContain('UL-03.2');
   });

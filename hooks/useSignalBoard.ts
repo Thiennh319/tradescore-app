@@ -19,6 +19,7 @@ import {
 import { scanAllSignalRows, type SignalRow } from '../services/signalBoardScan';
 import { wireProductionEsmAfterScan } from '../services/productionEsmBridge/productionEsmScanWiring';
 import { buildSignalScanContext } from '../services/signalScanContext';
+import { notifyScanMarkPricesUpdated } from './scanMarkPriceBus';
 import {
   buildAutoRefreshLockKey,
   getVietnamDateParts,
@@ -40,7 +41,7 @@ export interface SignalBoardResult {
   loading: boolean;
   lastScannedAt: number | null;
   autoTriggeredAt: number | null;
-  scan: () => void;
+  scan: (force?: boolean) => void;
 }
 
 function applyPersistedBoard(
@@ -60,6 +61,7 @@ function applyPersistedBoard(
   setLastScannedAt(cached.scannedAt);
   lastScannedAtRef.current = cached.scannedAt;
   setLoading(false);
+  notifyScanMarkPricesUpdated();
   return true;
 }
 
@@ -105,12 +107,12 @@ export function useSignalBoard(
     [isWeb],
   );
 
-  const scan = useCallback(async () => {
+  const scan = useCallback(async (force = false) => {
     if (runningRef.current) return;
     runningRef.current = true;
     setLoading(true);
     try {
-      if (isWeb) {
+      if (isWeb && !force) {
         const cached = await loadPersistedSignalBoard(timeframe);
         const mirrorFresh =
           cached != null && Date.now() - cached.scannedAt <= WEB_APK_MIRROR_MAX_AGE_MS;
@@ -150,6 +152,7 @@ export function useSignalBoard(
       setRows(next);
       setLastScannedAt(scannedAt);
       lastScannedAtRef.current = scannedAt;
+      notifyScanMarkPricesUpdated();
       const board: PersistedSignalBoard = { timeframe, rows: next, scannedAt };
       await savePersistedSignalBoard(timeframe, next, scannedAt);
       await uploadScanToGist(board);

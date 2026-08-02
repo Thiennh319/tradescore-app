@@ -1,5 +1,9 @@
-/** Ngưỡng chênh lệch điểm Long vs Short — dưới mức này coi là "sát nhau". */
-export const AMBIGUOUS_THRESHOLD = 1.0;
+/**
+ * Ngưỡng chênh lệch điểm Long vs Short — dưới mức này coi là "sát nhau".
+ * shared V3+V4, quyết định có chủ ý — xem TASK3_ARCHITECTURE report
+ * (docs/exports/REPORT_TASK3_ARCHITECTURE_AMBIGUITY_2P5_UI_U1_2026-08-02.md).
+ */
+export const AMBIGUOUS_THRESHOLD = 2.5;
 
 export type AmbiguityState = {
   status: 'AMBIGUOUS' | 'CLEAR';

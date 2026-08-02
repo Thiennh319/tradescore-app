@@ -118,6 +118,8 @@ function resolveV4Signal(v4Row?: SignalRowWithDirSnapshots): {
   v4Direction: Direction;
   v4Score: number | null;
 } {
+  // TODO: chưa đồng bộ với suggestDirectionV4 + ambiguity threshold 2.5 —
+  // xem TASK3 report §2.4 Option B nếu cần đồng bộ sau này.
   if (!v4Row) {
     return { v4CanEnter: false, v4Direction: 'NONE', v4Score: null };
   }
