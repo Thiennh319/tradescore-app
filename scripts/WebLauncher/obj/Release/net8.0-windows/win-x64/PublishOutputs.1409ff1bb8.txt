@@ -1,2 +1,0 @@
-D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.6\TradeScore-Web.pdb
-D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.6\TradeScore-Web.exe
