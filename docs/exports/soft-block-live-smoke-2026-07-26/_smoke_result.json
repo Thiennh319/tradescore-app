@@ -1,0 +1,49 @@
+{
+  "testedAt": "2026-07-26T13:53:28.501Z",
+  "pickNote": "GROUP_BLOCKED + Score Block Count >= 1",
+  "all": [
+    {
+      "file": "03_ENTRY_DECISION_BNBUSDT.md",
+      "abs": "C:\\Users\\Thien\\AppData\\Local\\Temp\\tradescore-smoke-softblock-20260726-205117\\03_ENTRY_DECISION_BNBUSDT.md",
+      "tradeId": "BNBUSDT-SHORT-v4",
+      "entryState": "WAIT_ENTRY",
+      "scoreBlockCount": "0",
+      "softBlockLine": "0"
+    },
+    {
+      "file": "03_ENTRY_DECISION_BTCUSDT.md",
+      "abs": "C:\\Users\\Thien\\AppData\\Local\\Temp\\tradescore-smoke-softblock-20260726-205117\\03_ENTRY_DECISION_BTCUSDT.md",
+      "tradeId": "BTCUSDT-LONG-v4",
+      "entryState": "GROUP_BLOCKED",
+      "scoreBlockCount": "1",
+      "softBlockLine": "1"
+    },
+    {
+      "file": "03_ENTRY_DECISION_NEARUSDT.md",
+      "abs": "C:\\Users\\Thien\\AppData\\Local\\Temp\\tradescore-smoke-softblock-20260726-205117\\03_ENTRY_DECISION_NEARUSDT.md",
+      "tradeId": "NEARUSDT-LONG-v4",
+      "entryState": "GROUP_BLOCKED",
+      "scoreBlockCount": "1",
+      "softBlockLine": "1"
+    },
+    {
+      "file": "03_ENTRY_DECISION_SOLUSDT.md",
+      "abs": "C:\\Users\\Thien\\AppData\\Local\\Temp\\tradescore-smoke-softblock-20260726-205117\\03_ENTRY_DECISION_SOLUSDT.md",
+      "tradeId": "SOLUSDT-LONG-v4",
+      "entryState": "GROUP_BLOCKED",
+      "scoreBlockCount": "1",
+      "softBlockLine": "1"
+    }
+  ],
+  "chosen": {
+    "file": "03_ENTRY_DECISION_BTCUSDT.md",
+    "abs": "C:\\Users\\Thien\\AppData\\Local\\Temp\\tradescore-smoke-softblock-20260726-205117\\03_ENTRY_DECISION_BTCUSDT.md",
+    "tradeId": "BTCUSDT-LONG-v4",
+    "entryState": "GROUP_BLOCKED",
+    "scoreBlockCount": "1",
+    "softBlockLine": "1"
+  },
+  "blockers": "# BLOCKERS\n\nHard Block: 0\nGroup Block: 1\nSoft Block: 1\nUnlock: 0\n\nBlocker 001\nType: GROUP\nTrigger: UNAVAILABLE\nOverride: UNAVAILABLE\nRule: Nhóm B (Dòng tiền) 1.9/5đ < 2đ\nReason: Nhóm B (Dòng tiền) 1.9/5đ < 2đ\nPriority: UNAVAILABLE\nEvidence:\n- Group Block=Nhóm B (Dòng tiền) 1.9/5đ < 2đ\n\n--------------------------------\n\nBlocker 002\nType: SOFT\nTrigger: UNAVAILABLE\nOverride: UNAVAILABLE\nRule: L5a CVD chưa đủ 1đ — CVD 3K — chưa đủ tín hiệu Long\nReason: L5a CVD chưa đủ 1đ — CVD 3K — chưa đủ tín hiệu Long\nPriority: UNAVAILABLE\nEvidence:\n- Score Block=L5a CVD chưa đủ 1đ — CVD 3K — chưa đủ tín hiệu Long\n\n--------------------------------",
+  "entrySummary": "# ENTRY SUMMARY\n\nPassed Checks: 10\nWarnings: 1\nFailed Checks: 0\nHard Blocks: 0\nGroup Blocks: 1\nSoft Blocks: 1\nUnlock Rules: 0\nDecision: WAIT\nConfidence: ~50%\nGrade: KHÔNG VÀO\nRuleBook State: BLOCKED\n\n--------------------------------",
+  "blockingSummary": "# BLOCKING SUMMARY\n\nHard Blocks (Engine / All Sources): 0\nGroup Blocks: 1\nScore Blocks (block reasons): 1\nTotal Blocking Events: 2\n\nTotal Blocking Events is an exported structural summary: the size of the\nengine's merged block list (hard blocks + score blocks + group blocks).\nIt is NOT the number of failed mandatory rules.\nHard Blocks (Engine / All Sources) counts the per-side engine hard-block list,\nwhich differs from Hard Block (Rule Trace Scope) in RULE SUMMARY.\nSee BLOCKING EVENTS ORIGIN above for detail on every entry (hard, group, score, gate).\n\n--------------------------------"
+}

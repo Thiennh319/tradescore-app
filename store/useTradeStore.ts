@@ -82,6 +82,7 @@ import {
   syncLegacyJournalClosedFromAi,
 } from '../services/tradeHistorySync';
 import { computePositionPnl } from '../utils/positionPnl';
+import { invalidateAllIntelligenceCaches } from '../services/intelligence/shared/invalidateCaches';
 import {
   LEGACY_STORAGE_KEYS as STORAGE_KEYS,
   loadPersistedAppData,
@@ -894,6 +895,7 @@ async function persistAiJournal(
   openTrade: AiTradeJournalEntry | null,
   getState: () => TradeStoreState,
 ): Promise<void> {
+  invalidateAllIntelligenceCaches();
   await Promise.all([
     writeJson(AI_JOURNAL_STORAGE_KEYS.TRADE_JOURNAL, journal),
     writeJson(AI_JOURNAL_STORAGE_KEYS.DAILY_STATS, stats),

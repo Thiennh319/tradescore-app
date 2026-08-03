@@ -1,0 +1,5 @@
+filter_id,label,n_active,n_decided,wr_pct,e_r_after,sign,mean_sl_pct,delta_er_vs_baseline,delta_wr_vs_baseline
+baseline,"Baseline (no filter)",31,30,53.33,0.2537,positive,2.630,0.0000,0.00
+trend_strong_aligned,"TrendStrength≥70 + same dir (4H)",12,11,45.45,0.0612,positive,2.747,-0.1925,-7.88
+btc_same_dir,"BTC 4H same direction as breakout",19,19,57.89,0.3644,positive,2.519,0.1107,4.56
+both,"TrendStrength≥70 aligned + BTC same dir",11,11,45.45,0.0612,positive,2.622,-0.1925,-7.88

@@ -1,0 +1,162 @@
+{
+  "scannedAt": "2026-08-02T16:34:48.932Z",
+  "snapshotPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\_scan_snapshot_2026-08-02T16-34-48-932Z.json",
+  "reports": [
+    {
+      "coin": "NEARUSDT",
+      "ok": true,
+      "files": [
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\01_RULEBOOK_NEARUSDT.md",
+          "kind": "trace-rulebook",
+          "bytes": 19594,
+          "coinMetadata": "NEARUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\02_SCORE_ENGINE_NEARUSDT.md",
+          "kind": "trace-score",
+          "bytes": 23475,
+          "coinMetadata": "NEARUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_NEARUSDT.md",
+          "kind": "trace-entry",
+          "bytes": 22045,
+          "coinMetadata": "NEARUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\04_POSITION_ADVISER_NEARUSDT.md",
+          "kind": "trace-position",
+          "bytes": 15559,
+          "coinMetadata": "NEARUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\05_TRADE_PLAN_NEARUSDT.md",
+          "kind": "trace-tradeplan",
+          "bytes": 14524,
+          "coinMetadata": "NEARUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        }
+      ],
+      "rowSummary": {
+        "symbol": "NEARUSDT",
+        "price": 1.699,
+        "hasV4": true,
+        "hasPlanV4": false
+      }
+    },
+    {
+      "coin": "SOLUSDT",
+      "ok": true,
+      "files": [
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\01_RULEBOOK_SOLUSDT.md",
+          "kind": "trace-rulebook",
+          "bytes": 19826,
+          "coinMetadata": "SOLUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\02_SCORE_ENGINE_SOLUSDT.md",
+          "kind": "trace-score",
+          "bytes": 24020,
+          "coinMetadata": "SOLUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_SOLUSDT.md",
+          "kind": "trace-entry",
+          "bytes": 22634,
+          "coinMetadata": "SOLUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\04_POSITION_ADVISER_SOLUSDT.md",
+          "kind": "trace-position",
+          "bytes": 15811,
+          "coinMetadata": "SOLUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\05_TRADE_PLAN_SOLUSDT.md",
+          "kind": "trace-tradeplan",
+          "bytes": 14759,
+          "coinMetadata": "SOLUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        }
+      ],
+      "rowSummary": {
+        "symbol": "SOLUSDT",
+        "price": 73.1,
+        "hasV4": true,
+        "hasPlanV4": false
+      }
+    },
+    {
+      "coin": "BNBUSDT",
+      "ok": true,
+      "files": [
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\01_RULEBOOK_BNBUSDT.md",
+          "kind": "trace-rulebook",
+          "bytes": 19821,
+          "coinMetadata": "BNBUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\02_SCORE_ENGINE_BNBUSDT.md",
+          "kind": "trace-score",
+          "bytes": 23670,
+          "coinMetadata": "BNBUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_BNBUSDT.md",
+          "kind": "trace-entry",
+          "bytes": 22587,
+          "coinMetadata": "BNBUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\04_POSITION_ADVISER_BNBUSDT.md",
+          "kind": "trace-position",
+          "bytes": 15825,
+          "coinMetadata": "BNBUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\05_TRADE_PLAN_BNBUSDT.md",
+          "kind": "trace-tradeplan",
+          "bytes": 14753,
+          "coinMetadata": "BNBUSDT",
+          "coinMatch": true,
+          "structuralNotes": []
+        }
+      ],
+      "rowSummary": {
+        "symbol": "BNBUSDT",
+        "price": 588.44,
+        "hasV4": true,
+        "hasPlanV4": false
+      }
+    }
+  ]
+}

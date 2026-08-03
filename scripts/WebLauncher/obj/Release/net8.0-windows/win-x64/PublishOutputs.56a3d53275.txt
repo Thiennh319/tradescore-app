@@ -1,5 +1,2 @@
 D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.7\TradeScore-Web.pdb
-D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.7\Microsoft.Web.WebView2.Core.xml
-D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.7\Microsoft.Web.WebView2.Wpf.xml
-D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.7\Microsoft.Web.WebView2.WinForms.xml
 D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.7\TradeScore-Web.exe

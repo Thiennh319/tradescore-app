@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TradeScore-Web")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+440b5cc17e8f9e51a541d9a293828f4548c51eae")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f5cf251787fa2bc57da405b018686039f0704b6c")]
 [assembly: System.Reflection.AssemblyProductAttribute("TradeScore-Web")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TradeScore-Web")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

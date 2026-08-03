@@ -481,3 +481,4 @@ D:\Thiennh3\APP\Trading\TradeScore\scripts\WebLauncher\obj\Release\net8.0-window
 D:\Thiennh3\APP\Trading\TradeScore\scripts\WebLauncher\obj\Release\net8.0-windows\win-x64\TradeScore-Web.pdb
 D:\Thiennh3\APP\Trading\TradeScore\scripts\WebLauncher\obj\Release\net8.0-windows\win-x64\WebLauncher.genruntimeconfig.cache
 D:\Thiennh3\APP\Trading\TradeScore\scripts\WebLauncher\obj\Release\net8.0-windows\win-x64\ref\TradeScore-Web.dll
+D:\Thiennh3\APP\Trading\TradeScore\scripts\WebLauncher\obj\Release\net8.0-windows\win-x64\WebLauncher.sourcelink.json
