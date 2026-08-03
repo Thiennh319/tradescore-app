@@ -72,14 +72,25 @@ export function renderTraceMetadata(
   return ['# Metadata', '', ...fields.map((field) => kv(field.label, field.value))];
 }
 
+/** Key/value lines for INPUT SNAPSHOT / MARKET SNAPSHOT (shared across trace kinds). */
+export function renderTraceSnapshotFieldLines(
+  snapshot: readonly TraceSnapshotEntry[],
+): string[] {
+  const lines = snapshot.map((item) => kv(item.key, item.value));
+  if (snapshot.some((item) => item.key === 'Hard/Group Blocked State')) {
+    lines.push('');
+    lines.push(
+      'NOTE — Hard/Group Blocked State: YES if Hard Block OR Group Block is active (not Hard Block alone).',
+    );
+  }
+  return lines;
+}
+
 /** INPUT SNAPSHOT section from display-ready key/value rows. */
 export function renderTraceInputSnapshot(
   snapshot: readonly TraceSnapshotEntry[],
 ): string[] {
-  return renderTraceSection(
-    'INPUT SNAPSHOT',
-    snapshot.map((item) => kv(item.key, item.value)),
-  );
+  return renderTraceSection('INPUT SNAPSHOT', renderTraceSnapshotFieldLines(snapshot));
 }
 
 /**
@@ -219,9 +230,21 @@ export interface TraceGroupBreakdownRow {
 }
 
 /**
+ * TASK 18.6.3 — ensure score cells never leak long JS floats into Markdown.
+ * Display-only; values are already copied (not recomputed) upstream.
+ */
+function groupBreakdownScoreCell(value: AiExportScalar): AiExportScalar {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 100) / 100;
+  }
+  return value;
+}
+
+/**
  * TASK 18.6 Option B — GROUP BREAKDOWN.
  * Group Score + Decision Total are copied from the frozen snapshot.
  * Raw Sum* is reconstructed from Display (rawLayerScores are not in the snapshot).
+ * TASK 18.6.3: score columns are display-rounded to ≤2 decimal places.
  */
 export function renderTraceGroupBreakdownSection(args: {
   readonly rows: readonly TraceGroupBreakdownRow[];
@@ -237,15 +260,15 @@ export function renderTraceGroupBreakdownSection(args: {
       args.rows.map((row) => [
         row.group,
         row.layers,
-        row.rawSum,
+        groupBreakdownScoreCell(row.rawSum),
         row.rawMax,
         row.groupMax,
-        row.groupScore,
+        groupBreakdownScoreCell(row.groupScore),
         row.notes,
       ]),
     ),
     '',
-    kv('Decision Total (snap.score)', args.decisionTotal),
+    kv('Decision Total (snap.score)', groupBreakdownScoreCell(args.decisionTotal)),
     ...(args.vwapNote ? ['', args.vwapNote] : []),
     '',
     '* Raw Sum is reconstructed from rounded Display Layer Scores. The frozen',
@@ -255,6 +278,49 @@ export function renderTraceGroupBreakdownSection(args: {
     'Applying convertToGroupScoreV4 to reconstructed Raw Sum may differ from the',
     '  copied Group Score by ≤0.03 due to display rounding. This is expected and',
     '  does not indicate a scoring error.',
+  ]);
+}
+
+/**
+ * TASK 18.7 — Score Trace–only AI interpretation guide.
+ * Placed after GROUP BREAKDOWN so any reviewer AI reads scale rules before AI REVIEW.
+ */
+export function renderTraceScoreInterpretationSection(): string[] {
+  return renderTraceSection('SCORE TRACE INTERPRETATION', [
+    'Read this section before comparing scores in this document.',
+    '',
+    'Two independent scales:',
+    '',
+    '1. Display Layer Score (SCORE COMPONENTS + SCORE TABLE)',
+    '   - Per-layer normalized value; max 1.5 each.',
+    '   - Copied verbatim from the engine layer result.',
+    '   - Hand-summing these values does NOT produce Decision Total or Final Score.',
+    '',
+    '2. Decision Total (snap.score) (SCORE SUMMARY + SCORE TIMELINE + GROUP BREAKDOWN)',
+    '   - Group-scale total; max 15 (3 groups × max 5 each).',
+    '   - Copied from the frozen snapshot snap.score.',
+    '   - This is the authoritative score for decision bands.',
+    '',
+    'GROUP BREAKDOWN:',
+    '',
+    '- Group A (L1–L4), Group B (L5a, L5b, L6, L7), Group C (L8–L10).',
+    '- Group Score per group is copied from engine groupScores — not reverse-fitted.',
+    '- Decision Total = Group A + Group B + Group C (Group scale).',
+    '- Raw Sum* is reconstructed from rounded Display Layer Scores for reference only.',
+    '',
+    'Common reviewer mistake (NOT a bug):',
+    '',
+    'If hand-sum of Display Layer Scores (e.g. ~9.76) ≠ Decision Total (e.g. 8.65),',
+    'this reflects two different scales — not a scoring error. Verify GROUP BREAKDOWN.',
+    '',
+    'Field labels in this document:',
+    '',
+    '- Display Layer Score — per-layer display scale (max 1.5).',
+    '- Decision Total (snap.score) — frozen Group-scale total.',
+    '- Final Score — same as Decision Total in this export (bonus/penalty deltas are separate).',
+    '',
+    'Entry State SCORE_BLOCKED reflects the decision band (KHONG_VAO / CHO_THEM / CHO_TAI_CHAM).',
+    'Score Block Count counts the soft blockReasons list size — independent of SCORE_BLOCKED.',
   ]);
 }
 
@@ -417,7 +483,7 @@ function renderTraceAiReviewBody(kind: 'rule' | 'score'): string[] {
     '',
     '- Missing Component? YES / NO',
     '- Wrong Weight? YES / NO',
-    '- Wrong Contribution? YES / NO',
+    '- Wrong Display Layer Score? YES / NO',
     '- Threshold Too Strict? YES / NO',
     '- Threshold Too Loose? YES / NO',
     '- Duplicate Component? YES / NO',

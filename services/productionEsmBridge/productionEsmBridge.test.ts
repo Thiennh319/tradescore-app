@@ -211,6 +211,8 @@ describe('ProductionEsmBridge — UL-01', () => {
       expect(snapshot.harnessResult).not.toBeNull();
       expect(snapshot.harnessResult?.context.scanId).toBe(SCAN_ID);
       expect(snapshot.harnessResult?.pipelineResult).toBeDefined();
+      expect(snapshot.scanContext.decisionDisplay).toBe('Vào tự tin');
+      expect(snapshot.scanContext.score).toBe(11);
     });
 
     it('deterministic — identical inputs produce identical halted flag', () => {

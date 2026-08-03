@@ -38,12 +38,13 @@ export function MetricTile({ label, value, sub, hint, accent = 'neutral' }: Metr
 const styles = StyleSheet.create({
   tile: {
     flex: 1,
-    minWidth: 150,
+    minWidth: 0,
+    flexBasis: '45%',
     ...PANEL,
     borderRadius: RADIUS.md,
     borderTopWidth: 2,
     padding: SPACING.md + 2,
-    gap: 4,
+    gap: SPACING.xs,
   },
   label: {
     fontSize: 10,
@@ -57,7 +58,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
-    marginTop: 4,
+    marginTop: SPACING.xs,
   },
   sub: {
     fontSize: 11,
@@ -68,6 +69,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.textMuted,
     lineHeight: 14,
-    marginTop: 4,
+    marginTop: SPACING.xs,
   },
 });

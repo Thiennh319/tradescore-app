@@ -8,7 +8,7 @@
  * (hard block overriding passing rules) — not a new rule evaluation.
  */
 
-import { fmt, UNAVAILABLE } from '../formatters/markdown';
+import { fmt, fmtExportScore2, UNAVAILABLE } from '../formatters/markdown';
 import type {
   RuleTrace,
   RuleTraceBlockType,
@@ -121,17 +121,19 @@ export function buildRuleTrace(input: RuleTraceInput): RuleTrace {
     .map((key) => ({ key, value: fmt(snapshot[key]) }));
 
   const gb = input.groupBreakdown;
+  // TASK 18.6.3: Raw Sum* / Group Score / Decision Total — ≤2 decimal places in Markdown.
+  // rawMax / groupMax stay as integer documentation constants (fmt, not score-2).
   const groupBreakdown = {
     rows: (gb?.rows ?? []).map((row) => ({
       group: fmt(row.group),
       layers: fmt(row.layers),
-      rawSum: fmt(row.rawSum),
+      rawSum: fmtExportScore2(row.rawSum),
       rawMax: fmt(row.rawMax),
       groupMax: fmt(row.groupMax),
-      groupScore: fmt(row.groupScore),
+      groupScore: fmtExportScore2(row.groupScore),
       notes: fmt(row.notes),
     })),
-    decisionTotal: fmt(gb?.decisionTotal),
+    decisionTotal: fmtExportScore2(gb?.decisionTotal),
     vwapNote:
       gb?.vwapNote == null || fmt(gb.vwapNote) === UNAVAILABLE
         ? null

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AiTradeJournalEntry } from '../../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../../constants/scoring';
 import { PANEL, RADIUS, SPACING } from '../../constants/theme';
 import { vi } from '../../constants/vi';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   isStalePendingOrder,
   resolveJournalCloseReasonDisplay,
@@ -14,9 +15,14 @@ import {
 } from '../../services/journalService';
 import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
-import { resolveJournalMarketPrice } from '../../hooks/useJournalMarketSync';
+import { resolveJournalLiveMark } from '../../hooks/useJournalMarketSync';
+import {
+  resolveJournalUlReviewExplanation,
+  resolveJournalUlReviewRecommendation,
+  resolveJournalUlReviewRecommendationColor,
+} from '../../utils/journalRecommendationDisplay';
 import { EsmRecommendationCell } from './EsmRecommendationCell';
-import { resolveEsmHintDisplay } from '../../utils/esmUiDisplay';
+import { MemoJournalTradeMobileCard } from './JournalTradeMobileCard';
 import { useTradeStore } from '../../store/useTradeStore';
 import { getEsmSnapshotForSymbol, type EsmBridgeState } from '../../store/esmBridgeTypes';
 
@@ -28,7 +34,7 @@ const COL = {
   source: 44,
   coin: 76,
   status: 108,
-  recommendation: 108,
+  recommendation: 120,
   entry: 76,
   currentExit: 76,
   pnl: 108,
@@ -163,10 +169,10 @@ function JournalSourceCell({ entry, width }: { entry: AiTradeJournalEntry; width
 
 function JournalTradeRow({
   entry,
-  markBySymbol,
+  markPrice,
   unrealizedPnl,
   pnlBreakdown,
-  advisorLabel,
+  esmUlReviewLabel,
   esmBridge,
   onDetail,
   onStopTrade,
@@ -174,10 +180,10 @@ function JournalTradeRow({
   onCancelPending,
 }: {
   entry: AiTradeJournalEntry;
-  markBySymbol: Record<string, number>;
+  markPrice?: number;
   unrealizedPnl?: number | null;
   pnlBreakdown?: JournalPnlBreakdown;
-  advisorLabel?: string;
+  esmUlReviewLabel?: string;
   esmBridge: EsmBridgeState;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
@@ -197,7 +203,12 @@ function JournalTradeRow({
 
   const showPartialPnl = isOpen && (pnlBreakdown?.hasPartial ?? hasPartial);
 
-  const marketPrice = resolveJournalMarketPrice(entry, markBySymbol);
+  const marketPrice =
+    isOpen || isPending
+      ? markPrice != null && Number.isFinite(markPrice)
+        ? markPrice
+        : undefined
+      : undefined;
 
   const currentExit =
     isOpen || isPending
@@ -222,18 +233,20 @@ function JournalTradeRow({
         : COLORS.bearish;
 
   const esmSnapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
-  const esmHint = resolveEsmHintDisplay(esmSnapshot, entry.symbol);
-
-  const liveAdvisor = isOpen ? advisorLabel?.trim() : '';
+  const ulReview = resolveJournalUlReviewRecommendation(entry, esmSnapshot);
+  const ulExplanation = resolveJournalUlReviewExplanation(entry, esmSnapshot);
   const recommendation =
-    liveAdvisor || entry.scoring.recommendationLabel?.trim() || '—';
+    esmUlReviewLabel ??
+    (ulReview.label === 'Closed' ? vi.ulAnalytics.insightsScreen.closed : ulReview.label);
+  const toneKey = resolveJournalUlReviewRecommendationColor(ulReview.tone);
   const recommendationColor =
-    isOpen && liveAdvisor
-      ? liveAdvisor.toLowerCase().includes('đóng') ||
-        liveAdvisor.toLowerCase().includes('cắt')
-        ? COLORS.bearish
-        : COLORS.bullish
-      : COLORS.textSecondary;
+    toneKey === 'close'
+      ? COLORS.bearish
+      : toneKey === 'hold'
+        ? COLORS.bullish
+        : toneKey === 'wait'
+          ? COLORS.warning
+          : COLORS.textSecondary;
 
   return (
     <View style={[styles.tableRow, stalePending && styles.rowStale]}>
@@ -253,9 +266,10 @@ function JournalTradeRow({
       <EsmRecommendationCell
         recommendationLabel={recommendation}
         recommendationColor={recommendationColor}
-        hintBadge={esmHint.hintBadge}
+        hintBadge={null}
         width={COL.recommendation}
-        tooltipLines={esmHint.tooltipLines}
+        tooltipLines={ulReview.tooltipLines}
+        explanationPanel={ulExplanation}
       />
       <Text style={[styles.cell, { width: COL.entry }]} numberOfLines={1}>
         {formatUsdPrice(sym, entry.market.entryPrice)}
@@ -333,6 +347,37 @@ function JournalTradeRow({
   );
 }
 
+function journalRowPropsEqual(
+  prev: {
+    entry: AiTradeJournalEntry;
+    markPrice?: number;
+    unrealizedPnl?: number | null;
+    pnlBreakdown?: JournalPnlBreakdown;
+    esmUlReviewLabel?: string;
+  },
+  next: {
+    entry: AiTradeJournalEntry;
+    markPrice?: number;
+    unrealizedPnl?: number | null;
+    pnlBreakdown?: JournalPnlBreakdown;
+    esmUlReviewLabel?: string;
+  },
+): boolean {
+  if (prev.entry.id !== next.entry.id) return false;
+  if (prev.entry.outcome.status !== next.entry.outcome.status) return false;
+  if (prev.markPrice !== next.markPrice) return false;
+  if (prev.unrealizedPnl !== next.unrealizedPnl) return false;
+  if (prev.esmUlReviewLabel !== next.esmUlReviewLabel) return false;
+  const p = prev.pnlBreakdown;
+  const n = next.pnlBreakdown;
+  if (p?.totalPnl !== n?.totalPnl) return false;
+  if (p?.realizedPnl !== n?.realizedPnl) return false;
+  if (p?.unrealizedPnl !== n?.unrealizedPnl) return false;
+  return true;
+}
+
+const MemoJournalTradeRow = memo(JournalTradeRow, journalRowPropsEqual);
+
 export function JournalTradeTable({
   entries,
   markBySymbol,
@@ -349,6 +394,7 @@ export function JournalTradeTable({
 }: JournalTradeTableProps) {
   const [page, setPage] = useState(1);
   const esmBridge = useTradeStore((s) => s.esmBridge);
+  const { useJournalCards } = useResponsiveLayout();
 
   useEffect(() => {
     setPage(1);
@@ -367,10 +413,39 @@ export function JournalTradeTable({
     return entries.slice(start, start + pageSize);
   }, [entries, paginated, safePage, pageSize]);
 
+  const esmUlReviewById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const entry of entries) {
+      const snapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
+      const raw = resolveJournalUlReviewRecommendation(entry, snapshot).label;
+      map[entry.id] = raw === 'Closed' ? vi.ulAnalytics.insightsScreen.closed : raw;
+    }
+    return map;
+  }, [entries, esmBridge]);
+
   if (entries.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
+      {useJournalCards ? (
+        <View style={styles.cardList}>
+          {visibleEntries.map((entry) => (
+            <MemoJournalTradeMobileCard
+              key={entry.id}
+              entry={entry}
+              markPrice={resolveJournalLiveMark(markBySymbol, entry.symbol)}
+              unrealizedPnl={unrealizedById[entry.id] ?? null}
+              pnlBreakdown={pnlBreakdownById?.[entry.id]}
+              esmUlReviewLabel={esmUlReviewById[entry.id]}
+              esmBridge={esmBridge}
+              onDetail={onDetail}
+              onStopTrade={onStopTrade}
+              onConfirmFill={onConfirmFill}
+              onCancelPending={onCancelPending}
+            />
+          ))}
+        </View>
+      ) : (
       <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'}>
         <View style={[styles.table, { minWidth: TABLE_MIN_WIDTH }]}>
           <View style={styles.tableHead}>
@@ -387,13 +462,13 @@ export function JournalTradeTable({
             <HeadCell text={vi.journal.colTime} width={COL.time} />
           </View>
           {visibleEntries.map((entry) => (
-            <JournalTradeRow
+            <MemoJournalTradeRow
               key={entry.id}
               entry={entry}
-              markBySymbol={markBySymbol}
+              markPrice={resolveJournalLiveMark(markBySymbol, entry.symbol)}
               unrealizedPnl={unrealizedById[entry.id] ?? null}
               pnlBreakdown={pnlBreakdownById?.[entry.id]}
-              advisorLabel={advisorLabelById?.[entry.id]}
+              esmUlReviewLabel={esmUlReviewById[entry.id]}
               esmBridge={esmBridge}
               onDetail={onDetail}
               onStopTrade={onStopTrade}
@@ -403,6 +478,7 @@ export function JournalTradeTable({
           ))}
         </View>
       </ScrollView>
+      )}
       {paginated && entries.length > pageSize ? (
         <View style={styles.pagination}>
           <Pressable
@@ -442,32 +518,35 @@ const styles = StyleSheet.create({
   wrap: {
     ...PANEL,
     padding: 0,
-    overflow: 'hidden',
+    overflow: 'visible',
+  },
+  cardList: {
+    padding: SPACING.sm,
+    gap: SPACING.sm,
   },
   table: {
     borderRadius: RADIUS.sm,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   tableHead: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: COLORS.surfaceElevated,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 8,
+    paddingVertical: SPACING.sm,
     gap: SPACING.sm,
   },
   headCell: {
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
     color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   tableRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 8,
+    paddingVertical: SPACING.sm,
     gap: SPACING.sm,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
@@ -494,21 +573,23 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   sourceBadgeWrap: {
+    alignSelf: 'flex-start',
     justifyContent: 'center',
+    paddingTop: 1,
   },
   sourceBadgeV41: {
     alignSelf: 'flex-start',
     backgroundColor: '#8B5CF6',
     borderRadius: RADIUS.sm,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.xs,
   },
   sourceBadgeUnified: {
     alignSelf: 'flex-start',
     backgroundColor: '#8B5CF6',
     borderRadius: RADIUS.sm,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.xs,
   },
   sourceBadgeUnifiedText: {
     fontSize: 7,
@@ -566,12 +647,12 @@ const styles = StyleSheet.create({
   actionCell: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    alignItems: 'center',
+    gap: SPACING.xs,
+    alignItems: 'flex-start',
   },
   actionBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -621,8 +702,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated,
   },
   pageBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -656,11 +737,11 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   pageCurrentPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.sm,
     backgroundColor: COLORS.accent,
-    marginHorizontal: 2,
+    marginHorizontal: SPACING.xs,
   },
   pageCurrentText: {
     fontSize: 10,

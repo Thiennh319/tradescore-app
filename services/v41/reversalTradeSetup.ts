@@ -35,6 +35,8 @@ export interface GenerateReversalSetupParams {
   snapshot?: MarketIntelligenceSnapshot;
   opportunity?: OpportunitySnapshot;
   momentum?: MomentumResult;
+  /** When entry aligns with a completed 4H close, pass that 4H openTime for SL window. */
+  fourHOpenTime?: number;
 }
 
 const TP1_RR = 1.5;
@@ -69,6 +71,7 @@ export function generateReversalSetup(
     snapshot,
     opportunity,
     momentum,
+    fourHOpenTime,
   } = params;
 
   if (reversalState.phase !== 'RETEST_CONFIRMED') return null;
@@ -106,6 +109,7 @@ export function generateReversalSetup(
     klines1H,
     direction,
     entryPrice: entry,
+    fourHOpenTime,
   });
   if (!Number.isFinite(slPrice) || slPrice <= 0) return null;
 

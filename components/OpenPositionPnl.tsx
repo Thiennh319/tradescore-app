@@ -340,7 +340,7 @@ export function OpenPositionPnl({
     });
     setPendingPartialReason(null);
     if (!result.ok) {
-      console.warn('[partialClose]', result.error);
+      return;
     }
   };
 

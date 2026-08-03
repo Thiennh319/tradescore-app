@@ -33,6 +33,23 @@ async function saveAndShareNativeFile(
   throw new Error('Sharing không khả dụng');
 }
 
+/**
+ * Share / download một file text (Markdown, plain, …).
+ * Tái dùng cùng cơ chế export V4.1 signal report — không viết cơ chế mới.
+ */
+export async function shareV41TextFile(
+  filename: string,
+  content: string,
+  mimeType = 'text/markdown;charset=utf-8',
+): Promise<void> {
+  if (Platform.OS === 'web') {
+    downloadTextFileWeb(filename, content, mimeType);
+    return;
+  }
+  const nativeMime = mimeType.split(';')[0]?.trim() || 'text/markdown';
+  await saveAndShareNativeFile(filename, content, nativeMime);
+}
+
 export interface ExportV41SignalReportResult {
   filenameTxt: string;
   filenameCsv: string;

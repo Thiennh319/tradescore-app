@@ -13,6 +13,7 @@ import {
   validateSignalBoardWiringResult,
 } from '../entryStateManager';
 import { mapSignalRowToWiringContext } from './signalRowMapper';
+import { extractScanContextFromSignalRow } from './signalRowScanContext';
 import type {
   ProductionEsmBridgeInput,
   ProductionEsmBridgeInputValidationResult,
@@ -144,6 +145,7 @@ export function runProductionEsmBridge(
   });
 
   const enabled = entryStateManagerEnabled === true;
+  const scanContext = extractScanContextFromSignalRow(input.signalRow);
 
   return {
     bridgeVersion: PRODUCTION_ESM_BRIDGE_VERSION,
@@ -157,6 +159,7 @@ export function runProductionEsmBridge(
     message: enabled
       ? (harnessResult?.message ?? 'Production ESM bridge complete')
       : 'Production ESM bridge skipped — ENTRY_STATE_MANAGER_ENABLED is off',
+    scanContext,
   };
 }
 

@@ -8,6 +8,7 @@ import {
   type WinrateBucketId,
 } from '../constants/scoring';
 import { isStatsEligibleOutcome } from './journalService';
+import { metricWinRatePct1 } from './intelligence/shared/metrics';
 import { maybeLogTpProbabilityFilterEnableHint } from '../config/featureFlags';
 
 export type WinrateScorerFilter = 'v3' | 'v4' | 'all';
@@ -92,7 +93,7 @@ function aggregateBucket(
   const breakevens = bucket.filter((e) => e.outcome.status === 'BREAKEVEN').length;
   const winLossCount = wins + losses;
   const actualWinratePct =
-    winLossCount > 0 ? Math.round((wins / winLossCount) * 1000) / 10 : null;
+    winLossCount > 0 ? metricWinRatePct1(wins, winLossCount) : null;
   const deviationPct =
     actualWinratePct != null
       ? Math.round((actualWinratePct - def.expectedWinratePct) * 10) / 10
@@ -179,7 +180,7 @@ export function getWinrateTrendByBucket(
       fromMs: segStart,
       toMs: segEnd,
       trades: slice.length,
-      actualWinratePct: wl > 0 ? Math.round((wins / wl) * 1000) / 10 : null,
+      actualWinratePct: wl > 0 ? metricWinRatePct1(wins, wl) : null,
     });
   }
   return points;
@@ -259,7 +260,7 @@ export function calculateWinrateByFundingStateAtEntry(
     const breakevens = bucket.filter((e) => e.outcome.status === 'BREAKEVEN').length;
     const winLossCount = wins + losses;
     const actualWinratePct =
-      winLossCount > 0 ? Math.round((wins / winLossCount) * 1000) / 10 : null;
+      winLossCount > 0 ? metricWinRatePct1(wins, winLossCount) : null;
 
     return {
       fundingState: state,
@@ -363,7 +364,7 @@ export function calculateWinrateBySqueezeLevel(
     const breakevens = bucket.filter((e) => e.outcome.status === 'BREAKEVEN').length;
     const winLossCount = wins + losses;
     const actualWinratePct =
-      winLossCount > 0 ? Math.round((wins / winLossCount) * 1000) / 10 : null;
+      winLossCount > 0 ? metricWinRatePct1(wins, winLossCount) : null;
 
     return {
       level,
@@ -423,7 +424,7 @@ function advisorRowStats(
     label,
     trades: subset.length,
     wins,
-    winratePct: wl > 0 ? Math.round((wins / wl) * 1000) / 10 : null,
+    winratePct: wl > 0 ? metricWinRatePct1(wins, wl) : null,
     hasData: subset.length > 0,
   };
 }

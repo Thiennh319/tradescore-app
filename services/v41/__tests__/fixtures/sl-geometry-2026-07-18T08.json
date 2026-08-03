@@ -1,0 +1,812 @@
+{
+  "meta": {
+    "id": "2026-07-18T08",
+    "timestamp": 1784361600000,
+    "side": "LONG",
+    "entry": 1.904,
+    "sl_after_fix": 1.892593136,
+    "side_ok": true
+  },
+  "klines1H": [
+    {
+      "openTime": 1784077200000,
+      "open": 2.007,
+      "high": 2.016,
+      "low": 1.999,
+      "close": 2.014,
+      "volume": 1828908,
+      "takerBuyVolume": 988465,
+      "closeTime": 1784080799999
+    },
+    {
+      "openTime": 1784080800000,
+      "open": 2.014,
+      "high": 2.027,
+      "low": 2.007,
+      "close": 2.02,
+      "volume": 2246662,
+      "takerBuyVolume": 1119280,
+      "closeTime": 1784084399999
+    },
+    {
+      "openTime": 1784084400000,
+      "open": 2.02,
+      "high": 2.024,
+      "low": 2.007,
+      "close": 2.019,
+      "volume": 1353848,
+      "takerBuyVolume": 682928,
+      "closeTime": 1784087999999
+    },
+    {
+      "openTime": 1784088000000,
+      "open": 2.019,
+      "high": 2.025,
+      "low": 2.007,
+      "close": 2.022,
+      "volume": 1380624,
+      "takerBuyVolume": 727450,
+      "closeTime": 1784091599999
+    },
+    {
+      "openTime": 1784091600000,
+      "open": 2.022,
+      "high": 2.029,
+      "low": 2.007,
+      "close": 2.028,
+      "volume": 1418294,
+      "takerBuyVolume": 692239,
+      "closeTime": 1784095199999
+    },
+    {
+      "openTime": 1784095200000,
+      "open": 2.028,
+      "high": 2.042,
+      "low": 2.022,
+      "close": 2.022,
+      "volume": 2057103,
+      "takerBuyVolume": 947915,
+      "closeTime": 1784098799999
+    },
+    {
+      "openTime": 1784098800000,
+      "open": 2.023,
+      "high": 2.023,
+      "low": 2.001,
+      "close": 2.006,
+      "volume": 1802439,
+      "takerBuyVolume": 727773,
+      "closeTime": 1784102399999
+    },
+    {
+      "openTime": 1784102400000,
+      "open": 2.006,
+      "high": 2.028,
+      "low": 1.996,
+      "close": 2.022,
+      "volume": 2855637,
+      "takerBuyVolume": 1609842,
+      "closeTime": 1784105999999
+    },
+    {
+      "openTime": 1784106000000,
+      "open": 2.022,
+      "high": 2.041,
+      "low": 2.02,
+      "close": 2.033,
+      "volume": 1983648,
+      "takerBuyVolume": 1011671,
+      "closeTime": 1784109599999
+    },
+    {
+      "openTime": 1784109600000,
+      "open": 2.032,
+      "high": 2.063,
+      "low": 2.032,
+      "close": 2.051,
+      "volume": 3463269,
+      "takerBuyVolume": 1868327,
+      "closeTime": 1784113199999
+    },
+    {
+      "openTime": 1784113200000,
+      "open": 2.051,
+      "high": 2.092,
+      "low": 2.048,
+      "close": 2.078,
+      "volume": 5164143,
+      "takerBuyVolume": 2742091,
+      "closeTime": 1784116799999
+    },
+    {
+      "openTime": 1784116800000,
+      "open": 2.079,
+      "high": 2.099,
+      "low": 2.065,
+      "close": 2.088,
+      "volume": 6812832,
+      "takerBuyVolume": 3334312,
+      "closeTime": 1784120399999
+    },
+    {
+      "openTime": 1784120400000,
+      "open": 2.088,
+      "high": 2.106,
+      "low": 2.069,
+      "close": 2.084,
+      "volume": 7298607,
+      "takerBuyVolume": 3619128,
+      "closeTime": 1784123999999
+    },
+    {
+      "openTime": 1784124000000,
+      "open": 2.084,
+      "high": 2.089,
+      "low": 2.061,
+      "close": 2.077,
+      "volume": 3042632,
+      "takerBuyVolume": 1550061,
+      "closeTime": 1784127599999
+    },
+    {
+      "openTime": 1784127600000,
+      "open": 2.078,
+      "high": 2.079,
+      "low": 2.061,
+      "close": 2.076,
+      "volume": 1968429,
+      "takerBuyVolume": 918039,
+      "closeTime": 1784131199999
+    },
+    {
+      "openTime": 1784131200000,
+      "open": 2.076,
+      "high": 2.08,
+      "low": 2.046,
+      "close": 2.064,
+      "volume": 4586588,
+      "takerBuyVolume": 1898783,
+      "closeTime": 1784134799999
+    },
+    {
+      "openTime": 1784134800000,
+      "open": 2.063,
+      "high": 2.079,
+      "low": 2.063,
+      "close": 2.072,
+      "volume": 2107434,
+      "takerBuyVolume": 1089479,
+      "closeTime": 1784138399999
+    },
+    {
+      "openTime": 1784138400000,
+      "open": 2.072,
+      "high": 2.075,
+      "low": 2.033,
+      "close": 2.038,
+      "volume": 3755311,
+      "takerBuyVolume": 1322266,
+      "closeTime": 1784141999999
+    },
+    {
+      "openTime": 1784142000000,
+      "open": 2.037,
+      "high": 2.044,
+      "low": 2.032,
+      "close": 2.036,
+      "volume": 2378372,
+      "takerBuyVolume": 1230702,
+      "closeTime": 1784145599999
+    },
+    {
+      "openTime": 1784145600000,
+      "open": 2.036,
+      "high": 2.058,
+      "low": 2.034,
+      "close": 2.054,
+      "volume": 1620857,
+      "takerBuyVolume": 898298,
+      "closeTime": 1784149199999
+    },
+    {
+      "openTime": 1784149200000,
+      "open": 2.054,
+      "high": 2.066,
+      "low": 2.054,
+      "close": 2.062,
+      "volume": 1542692,
+      "takerBuyVolume": 755711,
+      "closeTime": 1784152799999
+    },
+    {
+      "openTime": 1784152800000,
+      "open": 2.061,
+      "high": 2.085,
+      "low": 2.057,
+      "close": 2.066,
+      "volume": 3089204,
+      "takerBuyVolume": 1661614,
+      "closeTime": 1784156399999
+    },
+    {
+      "openTime": 1784156400000,
+      "open": 2.065,
+      "high": 2.078,
+      "low": 2.059,
+      "close": 2.067,
+      "volume": 1205807,
+      "takerBuyVolume": 585256,
+      "closeTime": 1784159999999
+    },
+    {
+      "openTime": 1784160000000,
+      "open": 2.066,
+      "high": 2.081,
+      "low": 2.057,
+      "close": 2.063,
+      "volume": 2752087,
+      "takerBuyVolume": 1354691,
+      "closeTime": 1784163599999
+    },
+    {
+      "openTime": 1784163600000,
+      "open": 2.063,
+      "high": 2.07,
+      "low": 2.05,
+      "close": 2.065,
+      "volume": 1845597,
+      "takerBuyVolume": 931930,
+      "closeTime": 1784167199999
+    },
+    {
+      "openTime": 1784167200000,
+      "open": 2.066,
+      "high": 2.067,
+      "low": 2.054,
+      "close": 2.067,
+      "volume": 1013860,
+      "takerBuyVolume": 501917,
+      "closeTime": 1784170799999
+    },
+    {
+      "openTime": 1784170800000,
+      "open": 2.067,
+      "high": 2.071,
+      "low": 2.056,
+      "close": 2.063,
+      "volume": 858249,
+      "takerBuyVolume": 418399,
+      "closeTime": 1784174399999
+    },
+    {
+      "openTime": 1784174400000,
+      "open": 2.063,
+      "high": 2.065,
+      "low": 2.05,
+      "close": 2.053,
+      "volume": 1314655,
+      "takerBuyVolume": 446551,
+      "closeTime": 1784177999999
+    },
+    {
+      "openTime": 1784178000000,
+      "open": 2.054,
+      "high": 2.06,
+      "low": 2.046,
+      "close": 2.052,
+      "volume": 2053789,
+      "takerBuyVolume": 1121560,
+      "closeTime": 1784181599999
+    },
+    {
+      "openTime": 1784181600000,
+      "open": 2.052,
+      "high": 2.061,
+      "low": 2.043,
+      "close": 2.054,
+      "volume": 1615790,
+      "takerBuyVolume": 804271,
+      "closeTime": 1784185199999
+    },
+    {
+      "openTime": 1784185200000,
+      "open": 2.054,
+      "high": 2.054,
+      "low": 2.041,
+      "close": 2.049,
+      "volume": 1921586,
+      "takerBuyVolume": 948320,
+      "closeTime": 1784188799999
+    },
+    {
+      "openTime": 1784188800000,
+      "open": 2.05,
+      "high": 2.052,
+      "low": 2.019,
+      "close": 2.026,
+      "volume": 4612977,
+      "takerBuyVolume": 1869775,
+      "closeTime": 1784192399999
+    },
+    {
+      "openTime": 1784192400000,
+      "open": 2.026,
+      "high": 2.03,
+      "low": 2.007,
+      "close": 2.01,
+      "volume": 3620804,
+      "takerBuyVolume": 1149123,
+      "closeTime": 1784195999999
+    },
+    {
+      "openTime": 1784196000000,
+      "open": 2.011,
+      "high": 2.032,
+      "low": 2.007,
+      "close": 2.031,
+      "volume": 2325282,
+      "takerBuyVolume": 1215722,
+      "closeTime": 1784199599999
+    },
+    {
+      "openTime": 1784199600000,
+      "open": 2.031,
+      "high": 2.035,
+      "low": 2.022,
+      "close": 2.031,
+      "volume": 1852754,
+      "takerBuyVolume": 808902,
+      "closeTime": 1784203199999
+    },
+    {
+      "openTime": 1784203200000,
+      "open": 2.03,
+      "high": 2.043,
+      "low": 2.019,
+      "close": 2.026,
+      "volume": 2193416,
+      "takerBuyVolume": 1048466,
+      "closeTime": 1784206799999
+    },
+    {
+      "openTime": 1784206800000,
+      "open": 2.026,
+      "high": 2.084,
+      "low": 2.025,
+      "close": 2.071,
+      "volume": 6688626,
+      "takerBuyVolume": 3647815,
+      "closeTime": 1784210399999
+    },
+    {
+      "openTime": 1784210400000,
+      "open": 2.071,
+      "high": 2.08,
+      "low": 2.061,
+      "close": 2.075,
+      "volume": 3420193,
+      "takerBuyVolume": 1638614,
+      "closeTime": 1784213999999
+    },
+    {
+      "openTime": 1784214000000,
+      "open": 2.074,
+      "high": 2.085,
+      "low": 2.053,
+      "close": 2.066,
+      "volume": 3159284,
+      "takerBuyVolume": 1560911,
+      "closeTime": 1784217599999
+    },
+    {
+      "openTime": 1784217600000,
+      "open": 2.067,
+      "high": 2.068,
+      "low": 2.051,
+      "close": 2.063,
+      "volume": 1954861,
+      "takerBuyVolume": 974163,
+      "closeTime": 1784221199999
+    },
+    {
+      "openTime": 1784221200000,
+      "open": 2.064,
+      "high": 2.083,
+      "low": 2.043,
+      "close": 2.048,
+      "volume": 4686526,
+      "takerBuyVolume": 2313731,
+      "closeTime": 1784224799999
+    },
+    {
+      "openTime": 1784224800000,
+      "open": 2.049,
+      "high": 2.049,
+      "low": 2.025,
+      "close": 2.027,
+      "volume": 4039276,
+      "takerBuyVolume": 2175121,
+      "closeTime": 1784228399999
+    },
+    {
+      "openTime": 1784228400000,
+      "open": 2.027,
+      "high": 2.033,
+      "low": 2.016,
+      "close": 2.027,
+      "volume": 1515386,
+      "takerBuyVolume": 775321,
+      "closeTime": 1784231999999
+    },
+    {
+      "openTime": 1784232000000,
+      "open": 2.026,
+      "high": 2.035,
+      "low": 2.019,
+      "close": 2.029,
+      "volume": 1267413,
+      "takerBuyVolume": 719792,
+      "closeTime": 1784235599999
+    },
+    {
+      "openTime": 1784235600000,
+      "open": 2.03,
+      "high": 2.047,
+      "low": 2.028,
+      "close": 2.033,
+      "volume": 1240051,
+      "takerBuyVolume": 580287,
+      "closeTime": 1784239199999
+    },
+    {
+      "openTime": 1784239200000,
+      "open": 2.034,
+      "high": 2.045,
+      "low": 1.986,
+      "close": 1.989,
+      "volume": 5577472,
+      "takerBuyVolume": 2082735,
+      "closeTime": 1784242799999
+    },
+    {
+      "openTime": 1784242800000,
+      "open": 1.989,
+      "high": 1.99,
+      "low": 1.957,
+      "close": 1.964,
+      "volume": 6400638,
+      "takerBuyVolume": 2906016,
+      "closeTime": 1784246399999
+    },
+    {
+      "openTime": 1784246400000,
+      "open": 1.963,
+      "high": 1.984,
+      "low": 1.955,
+      "close": 1.983,
+      "volume": 3495558,
+      "takerBuyVolume": 1819461,
+      "closeTime": 1784249999999
+    },
+    {
+      "openTime": 1784250000000,
+      "open": 1.982,
+      "high": 1.991,
+      "low": 1.967,
+      "close": 1.97,
+      "volume": 2149616,
+      "takerBuyVolume": 1027715,
+      "closeTime": 1784253599999
+    },
+    {
+      "openTime": 1784253600000,
+      "open": 1.97,
+      "high": 1.979,
+      "low": 1.961,
+      "close": 1.971,
+      "volume": 1907241,
+      "takerBuyVolume": 857435,
+      "closeTime": 1784257199999
+    },
+    {
+      "openTime": 1784257200000,
+      "open": 1.97,
+      "high": 2.007,
+      "low": 1.968,
+      "close": 1.99,
+      "volume": 3664686,
+      "takerBuyVolume": 2057042,
+      "closeTime": 1784260799999
+    },
+    {
+      "openTime": 1784260800000,
+      "open": 1.99,
+      "high": 1.997,
+      "low": 1.979,
+      "close": 1.992,
+      "volume": 1507314,
+      "takerBuyVolume": 753739,
+      "closeTime": 1784264399999
+    },
+    {
+      "openTime": 1784264400000,
+      "open": 1.991,
+      "high": 1.991,
+      "low": 1.959,
+      "close": 1.962,
+      "volume": 2450557,
+      "takerBuyVolume": 1099983,
+      "closeTime": 1784267999999
+    },
+    {
+      "openTime": 1784268000000,
+      "open": 1.963,
+      "high": 1.964,
+      "low": 1.939,
+      "close": 1.944,
+      "volume": 5155262,
+      "takerBuyVolume": 2217041,
+      "closeTime": 1784271599999
+    },
+    {
+      "openTime": 1784271600000,
+      "open": 1.945,
+      "high": 1.948,
+      "low": 1.933,
+      "close": 1.939,
+      "volume": 2614484,
+      "takerBuyVolume": 1405455,
+      "closeTime": 1784275199999
+    },
+    {
+      "openTime": 1784275200000,
+      "open": 1.94,
+      "high": 1.941,
+      "low": 1.871,
+      "close": 1.896,
+      "volume": 11202084,
+      "takerBuyVolume": 3868098,
+      "closeTime": 1784278799999
+    },
+    {
+      "openTime": 1784278800000,
+      "open": 1.896,
+      "high": 1.913,
+      "low": 1.895,
+      "close": 1.906,
+      "volume": 2548440,
+      "takerBuyVolume": 1341890,
+      "closeTime": 1784282399999
+    },
+    {
+      "openTime": 1784282400000,
+      "open": 1.906,
+      "high": 1.917,
+      "low": 1.904,
+      "close": 1.915,
+      "volume": 2126070,
+      "takerBuyVolume": 1085824,
+      "closeTime": 1784285999999
+    },
+    {
+      "openTime": 1784286000000,
+      "open": 1.915,
+      "high": 1.927,
+      "low": 1.912,
+      "close": 1.913,
+      "volume": 2079282,
+      "takerBuyVolume": 1031500,
+      "closeTime": 1784289599999
+    },
+    {
+      "openTime": 1784289600000,
+      "open": 1.913,
+      "high": 1.924,
+      "low": 1.906,
+      "close": 1.907,
+      "volume": 2049250,
+      "takerBuyVolume": 828706,
+      "closeTime": 1784293199999
+    },
+    {
+      "openTime": 1784293200000,
+      "open": 1.907,
+      "high": 1.937,
+      "low": 1.895,
+      "close": 1.935,
+      "volume": 5265939,
+      "takerBuyVolume": 2855181,
+      "closeTime": 1784296799999
+    },
+    {
+      "openTime": 1784296800000,
+      "open": 1.935,
+      "high": 1.948,
+      "low": 1.907,
+      "close": 1.915,
+      "volume": 4007533,
+      "takerBuyVolume": 1975785,
+      "closeTime": 1784300399999
+    },
+    {
+      "openTime": 1784300400000,
+      "open": 1.915,
+      "high": 1.921,
+      "low": 1.891,
+      "close": 1.921,
+      "volume": 3469108,
+      "takerBuyVolume": 1721070,
+      "closeTime": 1784303999999
+    },
+    {
+      "openTime": 1784304000000,
+      "open": 1.92,
+      "high": 1.931,
+      "low": 1.911,
+      "close": 1.923,
+      "volume": 2435289,
+      "takerBuyVolume": 1124828,
+      "closeTime": 1784307599999
+    },
+    {
+      "openTime": 1784307600000,
+      "open": 1.924,
+      "high": 1.941,
+      "low": 1.918,
+      "close": 1.919,
+      "volume": 1847186,
+      "takerBuyVolume": 843354,
+      "closeTime": 1784311199999
+    },
+    {
+      "openTime": 1784311200000,
+      "open": 1.92,
+      "high": 1.934,
+      "low": 1.913,
+      "close": 1.926,
+      "volume": 1694910,
+      "takerBuyVolume": 820075,
+      "closeTime": 1784314799999
+    },
+    {
+      "openTime": 1784314800000,
+      "open": 1.926,
+      "high": 1.932,
+      "low": 1.912,
+      "close": 1.925,
+      "volume": 1445462,
+      "takerBuyVolume": 696147,
+      "closeTime": 1784318399999
+    },
+    {
+      "openTime": 1784318400000,
+      "open": 1.924,
+      "high": 1.925,
+      "low": 1.917,
+      "close": 1.919,
+      "volume": 820556,
+      "takerBuyVolume": 428963,
+      "closeTime": 1784321999999
+    },
+    {
+      "openTime": 1784322000000,
+      "open": 1.919,
+      "high": 1.936,
+      "low": 1.915,
+      "close": 1.919,
+      "volume": 1004524,
+      "takerBuyVolume": 497005,
+      "closeTime": 1784325599999
+    },
+    {
+      "openTime": 1784325600000,
+      "open": 1.918,
+      "high": 1.923,
+      "low": 1.913,
+      "close": 1.918,
+      "volume": 906631,
+      "takerBuyVolume": 463512,
+      "closeTime": 1784329199999
+    },
+    {
+      "openTime": 1784329200000,
+      "open": 1.918,
+      "high": 1.928,
+      "low": 1.914,
+      "close": 1.925,
+      "volume": 501006,
+      "takerBuyVolume": 246317,
+      "closeTime": 1784332799999
+    },
+    {
+      "openTime": 1784332800000,
+      "open": 1.925,
+      "high": 1.932,
+      "low": 1.921,
+      "close": 1.922,
+      "volume": 1195790,
+      "takerBuyVolume": 608269,
+      "closeTime": 1784336399999
+    },
+    {
+      "openTime": 1784336400000,
+      "open": 1.922,
+      "high": 1.932,
+      "low": 1.918,
+      "close": 1.931,
+      "volume": 716768,
+      "takerBuyVolume": 331386,
+      "closeTime": 1784339999999
+    },
+    {
+      "openTime": 1784340000000,
+      "open": 1.931,
+      "high": 1.937,
+      "low": 1.926,
+      "close": 1.932,
+      "volume": 940826,
+      "takerBuyVolume": 431224,
+      "closeTime": 1784343599999
+    },
+    {
+      "openTime": 1784343600000,
+      "open": 1.932,
+      "high": 1.944,
+      "low": 1.927,
+      "close": 1.935,
+      "volume": 2044539,
+      "takerBuyVolume": 950473,
+      "closeTime": 1784347199999
+    },
+    {
+      "openTime": 1784347200000,
+      "open": 1.936,
+      "high": 1.937,
+      "low": 1.921,
+      "close": 1.928,
+      "volume": 893969,
+      "takerBuyVolume": 381022,
+      "closeTime": 1784350799999
+    },
+    {
+      "openTime": 1784350800000,
+      "open": 1.929,
+      "high": 1.929,
+      "low": 1.915,
+      "close": 1.918,
+      "volume": 885686,
+      "takerBuyVolume": 337327,
+      "closeTime": 1784354399999
+    },
+    {
+      "openTime": 1784354400000,
+      "open": 1.918,
+      "high": 1.919,
+      "low": 1.913,
+      "close": 1.914,
+      "volume": 839587,
+      "takerBuyVolume": 451325,
+      "closeTime": 1784357999999
+    },
+    {
+      "openTime": 1784358000000,
+      "open": 1.913,
+      "high": 1.915,
+      "low": 1.904,
+      "close": 1.907,
+      "volume": 1400553,
+      "takerBuyVolume": 650264,
+      "closeTime": 1784361599999
+    },
+    {
+      "openTime": 1784361600000,
+      "open": 1.908,
+      "high": 1.926,
+      "low": 1.904,
+      "close": 1.91,
+      "volume": 2479980,
+      "takerBuyVolume": 1357858,
+      "closeTime": 1784365199999
+    }
+  ]
+}

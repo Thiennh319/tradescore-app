@@ -7,14 +7,15 @@ import {
 } from './tradePlanV3';
 import type { VWAPResult } from './vwapService';
 
-function vwapResult(vwap: number): VWAPResult {
+/** LONG needs price < VWAP (priceVsVwap < 0) so IDEAL applies; 0 would be NEUTRAL. */
+function vwapResult(vwap: number, priceVsVwap = -0.1): VWAPResult {
   return {
     vwap,
     upperBand1: vwap * 1.01,
     lowerBand1: vwap * 0.99,
     upperBand2: vwap * 1.02,
     lowerBand2: vwap * 0.98,
-    priceVsVwap: 0,
+    priceVsVwap,
     zone: 'NEAR_VWAP',
     isNearVwap: true,
     isPullingBackToVwap: false,
@@ -160,6 +161,27 @@ describe('applyVWAPEntryToPlan / recalculatePlanAfterEntryChange', () => {
     const result = applyVWAPEntryToPlan(plan, vwapResult(100.2), 'LONG')!;
 
     expect(result.warnings.some((w) => w.includes('VWAP entry gần SL'))).toBe(true);
+  });
+
+  it('clamp Preferred Entry khi VWAP vượt Maximum Entry (rangeHigh)', () => {
+    // zone: [98, 101] — VWAP 105 vượt trần giống case 66282 > 66254
+    const plan = makeLongPlan({ entry: 100, sl: 98, tp1: 104 });
+    const result = applyVWAPEntryToPlan(plan, vwapResult(105), 'LONG')!;
+
+    expect(result.recommendedEntry).toBe(101);
+    expect(result.entryZone.optimal).toBe(101);
+    expect(result.entryZone.optimal).toBeLessThanOrEqual(result.entryZone.rangeHigh);
+    expect(result.warnings.some((w) => w.includes('vượt Entry Zone') && w.includes('clamp'))).toBe(
+      true,
+    );
+  });
+
+  it('clamp Preferred Entry khi VWAP dưới rangeLow', () => {
+    const plan = makeLongPlan({ entry: 100, sl: 98, tp1: 104 });
+    const result = applyVWAPEntryToPlan(plan, vwapResult(97), 'LONG')!;
+
+    expect(result.recommendedEntry).toBe(98);
+    expect(result.entryZone.optimal).toBeGreaterThanOrEqual(result.entryZone.rangeLow);
   });
 
   const vwapRecalcDecisions = [

@@ -1,0 +1,2 @@
+scripts/WebLauncher/obj/Release/net8.0/win-x64/WebLaunc.6BCEBD41.Up2Date
+scripts/WebLauncher/obj/Release/net8.0-windows/win-x64/WebLaunc.6BCEBD41.Up2Date

@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SCAN_INTERVAL_MS } from '../constants/scanSchedule';
 import { scanUnified } from '../services/scanUnified';
+import { notifyScanMarkPricesUpdated } from './scanMarkPriceBus';
+import { buildRc3ViewModelsFromScan } from '../services/v41/rc3/buildRc3ViewModel';
+import type { V41Rc3SignalCardModel } from '../services/v41/rc3/rc3ViewModelTypes';
 import {
   DEFAULT_SCAN_SYMBOLS_V41,
   scanV41,
   type SignalRowV41,
 } from '../services/v41/scanV41';
 
-type ScanV3V4Fn = () => void | Promise<void>;
+type ScanV3V4Fn = (force?: boolean) => void | Promise<void>;
 
 const DEFAULT_SYMBOLS: string[] = [...DEFAULT_SCAN_SYMBOLS_V41];
 
 /**
- * Một nhịp quét 60s cho toàn app — V3/V4 → V4.1 → Tổng hợp (tuần tự, một lần/chu kỳ).
+ * Một nhịp quét 60s cho toàn app — V3/V4 → V4.1 → ViewModel RC3 → Tổng hợp.
+ * ViewModel build tại biên scan (Task 10) — UI chỉ nhận cards.
  */
 export function useUnifiedAppScan(
   scanV3V4: ScanV3V4Fn,
@@ -27,6 +31,7 @@ export function useUnifiedAppScan(
   const runningRef = useRef(false);
 
   const [v41Rows, setV41Rows] = useState<SignalRowV41[]>([]);
+  const [v41Cards, setV41Cards] = useState<V41Rc3SignalCardModel[]>([]);
   const [v41Loading, setV41Loading] = useState(false);
   const [v41LastScannedAt, setV41LastScannedAt] = useState<number | null>(null);
 
@@ -41,9 +46,11 @@ export function useUnifiedAppScan(
     runningRef.current = true;
     setV41Loading(true);
     try {
-      await Promise.resolve(scanV3V4Ref.current());
+      await Promise.resolve(scanV3V4Ref.current(force));
       const v41Result = await scanV41(symbolsRef.current);
       setV41Rows(v41Result);
+      setV41Cards(buildRc3ViewModelsFromScan(v41Result));
+      notifyScanMarkPricesUpdated();
       const scannedAt = Date.now();
       setV41LastScannedAt(scannedAt);
       await scanUnified(symbolsRef.current);
@@ -76,5 +83,5 @@ export function useUnifiedAppScan(
     };
   }, []);
 
-  return { runUnifiedScan, v41Rows, v41Loading, v41LastScannedAt };
+  return { runUnifiedScan, v41Rows, v41Cards, v41Loading, v41LastScannedAt };
 }

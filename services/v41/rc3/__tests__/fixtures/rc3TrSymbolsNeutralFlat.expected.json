@@ -1,0 +1,77 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "displayName": "BTC",
+    "triggerType": null,
+    "confidence": 7.875,
+    "gate": {
+      "signalsPassed": 0,
+      "signalsRequired": 3,
+      "signalsTotal": 4,
+      "confidenceTr": 0,
+      "confidenceMin": 50,
+      "signalsMet": false,
+      "confidenceMet": false,
+      "activeEligible": false
+    },
+    "checklist": [
+      { "id": "cvd_flip", "label": "CVD Flip", "passed": false },
+      { "id": "volume", "label": "Volume Confirm", "passed": false },
+      { "id": "structure", "label": "Structure Break", "passed": false },
+      { "id": "exhaustion", "label": "Exhaustion", "passed": false }
+    ],
+    "levels": null,
+    "decision": "IGNORE",
+    "fetchedAt": 1720000000000
+  },
+  {
+    "symbol": "SOLUSDT",
+    "displayName": "SOL",
+    "triggerType": null,
+    "confidence": 7.875,
+    "gate": {
+      "signalsPassed": 0,
+      "signalsRequired": 3,
+      "signalsTotal": 4,
+      "confidenceTr": 0,
+      "confidenceMin": 50,
+      "signalsMet": false,
+      "confidenceMet": false,
+      "activeEligible": false
+    },
+    "checklist": [
+      { "id": "cvd_flip", "label": "CVD Flip", "passed": false },
+      { "id": "volume", "label": "Volume Confirm", "passed": false },
+      { "id": "structure", "label": "Structure Break", "passed": false },
+      { "id": "exhaustion", "label": "Exhaustion", "passed": false }
+    ],
+    "levels": null,
+    "decision": "IGNORE",
+    "fetchedAt": 1720000000000
+  },
+  {
+    "symbol": "BNBUSDT",
+    "displayName": "BNB",
+    "triggerType": null,
+    "confidence": 7.875,
+    "gate": {
+      "signalsPassed": 0,
+      "signalsRequired": 3,
+      "signalsTotal": 4,
+      "confidenceTr": 0,
+      "confidenceMin": 50,
+      "signalsMet": false,
+      "confidenceMet": false,
+      "activeEligible": false
+    },
+    "checklist": [
+      { "id": "cvd_flip", "label": "CVD Flip", "passed": false },
+      { "id": "volume", "label": "Volume Confirm", "passed": false },
+      { "id": "structure", "label": "Structure Break", "passed": false },
+      { "id": "exhaustion", "label": "Exhaustion", "passed": false }
+    ],
+    "levels": null,
+    "decision": "IGNORE",
+    "fetchedAt": 1720000000000
+  }
+]

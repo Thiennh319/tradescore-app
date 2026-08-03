@@ -10,6 +10,7 @@
 import type { IntegrationHarnessResult } from '../entryStateManager/integrationHarnessTypes';
 import type { StateMachineEntryState } from '../entryStateManager';
 import type { SignalRow } from '../signalBoardScan';
+import type { ProductionEsmScanContext } from './signalRowScanContext';
 
 /** Bridge module semantic version — UL-01.1 transport cleanup. */
 export const PRODUCTION_ESM_BRIDGE_VERSION = 'UL-01.1' as const;
@@ -48,6 +49,8 @@ export interface ProductionEsmBridgeSnapshot {
   readonly harnessResult: IntegrationHarnessResult | null;
   readonly halted: boolean;
   readonly message: string;
+  /** Read-only scorer context copied from SignalRow at bridge time — UL Review explanation only. */
+  readonly scanContext: ProductionEsmScanContext;
 }
 
 /** Input validation result. */

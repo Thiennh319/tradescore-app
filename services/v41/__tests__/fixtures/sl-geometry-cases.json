@@ -1,0 +1,38 @@
+[
+  {
+    "id": "2026-02-03T20",
+    "timestamp": 1770148800000,
+    "side": "LONG",
+    "entry": 1.176,
+    "file": "sl-geometry-2026-02-03T20.json",
+    "sl_after_fix": 1.115278098,
+    "side_ok": true
+  },
+  {
+    "id": "2026-03-12T08",
+    "timestamp": 1773302400000,
+    "side": "SHORT",
+    "entry": 1.322,
+    "file": "sl-geometry-2026-03-12T08.json",
+    "sl_after_fix": 1.3379919699999998,
+    "side_ok": true
+  },
+  {
+    "id": "2026-07-15T12",
+    "timestamp": 1784116800000,
+    "side": "SHORT",
+    "entry": 2.076,
+    "file": "sl-geometry-2026-07-15T12.json",
+    "sl_after_fix": 2.1116128909999996,
+    "side_ok": true
+  },
+  {
+    "id": "2026-07-18T08",
+    "timestamp": 1784361600000,
+    "side": "LONG",
+    "entry": 1.904,
+    "file": "sl-geometry-2026-07-18T08.json",
+    "sl_after_fix": 1.892593136,
+    "side_ok": true
+  }
+]

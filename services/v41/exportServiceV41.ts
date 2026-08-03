@@ -829,8 +829,16 @@ export function buildExportRowV41(
     earlyWarningBlockMessage: earlyWarning?.blockMessage ?? '',
     earlyWarningSignalCount: num(earlyWarning?.signalCount),
 
-    reversalPhase: reversalState?.phase ?? 'NONE',
-    reversalCounterDirection: reversalState?.counterDirection ?? '',
+    // Path A off for breakout symbols → phase NONE / counter ''. Never stringify null as "undefined".
+    reversalPhase:
+      reversalState?.phase != null && reversalState.phase !== ''
+        ? reversalState.phase
+        : 'NONE',
+    reversalCounterDirection:
+      reversalState?.counterDirection === 'LONG' ||
+      reversalState?.counterDirection === 'SHORT'
+        ? reversalState.counterDirection
+        : '',
 
     entryQuality: num(opportunity?.entryQuality),
     entryQualityLong: num(opportunity?.entryQualityLong),

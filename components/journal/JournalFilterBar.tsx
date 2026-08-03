@@ -1,6 +1,7 @@
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLORS, type AppTradeSymbol } from '../../constants/scoring';
 import { RADIUS, SPACING } from '../../constants/theme';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 
 const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {};
 
@@ -31,6 +32,8 @@ export function JournalFilterBar({
   onStatusChange,
   onExportCsv,
 }: JournalFilterBarProps) {
+  const { isMobile } = useResponsiveLayout();
+
   return (
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
@@ -46,7 +49,7 @@ export function JournalFilterBar({
           </Pressable>
         ))}
       </ScrollView>
-      <View style={styles.bottomRow}>
+      <View style={[styles.bottomRow, isMobile && styles.bottomRowMobile]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
           {STATUS_OPTIONS.map((opt) => (
             <Pressable
@@ -72,13 +75,20 @@ export function JournalFilterBar({
 
 const styles = StyleSheet.create({
   wrap: { gap: SPACING.sm },
-  row: { gap: SPACING.sm, paddingVertical: 2 },
+  row: { gap: SPACING.sm, paddingVertical: SPACING.xs },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
   },
+  bottomRowMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: SPACING.sm,
+  },
   chip: {
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: RADIUS.pill,
@@ -97,8 +107,10 @@ const styles = StyleSheet.create({
   },
   chipTextActive: { color: COLORS.accent },
   exportBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: 8,
+    paddingVertical: SPACING.sm,
     borderRadius: RADIUS.sm,
     backgroundColor: COLORS.surface,
     borderWidth: 1,

@@ -6,7 +6,7 @@ import {
   exportJournalToCSV,
   exportSkippedSetupsToCSV,
   generateTextReport,
-} from './exportService';
+} from './journalExportService';
 import { getVietnamDateParts } from '../store/useTradeStore';
 
 async function writeAndShareFile(
@@ -14,7 +14,11 @@ async function writeAndShareFile(
   content: string,
 ): Promise<void> {
   if (Platform.OS === 'web') {
-    const mime = filename.endsWith('.csv') ? 'text/csv' : filename.endsWith('.json') ? 'application/json' : 'text/plain';
+    const mime = filename.endsWith('.csv')
+      ? 'text/csv'
+      : filename.endsWith('.json')
+        ? 'application/json'
+        : 'text/plain';
     downloadTextFile(filename, content, mime);
     return;
   }
@@ -32,7 +36,8 @@ async function writeAndShareFile(
       title: filename,
       message: Platform.OS === 'android' ? content.slice(0, 8000) : undefined,
     });
-  } catch {
+  } catch (err) {
+    console.error('[exportShare] native file share failed, falling back to Share.message', err);
     await Share.share({ message: content, title: filename });
   }
 }

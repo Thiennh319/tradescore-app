@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../constants/scoring';
 import { SPACING } from '../../constants/theme';
 import { vi } from '../../constants/vi';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { disableTradeApp, enableTradeApp, useTradeAppState } from '../../store/useTradeAppState';
 import { SyncStatusBadge } from '../SyncStatusBadge';
 import type { SyncState } from '../../types/driveSync';
@@ -29,6 +30,7 @@ export function HeaderBar({
   syncState,
   onSyncPress,
 }: HeaderBarProps) {
+  const { isCompact, isMobile, contentPadding } = useResponsiveLayout();
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const tradeAppEnabled = useTradeAppState((s) => s.tradeAppEnabled);
   const statusColor = isLive ? COLORS.bullish : COLORS.warning;
@@ -55,17 +57,26 @@ export function HeaderBar({
 
   return (
     <View style={[styles.wrap, !tradeAppEnabled && styles.wrapWhenLocked]}>
-      <View style={styles.bar}>
-        <View style={styles.brand}>
+      <View style={[styles.bar, { paddingHorizontal: contentPadding }, isMobile && styles.barMobile]}>
+        <View style={[styles.brand, isMobile && styles.brandMobile]}>
           <View style={styles.logo}>
             <Text style={styles.logoText}>TS</Text>
           </View>
-          <View>
-            <Text style={styles.title}>{vi.header.title}</Text>
-            <Text style={styles.tagline}>{vi.header.tagline}</Text>
+          <View style={styles.titleBlock}>
+            <Text style={styles.title} numberOfLines={1}>
+              {vi.header.title}
+            </Text>
+            <Text style={styles.tagline} numberOfLines={isCompact ? 1 : 2}>
+              {vi.header.tagline}
+            </Text>
           </View>
           <Pressable
-            style={[styles.tradeToggleButton, tradeToggleStyle, webPointer]}
+            style={[
+              styles.tradeToggleButton,
+              tradeToggleStyle,
+              isMobile && styles.tradeToggleMobile,
+              webPointer,
+            ]}
             accessibilityLabel={tradeToggleLabel}
             onPress={() => {
               if (tradeAppEnabled) setDisableConfirmOpen(true);
@@ -78,7 +89,7 @@ export function HeaderBar({
           </Pressable>
         </View>
 
-        <View style={styles.meta}>
+        <View style={[styles.meta, isMobile && styles.metaMobile]}>
           <View style={[styles.statusPill, { borderColor: statusColor }]}>
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
@@ -141,10 +152,26 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     flexWrap: 'wrap',
   },
+  barMobile: {
+    paddingTop: SPACING.xs,
+    gap: SPACING.sm,
+  },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
+    flexShrink: 1,
+    minWidth: 0,
+    flexWrap: 'wrap',
+  },
+  brandMobile: {
+    flex: 1,
+    minWidth: '100%',
+  },
+  titleBlock: {
+    flexShrink: 1,
+    minWidth: 0,
+    flex: 1,
   },
   logo: {
     width: 38,
@@ -177,6 +204,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     marginLeft: SPACING.sm,
+    flexShrink: 0,
+  },
+  tradeToggleMobile: {
+    marginLeft: 0,
   },
   tradeToggleText: {
     fontSize: 10,
@@ -200,14 +231,20 @@ const styles = StyleSheet.create({
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.sm,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  metaMobile: {
+    width: '100%',
+    justifyContent: 'flex-start',
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: SPACING.xs,
     backgroundColor: COLORS.background,
     paddingHorizontal: 10,
     paddingVertical: 5,

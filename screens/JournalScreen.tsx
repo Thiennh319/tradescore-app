@@ -9,6 +9,7 @@ import {
   type JournalStatusFilter,
 } from '../components/journal/JournalFilterBar';
 import { JournalTradeTable } from '../components/journal/JournalTradeTable';
+import { JournalIntelligenceSummary } from '../components/journal/JournalIntelligenceSummary';
 import { JournalPartialStats } from '../components/journal/JournalPartialStats';
 import type { AiTradeJournalEntry } from '../constants/aiJournal';
 import { COLORS, type AppTradeSymbol } from '../constants/scoring';
@@ -77,12 +78,27 @@ export function JournalScreen({ signalRows, v41Rows = [] }: JournalScreenProps) 
 
   const handleExport = async () => {
     try {
+      if (allVisible.length === 0) {
+        Alert.alert('Xuất CSV', 'Không có lệnh nào để xuất.');
+        return;
+      }
       await shareJournalCsv(allVisible, getAccountHistory());
-      if (skippedSetups.some((e) => !e.archived)) {
+      const activeSkipped = skippedSetups.filter((e) => !e.archived);
+      if (activeSkipped.length > 0) {
         await shareSkippedSetupsCsv(skippedSetups);
       }
+      Alert.alert(
+        'Xuất CSV',
+        activeSkipped.length > 0
+          ? `Đã xuất ${allVisible.length} lệnh + ${activeSkipped.length} skipped setup.`
+          : `Đã xuất ${allVisible.length} lệnh.`,
+      );
     } catch (e) {
-      Alert.alert('Export', String(e));
+      console.error('[JournalScreen] Xuất CSV thất bại', e);
+      Alert.alert(
+        'Xuất CSV thất bại',
+        e instanceof Error ? e.message : String(e),
+      );
     }
   };
 
@@ -139,6 +155,7 @@ export function JournalScreen({ signalRows, v41Rows = [] }: JournalScreenProps) 
       )}
 
       <JournalPartialStats entries={allVisible} />
+      <JournalIntelligenceSummary entries={allVisible} />
 
       <JournalEntryDetail
         entry={detailEntry}
@@ -192,7 +209,7 @@ export function JournalScreen({ signalRows, v41Rows = [] }: JournalScreenProps) 
 
 const styles = StyleSheet.create({
   root: { gap: SPACING.md },
-  header: { gap: 2 },
+  header: { gap: SPACING.xs },
   title: {
     fontSize: 16,
     fontWeight: '800',
@@ -211,7 +228,7 @@ const styles = StyleSheet.create({
   releaseBox: {
     ...PANEL,
     padding: SPACING.md,
-    gap: 2,
+    gap: SPACING.xs,
   },
   releaseTitle: {
     fontSize: 10,
@@ -219,7 +236,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
   },
   releaseItem: {
     fontSize: 10,

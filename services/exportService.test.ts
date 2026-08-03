@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AiTradeJournalEntry, WeeklyStats } from '../constants/aiJournal';
-import { exportJournalToCSV, generateTextReport } from './exportService';
+import { exportJournalToCSV, generateTextReport } from './journalExportService';
 
 function miniEntry(): AiTradeJournalEntry {
   return {

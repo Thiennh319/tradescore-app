@@ -1,0 +1,101 @@
+/**
+ * Task 12B.1 — Trade Event Contract public API.
+ * Foundation only — không Event Store / Projector / Journal / UI.
+ */
+
+export {
+  ADVISOR_ACTION_CODES,
+  ADVISOR_REASON_CODES,
+  DECISION_CODES,
+  EXIT_REASON_CODES,
+  ORDER_SIDE_CODES,
+  ORDER_TYPE_CODES,
+  PARTIAL_EXIT_REASON_CODES,
+  STRATEGY_VERSIONS,
+  TP_LEVEL_CODES,
+  TRADE_AGGREGATE_TYPES,
+  TRADE_EVENT_SOURCES,
+  TRADE_EVENT_TYPES,
+  TRIGGER_CODES,
+  isTerminalTradeEventType,
+  isTradeEventSource,
+  isTradeEventType,
+  type AdvisorActionCode,
+  type AdvisorReasonCode,
+  type DecisionCode,
+  type ExitReasonCode,
+  type OrderSideCode,
+  type OrderTypeCode,
+  type PartialExitReasonCode,
+  type StrategyVersion,
+  type TpLevelCode,
+  type TradeAggregateType,
+  type TradeEventSource,
+  type TradeEventType,
+  type TriggerCode,
+} from './tradeEventEnums';
+
+export {
+  TRADE_EVENT_PRODUCER_VERSION,
+  TRADE_EVENT_SCHEMA_VERSION,
+  TRADE_EVENT_VERSION,
+  isKnownSchemaVersion,
+  isValidEventVersion,
+  isValidProducerVersion,
+  isValidSchemaVersion,
+  type TradeEventProducerVersion,
+  type TradeEventSchemaVersion,
+  type TradeEventVersion,
+} from './tradeEventVersion';
+
+export type {
+  AdviserUpdatedEvent,
+  AdviserUpdatedPayload,
+  CreateTradeEventInput,
+  HeartbeatEvent,
+  HeartbeatPayload,
+  OrderFilledEvent,
+  OrderFilledPayload,
+  OrderSubmittedEvent,
+  OrderSubmittedPayload,
+  PartialExitEvent,
+  PartialExitPayload,
+  PositionRunningEvent,
+  PositionRunningPayload,
+  SlReachedEvent,
+  SlReachedPayload,
+  StopMovedEvent,
+  StopMovedPayload,
+  SyncAckEvent,
+  SyncAckPayload,
+  TpReachedEvent,
+  TpReachedPayload,
+  TradeCancelledEvent,
+  TradeCancelledPayload,
+  TradeClosedEvent,
+  TradeClosedPayload,
+  TradeCreatedEvent,
+  TradeCreatedPayload,
+  TradeEvent,
+  TradeEventAggregate,
+  TradeEventBase,
+  TradeEventMetadata,
+  TradeEventPayload,
+  TradeEventPayloadByType,
+} from './tradeEventTypes';
+
+export {
+  TradeEventFactory,
+  TradeEventFactoryError,
+  createTradeEvent,
+  generateTradeEventId,
+  toCreatedAtUtc,
+} from './tradeEventFactory';
+
+export {
+  validateTradeEvent,
+  validateTradeEventBatch,
+  type TradeEventValidationIssue,
+  type TradeEventValidationIssueCode,
+  type TradeEventValidationResult,
+} from './tradeEventValidator';

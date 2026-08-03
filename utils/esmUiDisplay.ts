@@ -1,8 +1,7 @@
 /**
- * ESM UI display helpers — read-only hint rendering (UL-03 / UL-03.1 / UL-03.2).
+ * ESM UI display helpers — read-only hint + UL Review rendering (UL-03 / Journal).
  *
- * **Purpose:** Map `esmBridge.snapshotBySymbol[symbol]` to review hint + tooltip.
- * Position Adviser recommendation stays primary — ESM is hint only.
+ * **Purpose:** Map `esmBridge.snapshotBySymbol[symbol]` to journal Recommendation + tooltips.
  *
  * **Must NOT:** Call pipeline, scoring, Position Adviser, Mapping, or RuleBook evaluation.
  *
@@ -10,6 +9,8 @@
  */
 
 import type { ProductionEsmBridgeSnapshot } from '../services/productionEsmBridge/productionEsmBridgeTypes';
+import { EntryActionType } from '../services/entryStateManager/actionTypes';
+import { EntryState } from '../services/entryStateManager/stateMachineTypes';
 
 /** RuleBook entry states only — no WAIT business state. */
 export type EsmRuleBookHint = 'READY' | 'WATCH' | 'BLOCKED' | 'LOCKED';
@@ -288,17 +289,167 @@ export function resolveEsmRecommendationColor(_code: EsmRecommendationCode | 'N/
   return '#848E9C';
 }
 
-/** @deprecated UL-03 — use resolveEsmHintDisplay */
+/** @deprecated UL-03 — use resolveEsmUlReviewDisplay */
 export function resolveEsmRecommendationDisplay(
   snapshot: ProductionEsmBridgeSnapshot | null | undefined,
   symbol: string,
 ): { code: EsmRecommendationCode | 'N/A'; label: string; color: string; tooltipLines: readonly string[] } {
-  const hint = resolveEsmHintDisplay(snapshot, symbol);
-  const code = hint.hintCode ?? 'N/A';
+  const review = resolveEsmUlReviewDisplay(snapshot, symbol);
   return {
-    code,
-    label: hint.hintBadge ?? '—',
+    code: resolveEsmRuleBookHint(snapshot, symbol) ?? 'N/A',
+    label: review.label,
     color: '#848E9C',
-    tooltipLines: hint.tooltipLines,
+    tooltipLines: review.tooltipLines,
   };
+}
+
+export type EsmUlReviewTone = 'hold' | 'close' | 'wait' | 'neutral';
+
+export interface EsmUlReviewDisplay {
+  readonly label: string;
+  readonly tone: EsmUlReviewTone;
+  readonly tooltipLines: readonly string[];
+}
+
+const UL_REVIEW_ACTION_LABELS: Record<EntryActionType, string> = {
+  [EntryActionType.NO_ACTION]: 'No Action',
+  [EntryActionType.PREPARE_ENTRY]: 'Wait Confirmation',
+  [EntryActionType.CONFIRM_ENTRY]: 'Wait Confirmation',
+  [EntryActionType.OPEN_POSITION]: 'Hold Position',
+  [EntryActionType.MONITOR_POSITION]: 'Hold Position',
+  [EntryActionType.PREPARE_EXIT]: 'Close Position',
+  [EntryActionType.CLOSE_POSITION]: 'Close Position',
+  [EntryActionType.RESET_STATE]: 'No Action',
+};
+
+const UL_REVIEW_HINT_LABELS: Record<EsmRuleBookHint, string> = {
+  READY: 'Hold Position',
+  WATCH: 'Wait Confirmation',
+  BLOCKED: 'Emergency Exit',
+  LOCKED: 'Wait Confirmation',
+};
+
+const UL_REVIEW_STATE_LABELS: Partial<Record<EntryState, string>> = {
+  [EntryState.ACTIVE]: 'Hold Position',
+  [EntryState.EXIT]: 'Close Position',
+  [EntryState.WATCH]: 'Wait Confirmation',
+  [EntryState.BLOCKED]: 'Emergency Exit',
+  [EntryState.LOCKED]: 'Wait Confirmation',
+  [EntryState.READY]: 'Hold Position',
+  [EntryState.ENTRY]: 'Wait Confirmation',
+  [EntryState.IDLE]: 'No Action',
+};
+
+const UL_REVIEW_ACTION_PRIORITY: readonly EntryActionType[] = [
+  EntryActionType.CLOSE_POSITION,
+  EntryActionType.PREPARE_EXIT,
+  EntryActionType.MONITOR_POSITION,
+  EntryActionType.OPEN_POSITION,
+  EntryActionType.CONFIRM_ENTRY,
+  EntryActionType.PREPARE_ENTRY,
+  EntryActionType.RESET_STATE,
+  EntryActionType.NO_ACTION,
+];
+
+function resolveUlReviewTone(label: string): EsmUlReviewTone {
+  const lower = label.toLowerCase();
+  if (lower.includes('close') || lower.includes('emergency') || lower.includes('exit')) {
+    return 'close';
+  }
+  if (lower.includes('wait') || lower.includes('confirmation')) return 'wait';
+  if (lower.includes('hold') || lower.includes('monitor')) return 'hold';
+  return 'neutral';
+}
+
+function resolvePrimaryUlReviewAction(
+  snapshot: ProductionEsmBridgeSnapshot,
+): EntryActionType | null {
+  const actions = snapshot.harnessResult?.pipelineResult.actionEngineResult.actions ?? [];
+  if (actions.length === 0) return null;
+
+  for (const actionType of UL_REVIEW_ACTION_PRIORITY) {
+    if (actions.some((action) => action.actionType === actionType)) {
+      return actionType;
+    }
+  }
+  return actions[0]?.actionType ?? null;
+}
+
+function resolveUlReviewStateLabel(snapshot: ProductionEsmBridgeSnapshot): string | null {
+  const sm = snapshot.harnessResult?.pipelineResult.stateMachineResult;
+  const state = sm?.nextState ?? sm?.currentState ?? snapshot.mappedCurrentState;
+  if (state == null) return null;
+  return UL_REVIEW_STATE_LABELS[state as EntryState] ?? null;
+}
+
+function collectUlReviewTooltipLines(
+  snapshot: ProductionEsmBridgeSnapshot,
+  symbol: string,
+): readonly string[] {
+  const hint = resolveHintFromSnapshot(snapshot, symbol);
+  if (hint) {
+    return resolveEsmTooltipLines(snapshot, symbol);
+  }
+  const action = snapshot.harnessResult?.pipelineResult.actionEngineResult.actions[0];
+  if (action?.reason && isUserFriendlyLine(action.reason)) {
+    return [`• ${shortenLine(action.reason)}`];
+  }
+  if (snapshot.message && isUserFriendlyLine(snapshot.message)) {
+    return [`• ${shortenLine(snapshot.message)}`];
+  }
+  return [];
+}
+
+/**
+ * Latest UL Review (ESM) label for journal Recommendation column — read-only snapshot.
+ */
+export function resolveEsmUlReviewDisplay(
+  snapshot: ProductionEsmBridgeSnapshot | null | undefined,
+  symbol: string,
+): EsmUlReviewDisplay {
+  if (!snapshot || snapshot.symbol !== symbol) {
+    return { label: '—', tone: 'neutral', tooltipLines: [] };
+  }
+  if (!snapshot.entryStateManagerEnabled || !snapshot.harnessResult) {
+    return { label: '—', tone: 'neutral', tooltipLines: [] };
+  }
+
+  const primaryAction = resolvePrimaryUlReviewAction(snapshot);
+  if (primaryAction && primaryAction !== EntryActionType.NO_ACTION) {
+    const label = UL_REVIEW_ACTION_LABELS[primaryAction];
+    return {
+      label,
+      tone: resolveUlReviewTone(label),
+      tooltipLines: collectUlReviewTooltipLines(snapshot, symbol),
+    };
+  }
+
+  const stateLabel = resolveUlReviewStateLabel(snapshot);
+  if (stateLabel) {
+    return {
+      label: stateLabel,
+      tone: resolveUlReviewTone(stateLabel),
+      tooltipLines: collectUlReviewTooltipLines(snapshot, symbol),
+    };
+  }
+
+  const hint = resolveHintFromSnapshot(snapshot, symbol);
+  if (hint) {
+    const label = UL_REVIEW_HINT_LABELS[hint];
+    return {
+      label,
+      tone: resolveUlReviewTone(label),
+      tooltipLines: collectUlReviewTooltipLines(snapshot, symbol),
+    };
+  }
+
+  if (hasObserveDisplay(snapshot)) {
+    return {
+      label: 'No Action',
+      tone: 'neutral',
+      tooltipLines: collectUlReviewTooltipLines(snapshot, symbol),
+    };
+  }
+
+  return { label: '—', tone: 'neutral', tooltipLines: [] };
 }

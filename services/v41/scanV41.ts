@@ -26,6 +26,7 @@ import {
   generateReversalSetup,
   type ReversalTradeSetup,
 } from './reversalTradeSetup';
+import { resolveSymbolStrategy } from './strategy/resolveSymbolStrategy';
 import type { MarketIntelligenceSnapshot, OpenDirection, PositionState, VisibilityMode } from './types';
 import {
   resolveTradeModeUpgrade,
@@ -37,6 +38,9 @@ const ACTIVE_VISIBILITY_MODES: VisibilityMode[] = [
   'TRADE_MODE',
   'POSITION_MODE',
 ];
+
+/** Khớp MIN_KLINES trong momentumEngine1H — tránh gate EQ khi chưa đủ nến 1H. */
+const MOMENTUM_EQ_MIN_KLINES = 22;
 
 export type EarlyWarningSnapshot = EarlyWarningResult & {
   severity: EarlyWarningSeverity;
@@ -56,6 +60,15 @@ export interface SignalRowV41 {
   markPrice?: number;
   klines1H?: KlineV41[];
   klines30M?: KlineV41[];
+  /**
+   * Task 10 wire pass-through — klines 4H đã fetch trong scan (không API mới).
+   * Dùng cho Market Context / Volatility Explosion ViewModel.
+   */
+  klines4H?: KlineV41[];
+  /** BTC 4H đã fetch cùng scan — pass-through only. */
+  btcKlines4H?: KlineV41[];
+  /** Funding đã fetch cùng scan — pass-through only. */
+  fundingRate?: number;
   momentum?: MomentumResult;
   exhaustion?: ExhaustionResult;
   fetchedAt: number;
@@ -102,6 +115,9 @@ function resolveOpportunity(
   snapshot: MarketIntelligenceSnapshot,
   hysteresisMode: VisibilityMode,
   protection: ProtectionSnapshot,
+  momentum?: MomentumResult,
+  exhaustion?: ExhaustionResult,
+  earlyWarningBlocked?: boolean,
 ): OpportunitySnapshot | undefined {
   if (!ACTIVE_VISIBILITY_MODES.includes(hysteresisMode)) {
     return undefined;
@@ -110,6 +126,9 @@ function resolveOpportunity(
   return computeEntryQuality({
     snapshot,
     protection,
+    momentum,
+    exhaustion,
+    earlyWarningBlocked,
   });
 }
 
@@ -157,11 +176,27 @@ function resolveEarlyWarning(
   }
 }
 
+function emptyReversalState(symbol: string): ReversalState {
+  return {
+    phase: 'NONE',
+    detectedAt: 0,
+    retestPrice: null,
+    counterDirection: null,
+    expiresAt: null,
+    symbol,
+  };
+}
+
 function resolveReversalState(
   symbol: string,
   raw: Awaited<ReturnType<typeof fetchRawMarketV41>>,
   snapshot: MarketIntelligenceSnapshot,
 ): ReversalState {
+  /** Path A EMA-retest — tắt cho symbol dùng breakout strategy (NEAR). */
+  if (resolveSymbolStrategy(symbol) === 'breakout') {
+    return emptyReversalState(symbol);
+  }
+
   try {
     const reversalStore = useReversalStore.getState();
     const currentRevState = reversalStore.getState(symbol);
@@ -240,7 +275,15 @@ async function scanOneSymbolV41(symbol: string): Promise<SignalRowV41> {
     const earlyWarning = resolveEarlyWarning(symbol, raw, snapshot);
     const reversalState = resolveReversalState(symbol, raw, snapshot);
     const hysteresis = resolveVisibilityHysteresis(snapshot, positionState, previousMode);
-    const opportunity = resolveOpportunity(snapshot, hysteresis.mode, protection);
+    const klines1H = raw.klines1H ?? [];
+    const opportunity = resolveOpportunity(
+      snapshot,
+      hysteresis.mode,
+      protection,
+      klines1H.length >= MOMENTUM_EQ_MIN_KLINES ? momentum : undefined,
+      exhaustion,
+      earlyWarning?.severity === 'BLOCK',
+    );
     let visibilityMode = resolveTradeModeUpgrade(
       hysteresis.mode,
       positionState.hasOpenPosition,
@@ -275,6 +318,9 @@ async function scanOneSymbolV41(symbol: string): Promise<SignalRowV41> {
       markPrice,
       klines1H: raw.klines1H,
       klines30M: raw.klines30M,
+      klines4H: raw.klines,
+      btcKlines4H: raw.btcKlines,
+      fundingRate: raw.fundingRate,
       momentum,
       exhaustion,
       fetchedAt: raw.fetchedAt,

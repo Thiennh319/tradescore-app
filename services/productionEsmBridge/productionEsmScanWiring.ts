@@ -19,7 +19,7 @@ import {
   writeEsmSnapshotToStoreIfChanged,
   type EsmSnapshotStoreWriter,
 } from './esmStoreBridge';
-import { resolveEligibleEsmSymbols } from './productionEsmSymbolFilter';
+import { resolveEligibleEsmSymbols, resolveEsmInjectedCurrentState } from './productionEsmSymbolFilter';
 
 export const PRODUCTION_ESM_SCAN_WIRING_VERSION = 'UL-04.1' as const;
 
@@ -134,11 +134,13 @@ export function wireProductionEsmAfterScan(
 
     const bridgeStart = nowMs();
     try {
+      const injectedState = resolveEsmInjectedCurrentState(row.symbol, filterInput);
       const snapshot = runProductionEsmBridge({
         signalRow: row,
         scanId: `${baseScanId}-${row.symbol}`,
         timestamp,
         entryStateManagerEnabled: true,
+        ...(injectedState != null ? { currentState: injectedState } : {}),
       });
       bridgeMs += nowMs() - bridgeStart;
       bridgeRuns += 1;
