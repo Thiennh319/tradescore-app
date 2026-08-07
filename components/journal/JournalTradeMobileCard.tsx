@@ -14,10 +14,8 @@ import {
 } from '../../services/journalService';
 import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
-import { resolveJournalLiveMark } from '../../hooks/useJournalMarketSync';
 import {
-  resolveJournalUlReviewExplanation,
-  resolveJournalUlReviewRecommendation,
+  resolveJournalActiveTradeRecommendation,
   resolveJournalUlReviewRecommendationColor,
 } from '../../utils/journalRecommendationDisplay';
 import { getEsmSnapshotForSymbol, type EsmBridgeState } from '../../store/esmBridgeTypes';
@@ -58,7 +56,8 @@ export interface JournalTradeMobileCardProps {
   markPrice?: number;
   unrealizedPnl?: number | null;
   pnlBreakdown?: JournalPnlBreakdown;
-  esmUlReviewLabel?: string;
+  /** Per-entry Position Advisor label (OPEN); omitted → ESM fallback. */
+  advisorLabel?: string;
   esmBridge: EsmBridgeState;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
@@ -71,7 +70,7 @@ export function JournalTradeMobileCard({
   markPrice,
   unrealizedPnl,
   pnlBreakdown,
-  esmUlReviewLabel,
+  advisorLabel,
   esmBridge,
   onDetail,
   onStopTrade,
@@ -108,10 +107,17 @@ export function JournalTradeMobileCard({
   const pnlColor =
     totalPnl == null ? COLORS.textMuted : totalPnl >= 0 ? COLORS.bullish : COLORS.bearish;
   const esmSnapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
-  const ulReview = resolveJournalUlReviewRecommendation(entry, esmSnapshot);
-  const ulExplanation = resolveJournalUlReviewExplanation(entry, esmSnapshot);
-  const recommendation = esmUlReviewLabel ?? ulReview.label;
-  const toneKey = resolveJournalUlReviewRecommendationColor(ulReview.tone);
+  const advisorById =
+    advisorLabel != null && advisorLabel.trim() !== ''
+      ? { [entry.id]: advisorLabel }
+      : undefined;
+  const displayRec = resolveJournalActiveTradeRecommendation(
+    entry,
+    esmSnapshot,
+    advisorById,
+  );
+  const recommendation = displayRec.label;
+  const toneKey = resolveJournalUlReviewRecommendationColor(displayRec.tone);
   const recommendationColor =
     toneKey === 'close'
       ? COLORS.bearish
@@ -144,9 +150,7 @@ export function JournalTradeMobileCard({
         recommendationColor={recommendationColor}
         hintBadge={null}
         width={0}
-        tooltipLines={ulReview.tooltipLines}
-        explanationPanel={ulExplanation}
-        stacked
+        tooltipLines={displayRec.tooltipLines}
       />
 
       <View style={styles.priceGrid}>
@@ -343,7 +347,7 @@ export const MemoJournalTradeMobileCard = memo(JournalTradeMobileCard, (prev, ne
   if (prev.entry.outcome.status !== next.entry.outcome.status) return false;
   if (prev.markPrice !== next.markPrice) return false;
   if (prev.unrealizedPnl !== next.unrealizedPnl) return false;
-  if (prev.esmUlReviewLabel !== next.esmUlReviewLabel) return false;
+  if (prev.advisorLabel !== next.advisorLabel) return false;
   const p = prev.pnlBreakdown;
   const n = next.pnlBreakdown;
   if (p?.totalPnl !== n?.totalPnl) return false;

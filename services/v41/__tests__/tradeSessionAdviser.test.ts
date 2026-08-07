@@ -8,6 +8,7 @@ import {
 import {
   buildTradeSessionAdviserPatches,
   buildTradeSessionAdvisorViewModel,
+  isV41SessionEntryFilled,
 } from '../rc3/buildTradeSessionAdviser';
 import type { V41TradeSession } from '../rc3/rc3ViewModelTypes';
 import type { SignalRowV41 } from '../scanV41';
@@ -82,6 +83,20 @@ function baseRow(overrides: Partial<SignalRowV41> = {}): SignalRowV41 {
   };
 }
 
+describe('isV41SessionEntryFilled — limit touch', () => {
+  it('LONG fills only when mark <= entry', () => {
+    expect(isV41SessionEntryFilled('LONG', 64999, 65000)).toBe(true);
+    expect(isV41SessionEntryFilled('LONG', 65000, 65000)).toBe(true);
+    expect(isV41SessionEntryFilled('LONG', 65001, 65000)).toBe(false);
+  });
+
+  it('SHORT fills only when mark >= entry', () => {
+    expect(isV41SessionEntryFilled('SHORT', 1.665, 1.665)).toBe(true);
+    expect(isV41SessionEntryFilled('SHORT', 1.67, 1.665)).toBe(true);
+    expect(isV41SessionEntryFilled('SHORT', 1.642, 1.665)).toBe(false);
+  });
+});
+
 describe('Task 11 — Trade Session Position Adviser wire', () => {
   it('Pending → Waiting Fill and does not call evaluatePositionV41', () => {
     mockEvaluate.mockClear();
@@ -111,19 +126,84 @@ describe('Task 11 — Trade Session Position Adviser wire', () => {
     expect(advice.reason).toContain('Giữ lệnh');
   });
 
-  it('patches promote Pending→Running when mark available then advise', () => {
+  it('patches keep Pending/Waiting Fill when mark exists but has not touched entry', () => {
     mockEvaluate.mockClear();
+    // LONG limit 65000 — mark 65100 chưa chạm (cần mark <= entry)
     const patches = buildTradeSessionAdviserPatches(
-      [baseSession({ status: 'Pending' })],
-      [baseRow()],
+      [baseSession({ status: 'Pending', entry: 65000 })],
+      [baseRow({ markPrice: 65100 })],
+      100,
+    );
+    expect(patches).toHaveLength(1);
+    expect(patches[0].status).toBe('Pending');
+    expect(patches[0].advisor).toBe('Waiting Fill');
+    expect(patches[0].advisorActionCode).toBe('WAITING_FILL');
+    expect(patches[0].current).toBe(65100);
+    expect(patches[0].pnl).toBeNull();
+    expect(mockEvaluate).not.toHaveBeenCalled();
+  });
+
+  it('patches promote Pending→Running when mark touches entry then advise', () => {
+    mockEvaluate.mockClear();
+    // LONG: mark 64950 <= entry 65000 → filled
+    const patches = buildTradeSessionAdviserPatches(
+      [baseSession({ status: 'Pending', entry: 65000 })],
+      [baseRow({ markPrice: 64950 })],
       100,
     );
     expect(patches).toHaveLength(1);
     expect(patches[0].status).toBe('Running');
     expect(patches[0].advisor).toBe('Hold');
     expect(patches[0].advisorActionCode).toBe('HOLD');
-    expect(patches[0].current).toBe(65100);
+    expect(patches[0].current).toBe(64950);
     expect(patches[0].advisorUpdatedAt).toBe(toAdvisorUpdatedAtUtc(100));
+    expect(mockEvaluate).toHaveBeenCalled();
+  });
+
+  it('NEAR SHORT breakout: stay Waiting Fill while mark is below entry (not yet touched)', () => {
+    mockEvaluate.mockClear();
+    const patches = buildTradeSessionAdviserPatches(
+      [
+        baseSession({
+          symbol: 'NEARUSDT',
+          displayName: 'NEAR',
+          action: 'SHORT',
+          status: 'Pending',
+          entry: 1.665,
+          current: 1.665,
+          stop: 1.7,
+          tp: 1.6,
+          triggerType: 'Breakout Confirmed',
+        }),
+      ],
+      [baseRow({ symbol: 'NEARUSDT', markPrice: 1.642 })],
+      100,
+    );
+    expect(patches[0].status).toBe('Pending');
+    expect(patches[0].advisor).toBe('Waiting Fill');
+    expect(patches[0].pnl).toBeNull();
+    expect(patches[0].current).toBe(1.642);
+    expect(mockEvaluate).not.toHaveBeenCalled();
+  });
+
+  it('NEAR SHORT breakout: promote Running only when mark >= entry', () => {
+    mockEvaluate.mockClear();
+    const patches = buildTradeSessionAdviserPatches(
+      [
+        baseSession({
+          symbol: 'NEARUSDT',
+          displayName: 'NEAR',
+          action: 'SHORT',
+          status: 'Pending',
+          entry: 1.665,
+          triggerType: 'Breakout Confirmed',
+        }),
+      ],
+      [baseRow({ symbol: 'NEARUSDT', markPrice: 1.665 })],
+      100,
+    );
+    expect(patches[0].status).toBe('Running');
+    expect(patches[0].advisor).toBe('Hold');
     expect(mockEvaluate).toHaveBeenCalled();
   });
 

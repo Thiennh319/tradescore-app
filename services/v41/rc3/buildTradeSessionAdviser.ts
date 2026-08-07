@@ -163,8 +163,25 @@ export function buildTradeSessionAdvisorViewModel(input: {
 }
 
 /**
+ * Paper fill giống lệnh chờ limit (Binance): giá phải chạm Entry.
+ * LONG: mark <= entry · SHORT: mark >= entry.
+ * Breakout Confirm B / TR chỉ là tín hiệu — không coi signal = đã vào lệnh.
+ */
+export function isV41SessionEntryFilled(
+  action: 'LONG' | 'SHORT',
+  markPrice: number,
+  entry: number,
+): boolean {
+  if (!Number.isFinite(markPrice) || !Number.isFinite(entry) || entry <= 0 || markPrice <= 0) {
+    return false;
+  }
+  return action === 'LONG' ? markPrice <= entry : markPrice >= entry;
+}
+
+/**
  * Áp adviser lên session active từ scan rows.
- * Paper fill: Pending + có markPrice → Running rồi advise.
+ * Paper fill: Pending + mark chạm Entry → Running rồi advise.
+ * Có mark nhưng chưa chạm Entry → giữ Pending / Waiting Fill (cập nhật current).
  * Không polling — caller gọi sau scan.
  */
 export function buildTradeSessionAdviserPatches(
@@ -185,8 +202,13 @@ export function buildTradeSessionAdviserPatches(
     const hasMark =
       markPrice != null && Number.isFinite(markPrice) && markPrice > 0;
 
+    const filled =
+      session.status === 'Pending' &&
+      hasMark &&
+      isV41SessionEntryFilled(session.action, markPrice as number, session.entry);
+
     const nextStatus: 'Pending' | 'Running' =
-      session.status === 'Pending' && hasMark ? 'Running' : session.status;
+      filled ? 'Running' : session.status;
 
     const sessionForAdvice: V41TradeSession = {
       ...session,
@@ -201,14 +223,18 @@ export function buildTradeSessionAdviserPatches(
     });
 
     const meta = buildPatchFromAdvice(session, advice);
+    const isRunning = nextStatus === 'Running';
 
     patches.push({
       sessionId: session.id,
       status: nextStatus,
       current: hasMark ? (markPrice as number) : session.current,
-      pnl: hasMark
-        ? computeCurrentPnlPct(session.entry, markPrice as number, session.action, 5)
-        : session.pnl,
+      pnl:
+        isRunning && hasMark
+          ? computeCurrentPnlPct(session.entry, markPrice as number, session.action, 5)
+          : nextStatus === 'Pending'
+            ? null
+            : session.pnl,
       advisor: advice.state,
       advisorReason: advice.reason,
       ...meta,

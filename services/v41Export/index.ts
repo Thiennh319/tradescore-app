@@ -29,12 +29,16 @@ export {
 export {
   runV41MarketIntelligenceExport,
   runV41RulebookExport,
+  runV41PairedMiRulebookExport,
+  buildV41PairedMiRulebookMarkdown,
   resolveV41ExportRow,
   v41PanelExportLabel,
   V41_PANEL_EXPORT_OPTIONS,
   type V41PanelExportKind,
   type RunV41MiExportResult,
   type RunV41RulebookExportResult,
+  type RunV41PairedExportResult,
+  type V41PairedMiRulebookMarkdown,
 } from './wire/runV41MiExport';
 export {
   buildRulebookV41Export,
