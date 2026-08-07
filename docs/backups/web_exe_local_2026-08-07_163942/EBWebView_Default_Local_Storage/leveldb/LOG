@@ -1,0 +1,29 @@
+2026/08/07-15:58:12.716 2dfc Reusing MANIFEST D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.8\TradeScore-data\webview\EBWebView\Default\Local Storage\leveldb/MANIFEST-000001
+2026/08/07-15:58:12.744 2dfc Recovering log #5153
+2026/08/07-15:58:12.747 2dfc Reusing old log D:\Thiennh3\APP\Trading\TradeScore\dist\TradeScore-Web-v1.0.8\TradeScore-data\webview\EBWebView\Default\Local Storage\leveldb/005153.log 
+2026/08/07-15:59:12.769 3988 Level-0 table #5157: started
+2026/08/07-15:59:12.786 3988 Level-0 table #5157: 544375 bytes OK
+2026/08/07-15:59:12.790 3988 Delete type=0 #5153
+2026/08/07-16:20:56.948 3988 Level-0 table #5159: started
+2026/08/07-16:20:56.968 3988 Level-0 table #5159: 718567 bytes OK
+2026/08/07-16:20:56.971 3988 Delete type=0 #5156
+2026/08/07-16:20:56.972 3988 Compacting 4@0 + 1@1 files
+2026/08/07-16:20:57.009 3988 Generated table #5160@0: 86 keys, 751054 bytes
+2026/08/07-16:20:57.009 3988 Compacted 4@0 + 1@1 files => 751054 bytes
+2026/08/07-16:20:57.011 3988 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/08/07-16:20:57.014 3988 Delete type=2 #5149
+2026/08/07-16:20:57.014 3988 Delete type=2 #5151
+2026/08/07-16:20:57.014 3988 Delete type=2 #5154
+2026/08/07-16:20:57.015 3988 Delete type=2 #5157
+2026/08/07-16:20:57.015 3988 Delete type=2 #5159
+2026/08/07-16:31:06.387 3988 Level-0 table #5162: started
+2026/08/07-16:31:06.403 3988 Level-0 table #5162: 644847 bytes OK
+2026/08/07-16:31:06.405 3988 Delete type=0 #5158
+2026/08/07-16:39:01.385 3988 Level-0 table #5164: started
+2026/08/07-16:39:01.501 3988 Level-0 table #5164: 487092 bytes OK
+2026/08/07-16:39:01.504 3988 Delete type=0 #5161
+2026/08/07-16:46:56.275 3988 Level-0 table #5166: started
+2026/08/07-16:46:56.294 3988 Level-0 table #5166: 487786 bytes OK
+2026/08/07-16:46:56.297 3988 Delete type=0 #5163
+2026/08/07-16:47:05.841 2dfc Level-0 table #5168: started
+2026/08/07-16:47:05.863 2dfc Level-0 table #5168: 448803 bytes OK

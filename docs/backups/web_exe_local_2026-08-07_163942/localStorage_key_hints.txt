@@ -1,0 +1,4 @@
+﻿@tradescore/binance
+@tradescore/v1
+@tradescore/v6
+@tradescore/v7

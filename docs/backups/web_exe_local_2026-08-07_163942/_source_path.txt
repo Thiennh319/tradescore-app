@@ -1,0 +1,3 @@
+﻿source=dist\TradeScore-Web-v1.0.8\TradeScore-data
+copiedAt=2026-08-07T16:45:52.8557322+07:00
+note=Raw WebView2 profile slices; restore by copying back over TradeScore-data\webview\EBWebView\Default\... while EXE is closed.
