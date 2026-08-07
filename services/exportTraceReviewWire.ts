@@ -81,13 +81,30 @@ export interface TraceReviewExportContext {
   readonly esmBridge?: EsmBridgeState;
   /** Frozen wall-clock for metadata only — caller supplies. */
   readonly exportedAt?: string;
+  /**
+   * Selected audit coin (SignalBoard Export). When set, exporters MUST use this
+   * symbol's row — never fall back to the first enterable / rows[0] (other coins).
+   */
+  readonly coin?: string;
+  /** Optional — position/adviser traces may use open trades from journal. */
+  readonly openTrades?: readonly unknown[];
+  readonly v41SnapshotBySymbol?: Readonly<Record<string, unknown>>;
 }
 
 function pickFrozenRow(
   rows: readonly SignalRow[],
   scorerVersion: ScorerVersion,
+  preferredCoin?: string,
 ): SignalRow | null {
   if (rows.length === 0) return null;
+
+  if (preferredCoin) {
+    const match = rows.find((row) => row.symbol === preferredCoin);
+    if (match == null) return null;
+    if (match.error) return null;
+    return match;
+  }
+
   const enterable = rows.find((row) => {
     if (row.error) return false;
     return resolveSignalRow(row, scorerVersion).canEnter;
@@ -1306,7 +1323,7 @@ export function exportTraceOrReviewMarkdown(
   kind: TraceReviewExportKind,
   context: TraceReviewExportContext,
 ): TraceReviewExportResult {
-  const row = pickFrozenRow(context.rows, context.scorerVersion);
+  const row = pickFrozenRow(context.rows, context.scorerVersion, context.coin);
   if (row == null) {
     return { ok: false, message: REVIEW_EXPORT_UNAVAILABLE };
   }
