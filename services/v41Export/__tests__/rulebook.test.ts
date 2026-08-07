@@ -179,10 +179,13 @@ function fixtureRow(options?: { omitKlines1H?: boolean }): SignalRowV41 {
 describe('v41Export Rulebook (Step 2)', () => {
   it('panel menu enables Market Intelligence + Rulebook; P1–P4 stay disabled', () => {
     const enabled = V41_PANEL_EXPORT_OPTIONS.filter((o) => o.enabled).map((o) => o.id);
-    expect(enabled).toEqual(['marketIntelligence', 'rulebook']);
+    expect(enabled).toEqual(['marketIntelligence', 'rulebook', 'miRulebookPair']);
     expect(V41_PANEL_EXPORT_OPTIONS.find((o) => o.id === 'rulebook')?.label).toBe(
       'Rulebook',
     );
+    expect(
+      V41_PANEL_EXPORT_OPTIONS.find((o) => o.id === 'miRulebookPair')?.label,
+    ).toBe('MI + Rulebook (cùng snapshot)');
     const disabled = V41_PANEL_EXPORT_OPTIONS.filter((o) => !o.enabled).map((o) => o.id);
     expect(disabled).toEqual([
       'visibilityEntry',

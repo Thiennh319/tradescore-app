@@ -8,6 +8,10 @@ import {
   type PersistedSignalBoard,
 } from './signalBoardPersist';
 import {
+  isLocalDrivePayloadEmpty,
+  remoteDrivePayloadHasData,
+} from './driveSyncPayloadGuards';
+import {
   SyncActionType,
   SyncResult,
   PullResult,
@@ -18,6 +22,15 @@ import {
   DriveFileName,
   DriveFileWrapper,
 } from '../types/driveSync';
+
+/** Re-export guards (tests / callers còn import từ driveSyncService). */
+export {
+  isLocalDrivePayloadEmpty,
+  remoteDrivePayloadHasData,
+  isCapitalPayloadDefaultEmpty,
+  capitalRemoteHasMeaningfulData,
+  mergePositionsFieldsRemote,
+} from './driveSyncPayloadGuards';
 
 let syncState: SyncState = {
   status: 'idle',
@@ -100,6 +113,8 @@ async function getLocalData(fileName: DriveFileName): Promise<unknown> {
           return bridge.getCapital();
         case DRIVE_FILE_NAMES.signalBoard:
           return stagedSignalBoard ?? (await loadPersistedSignalBoard());
+        case DRIVE_FILE_NAMES.v41Sessions:
+          return bridge.getV41Sessions?.() ?? [];
         default:
           return null;
       }
@@ -114,6 +129,8 @@ async function getLocalData(fileName: DriveFileName): Promise<unknown> {
         return {};
       case DRIVE_FILE_NAMES.signalBoard:
         return stagedSignalBoard ?? (await loadPersistedSignalBoard());
+      case DRIVE_FILE_NAMES.v41Sessions:
+        return [];
       default:
         return null;
     }
@@ -173,7 +190,149 @@ function scheduleBatchRetry(delayMs = 60_000): void {
 type FilePayloadResult =
   | { kind: 'ready'; fileName: DriveFileName; content: string; wrapper: DriveFileWrapper<unknown> }
   | { kind: 'skip'; fileName: DriveFileName }
-  | { kind: 'missing'; fileName: DriveFileName };
+  | { kind: 'missing'; fileName: DriveFileName }
+  /** Empty-push guard restored from Gist — không upload. */
+  | { kind: 'restored'; fileName: DriveFileName };
+
+/** Files protected by V3V4-SYNC-3b empty-push guard (signalBoard giữ skip-null cũ). */
+const EMPTY_PUSH_GUARD_FILES: ReadonlySet<DriveFileName> = new Set([
+  DRIVE_FILE_NAMES.journal,
+  DRIVE_FILE_NAMES.positions,
+  DRIVE_FILE_NAMES.capital,
+  DRIVE_FILE_NAMES.v41Sessions,
+]);
+
+/**
+ * Ngưỡng: xem `driveSyncPayloadGuards.ts` (V3V4-SYNC-3b/3c).
+ * isLocalDrivePayloadEmpty / remoteDrivePayloadHasData re-export phía trên.
+ */
+
+async function restoreApkFromRemote(
+  fileName: DriveFileName,
+  remoteData: unknown,
+  meta: { lastUpdated?: string; deviceId?: 'APK' | 'WEB' },
+): Promise<boolean> {
+  const bridge = getDriveSyncStoreBridge();
+  if (!bridge) {
+    console.warn(`[DriveSync] Empty-push guard: no bridge — cannot restore ${fileName}`);
+    return false;
+  }
+
+  const restoreMeta = {
+    ...meta,
+    restoreReason: 'empty_push_guard' as const,
+  };
+
+  try {
+    switch (fileName) {
+      case DRIVE_FILE_NAMES.journal: {
+        const n = await bridge.applyJournalMirrorFromApk(
+          Array.isArray(remoteData) ? remoteData : [],
+          restoreMeta,
+        );
+        console.log(
+          `[DriveSync] 🛡️ Empty-push guard: restored journal from Gist (${n} change markers)`,
+        );
+        return true;
+      }
+      case DRIVE_FILE_NAMES.positions: {
+        const n = await bridge.applyPositionsMirrorFromApk(remoteData, restoreMeta);
+        console.log(
+          `[DriveSync] 🛡️ Empty-push guard: restored positions from Gist (${n} changes)`,
+        );
+        return true;
+      }
+      case DRIVE_FILE_NAMES.capital: {
+        const ok = await bridge.applyCapitalMirrorFromApk(remoteData, restoreMeta);
+        console.log(
+          `[DriveSync] 🛡️ Empty-push guard: restored capital from Gist (${ok ? 'updated' : 'unchanged'})`,
+        );
+        return true;
+      }
+      case DRIVE_FILE_NAMES.v41Sessions: {
+        if (!bridge.applyV41SessionsMirrorFromApk) {
+          console.warn('[DriveSync] Empty-push guard: no V41 apply handler');
+          return false;
+        }
+        const n = await bridge.applyV41SessionsMirrorFromApk(
+          Array.isArray(remoteData) ? remoteData : [],
+          restoreMeta,
+        );
+        console.log(
+          `[DriveSync] 🛡️ Empty-push guard: restored v41Sessions from Gist (${n} changes)`,
+        );
+        return true;
+      }
+      default:
+        return false;
+    }
+  } catch (err) {
+    console.error(`[DriveSync] Empty-push guard restore failed for ${fileName}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Nếu local rỗng mà Gist còn data → không push; pull+restore.
+ * Cả hai rỗng / Gist NOT_FOUND → cho phép push (user mới).
+ * Local trống + không đọc được Gist (network) → không push (tránh wipe không kiểm chứng).
+ */
+async function applyEmptyPushGuardIfNeeded(
+  built: Extract<FilePayloadResult, { kind: 'ready' }>,
+): Promise<FilePayloadResult> {
+  const { fileName, wrapper } = built;
+  if (!EMPTY_PUSH_GUARD_FILES.has(fileName)) {
+    return built;
+  }
+  if (!isLocalDrivePayloadEmpty(fileName, wrapper.data)) {
+    return built;
+  }
+
+  const dl = await downloadFile(fileName);
+  if (!dl.success || !dl.data) {
+    if (dl.error === 'NOT_FOUND') {
+      console.log(
+        `[DriveSync] Empty-push guard: local empty + Gist ${fileName} NOT_FOUND — allow empty push (new user / new file)`,
+      );
+      return built;
+    }
+    console.warn(
+      `[DriveSync] 🛡️ Empty-push guard: local empty + cannot verify Gist ${fileName} (${dl.error ?? 'unknown'}) — BLOCK push to protect remote`,
+    );
+    return { kind: 'skip', fileName };
+  }
+
+  let remoteWrapper: DriveFileWrapper<unknown>;
+  try {
+    remoteWrapper = JSON.parse(dl.data) as DriveFileWrapper<unknown>;
+  } catch {
+    console.warn(
+      `[DriveSync] 🛡️ Empty-push guard: local empty + Gist ${fileName} parse fail — BLOCK push`,
+    );
+    return { kind: 'skip', fileName };
+  }
+
+  if (!remoteDrivePayloadHasData(fileName, remoteWrapper.data)) {
+    console.log(
+      `[DriveSync] Empty-push guard: local empty + Gist ${fileName} also empty — allow push`,
+    );
+    return built;
+  }
+
+  console.warn(
+    `[DriveSync] 🛡️ Empty-push guard ACTIVATED: local empty but Gist ${fileName} has data — BLOCK push, restore from Gist`,
+  );
+  const restored = await restoreApkFromRemote(fileName, remoteWrapper.data, {
+    lastUpdated: remoteWrapper.lastUpdated,
+    deviceId: remoteWrapper.deviceId,
+  });
+  if (!restored) {
+    console.warn(
+      `[DriveSync] 🛡️ Empty-push guard: restore failed for ${fileName} — still BLOCK push`,
+    );
+  }
+  return { kind: 'restored', fileName };
+}
 
 async function buildFilePayload(fileName: DriveFileName): Promise<FilePayloadResult> {
   const data = await getLocalData(fileName);
@@ -207,15 +366,18 @@ async function syncFilesBatch(fileNames: DriveFileName[]): Promise<{
   failed: DriveFileName[];
 }> {
   const uniqueNames = [...new Set(fileNames)];
-  const synced: DriveFileName[] = [];
+  const syncedOut: DriveFileName[] = [];
   const failed: DriveFileName[] = [];
   const batch: Record<string, string> = {};
   const wrappers: Record<string, DriveFileWrapper<unknown>> = {};
 
   for (const fileName of uniqueNames) {
-    const built = await buildFilePayload(fileName);
-    if (built.kind === 'skip') {
-      synced.push(fileName);
+    let built = await buildFilePayload(fileName);
+    if (built.kind === 'ready') {
+      built = await applyEmptyPushGuardIfNeeded(built);
+    }
+    if (built.kind === 'skip' || built.kind === 'restored') {
+      syncedOut.push(fileName);
       continue;
     }
     if (built.kind === 'missing') {
@@ -227,19 +389,19 @@ async function syncFilesBatch(fileNames: DriveFileName[]): Promise<{
   }
 
   if (Object.keys(batch).length === 0) {
-    return { synced, failed };
+    return { synced: syncedOut, failed };
   }
 
   const result = await uploadFiles(batch);
 
   if (result.success) {
     const uploaded = Object.keys(batch) as DriveFileName[];
-    synced.push(...uploaded);
+    syncedOut.push(...uploaded);
     await clearPendingUploads(uploaded);
-    uploaded.forEach((fileName) => {
-      console.log(`[DriveSync] ✅ Synced: ${fileName}`);
+    uploaded.forEach((name) => {
+      console.log(`[DriveSync] ✅ Synced: ${name}`);
     });
-    return { synced, failed };
+    return { synced: syncedOut, failed };
   }
 
   console.error('[DriveSync] ❌ Batch upload failed:', result.error, result.message);
@@ -252,7 +414,7 @@ async function syncFilesBatch(fileNames: DriveFileName[]): Promise<{
   }
 
   failed.push(...(Object.keys(batch) as DriveFileName[]));
-  return { synced, failed };
+  return { synced: syncedOut, failed };
 }
 
 function canUploadToDrive(): boolean {
@@ -582,6 +744,22 @@ async function applyToLocalStore(
         return 1;
       }
 
+      case DRIVE_FILE_NAMES.v41Sessions: {
+        if (isWebMirrorPull() && bridge?.applyV41SessionsMirrorFromApk) {
+          const remote = Array.isArray(data) ? (data as unknown[]) : [];
+          if (meta?.deviceId && meta.deviceId !== 'APK') {
+            return 0;
+          }
+          const count = await bridge.applyV41SessionsMirrorFromApk(remote, meta);
+          if (count > 0) {
+            console.log(`[DriveSync] V41 sessions mirror APK: ${count} thay đổi`);
+          }
+          return count;
+        }
+        console.log('[DriveSync] V41 sessions: synced from Gist (APK only)');
+        return 0;
+      }
+
       default:
         return 0;
     }
@@ -602,6 +780,7 @@ export async function pullFromDrive(): Promise<PullResult> {
     positionsMerged: 0,
     capitalUpdated: false,
     signalBoardUpdated: false,
+    v41SessionsUpdated: false,
     timestamp: new Date().toISOString(),
   };
 
@@ -617,14 +796,22 @@ export async function pullFromDrive(): Promise<PullResult> {
   }): boolean => !downloadResult.success && !isNotFound(downloadResult);
 
   try {
-    const [journalResult, positionsResult, capitalResult, signalBoardResult] = await Promise.all([
-      downloadFile(DRIVE_FILE_NAMES.journal),
-      downloadFile(DRIVE_FILE_NAMES.positions),
-      downloadFile(DRIVE_FILE_NAMES.capital),
-      downloadFile(DRIVE_FILE_NAMES.signalBoard),
-    ]);
+    const [journalResult, positionsResult, capitalResult, signalBoardResult, v41SessionsResult] =
+      await Promise.all([
+        downloadFile(DRIVE_FILE_NAMES.journal),
+        downloadFile(DRIVE_FILE_NAMES.positions),
+        downloadFile(DRIVE_FILE_NAMES.capital),
+        downloadFile(DRIVE_FILE_NAMES.signalBoard),
+        downloadFile(DRIVE_FILE_NAMES.v41Sessions),
+      ]);
 
-    const downloadResults = [journalResult, positionsResult, capitalResult, signalBoardResult];
+    const downloadResults = [
+      journalResult,
+      positionsResult,
+      capitalResult,
+      signalBoardResult,
+      v41SessionsResult,
+    ];
 
     if (journalResult.success && journalResult.data) {
       try {
@@ -709,6 +896,25 @@ export async function pullFromDrive(): Promise<PullResult> {
       fileOutcomes.push('network_fail');
     }
 
+    if (v41SessionsResult.success && v41SessionsResult.data) {
+      try {
+        const wrapper: DriveFileWrapper<unknown[]> = JSON.parse(v41SessionsResult.data);
+        const count = await applyToLocalStore(DRIVE_FILE_NAMES.v41Sessions, wrapper.data, {
+          lastUpdated: wrapper.lastUpdated,
+          deviceId: wrapper.deviceId,
+        });
+        result.v41SessionsUpdated = count > 0;
+        fileOutcomes.push(count > 0 ? 'parsed' : 'not_found');
+      } catch (parseErr) {
+        console.error('[DriveSync] V41 sessions parse error:', parseErr);
+        fileOutcomes.push('parse_failed');
+      }
+    } else if (isNotFound(v41SessionsResult)) {
+      fileOutcomes.push('not_found');
+    } else if (isNetworkFailure(v41SessionsResult)) {
+      fileOutcomes.push('network_fail');
+    }
+
     const allNotFound =
       downloadResults.length > 0 && downloadResults.every(isNotFound);
     const anyParsed = fileOutcomes.includes('parsed');
@@ -738,7 +944,7 @@ export async function pullFromDrive(): Promise<PullResult> {
     }
 
     console.log(
-      `[DriveSync] Pull done: journal +${result.journalMerged}, positions +${result.positionsMerged}, capital ${result.capitalUpdated ? 'updated' : 'unchanged'}, signalBoard ${result.signalBoardUpdated ? 'updated' : 'unchanged'}`,
+      `[DriveSync] Pull done: journal +${result.journalMerged}, positions +${result.positionsMerged}, capital ${result.capitalUpdated ? 'updated' : 'unchanged'}, signalBoard ${result.signalBoardUpdated ? 'updated' : 'unchanged'}, v41Sessions ${result.v41SessionsUpdated ? 'updated' : 'unchanged'}`,
     );
 
     notifyPullMirrorComplete(result);

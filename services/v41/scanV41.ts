@@ -303,9 +303,19 @@ async function scanOneSymbolV41(symbol: string): Promise<SignalRowV41> {
       reversalState,
     );
 
-    const lastClose = raw.klines.at(-1)?.close;
-    const markPrice =
-      lastClose != null && Number.isFinite(lastClose) ? lastClose : undefined;
+    const lastClosedFourH = raw.klines.at(-1)?.close;
+    let markPrice: number | undefined;
+    if (raw.liveMarkPrice != null && Number.isFinite(raw.liveMarkPrice) && raw.liveMarkPrice > 0) {
+      markPrice = raw.liveMarkPrice;
+    } else if (lastClosedFourH != null && Number.isFinite(lastClosedFourH) && lastClosedFourH > 0) {
+      console.warn(
+        `[v41] markPrice fallback to closed-4H close=${lastClosedFourH} for ${symbol} ` +
+          `(liveMarkPrice missing — Current/PnL may stay stale until next closed 4H or live recover)`,
+      );
+      markPrice = lastClosedFourH;
+    } else {
+      markPrice = undefined;
+    }
 
     return {
       symbol: raw.symbol,

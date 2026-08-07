@@ -15,6 +15,7 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import type { SignalRowV41 } from '../../services/v41/scanV41';
 import {
   runV41MarketIntelligenceExport,
+  runV41PairedMiRulebookExport,
   runV41RulebookExport,
   V41_PANEL_EXPORT_OPTIONS,
   v41PanelExportLabel,
@@ -137,6 +138,15 @@ export function V41SignalPanel({
     }
     setExporting(true);
     try {
+      if (selectedExportKind === 'miRulebookPair') {
+        const paired = await runV41PairedMiRulebookExport(rows, selectedCoin);
+        if (!paired.ok) {
+          showToast(paired.message);
+          return;
+        }
+        showToast(`✅ Đã xuất ${paired.filenames.join(' + ')}`);
+        return;
+      }
       const result =
         selectedExportKind === 'rulebook'
           ? await runV41RulebookExport(rows, selectedCoin)

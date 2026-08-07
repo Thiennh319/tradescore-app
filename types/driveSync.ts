@@ -32,6 +32,7 @@ export const GIST_FILE_NAMES = {
   positions: 'tradescore_positions.json',
   capital: 'tradescore_capital.json',
   signalBoard: 'tradescore_signal_board.json',
+  v41Sessions: 'tradescore_v41_sessions.json',
 } as const;
 
 /** @deprecated dùng GIST_FILE_NAMES */
@@ -48,7 +49,8 @@ export type SyncActionType =
   | 'POSITION_UPDATED'
   | 'CAPITAL_UPDATED'
   | 'JOURNAL_ENTRY_ADDED'
-  | 'SIGNAL_BOARD_SCANNED';
+  | 'SIGNAL_BOARD_SCANNED'
+  | 'V41_SESSION_UPDATED';
 
 export const SYNC_ACTION_FILE_MAP: Record<SyncActionType, GistFileName[]> = {
   ORDER_PLACED: [GIST_FILE_NAMES.positions, GIST_FILE_NAMES.journal],
@@ -57,6 +59,7 @@ export const SYNC_ACTION_FILE_MAP: Record<SyncActionType, GistFileName[]> = {
   CAPITAL_UPDATED: [GIST_FILE_NAMES.capital],
   JOURNAL_ENTRY_ADDED: [GIST_FILE_NAMES.journal],
   SIGNAL_BOARD_SCANNED: [GIST_FILE_NAMES.signalBoard],
+  V41_SESSION_UPDATED: [GIST_FILE_NAMES.v41Sessions],
 };
 
 export interface SyncResult {
@@ -73,6 +76,7 @@ export interface PullResult {
   positionsMerged: number;
   capitalUpdated: boolean;
   signalBoardUpdated?: boolean;
+  v41SessionsUpdated?: boolean;
   timestamp: string;
   error?: string;
 }

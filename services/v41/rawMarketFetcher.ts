@@ -1,5 +1,5 @@
 import { BINANCE_BASE_URL, type TradeSymbol } from '../../constants/scoring';
-import { fetchKlines, type Kline } from '../binanceApi';
+import { fetchKlines, fetchTickerPrice, type Kline } from '../binanceApi';
 
 export interface KlineV41 {
   openTime: number;
@@ -21,6 +21,11 @@ export interface RawMarketSnapshot {
   btcKlines1H: KlineV41[];
   fetchedAt: number;
   fundingRate?: number;
+  /**
+   * Giá gần realtime cho UI / Trade Session Current+PnL.
+   * Không dùng close nến 4H đã đóng (có thể đứng đến ~4h).
+   */
+  liveMarkPrice?: number;
 }
 
 const KLINES_INTERVAL = '4h' as const;
@@ -59,6 +64,52 @@ function binanceKlineToV41(kline: Kline): KlineV41 {
 export function filterClosedKlinesV41(klines: KlineV41[]): KlineV41[] {
   const cutoff = Date.now() - CLOSED_CANDLE_BUFFER_MS;
   return klines.filter((k) => k.closeTime < cutoff);
+}
+
+/** Close của nến đang chạy — chỉ khi closeTime còn ở tương lai (nến chưa đóng). */
+export function resolveFormingCandleClose(klinesIncludingOpen: KlineV41[]): number | undefined {
+  const last = klinesIncludingOpen.at(-1);
+  if (last == null || !Number.isFinite(last.close) || last.close <= 0) return undefined;
+  if (!(last.closeTime > Date.now())) return undefined;
+  return last.close;
+}
+
+/**
+ * Ưu tiên ticker price; fallback close nến 4H đang chạy (chưa đóng).
+ * Không dùng close nến 4H đã đóng làm live mark.
+ */
+export function resolveLiveMarkPrice(params: {
+  tickerPrice?: number | null;
+  formingFourHClose?: number | null;
+}): number | undefined {
+  const ticker = params.tickerPrice;
+  if (ticker != null && Number.isFinite(ticker) && ticker > 0) return ticker;
+  const forming = params.formingFourHClose;
+  if (forming != null && Number.isFinite(forming) && forming > 0) return forming;
+  return undefined;
+}
+
+/**
+ * Fetch ngắn 4H **giữ** nến đang chạy — không qua fetchKlines (đã dropUnclosedCandle).
+ * Chỉ gọi khi ticker fail để recover live mark.
+ */
+export async function fetchFormingFourHCloseV41(symbol: TradeSymbol): Promise<number | undefined> {
+  try {
+    const url =
+      `${BINANCE_BASE_URL}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}` +
+      `&interval=4h&limit=2`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const json: unknown = await res.json();
+    if (!Array.isArray(json) || json.length === 0) return undefined;
+    const bars = (json as (string | number)[][]).map(adaptBinanceKline);
+    return resolveFormingCandleClose(bars);
+  } catch (error) {
+    console.error(`[v41] fetchFormingFourHCloseV41 failed for ${symbol}:`, error);
+    return undefined;
+  }
 }
 
 async function fetchClosedKlinesV41(
@@ -103,7 +154,7 @@ export async function fetchRawMarketV41(symbol: string): Promise<RawMarketSnapsh
   const tradeSymbol = symbol as TradeSymbol;
 
   try {
-    const [symbolResult, btcResult, klines30M, klines1H, btcKlines1H, fundingRate] =
+    const [symbolResult, btcResult, klines30M, klines1H, btcKlines1H, fundingRate, tickerResult] =
       await Promise.all([
       fetchKlines(tradeSymbol, KLINES_INTERVAL, KLINES_LIMIT),
       fetchKlines('BTCUSDT', KLINES_INTERVAL, KLINES_LIMIT),
@@ -111,10 +162,43 @@ export async function fetchRawMarketV41(symbol: string): Promise<RawMarketSnapsh
       fetchClosedKlinesV41(tradeSymbol, '1h', KLINES_LIMIT_MTF),
       fetchClosedKlinesV41('BTCUSDT', '1h', KLINES_LIMIT_MTF),
       fetchFundingRateV41(tradeSymbol),
+      fetchTickerPrice(tradeSymbol).catch((error) => {
+        console.error(`[v41] fetchTickerPrice failed for ${symbol}:`, error);
+        return null;
+      }),
     ]);
 
-    const klines = filterClosedKlinesV41(symbolResult.klines.map(binanceKlineToV41));
+    const symbolKlinesAll = symbolResult.klines.map(binanceKlineToV41);
+    const klines = filterClosedKlinesV41(symbolKlinesAll);
     const btcKlines = filterClosedKlinesV41(btcResult.klines.map(binanceKlineToV41));
+
+    const tickerPrice =
+      tickerResult?.price != null && Number.isFinite(tickerResult.price) && tickerResult.price > 0
+        ? tickerResult.price
+        : null;
+
+    // fetchKlines() đã dropUnclosedCandle — close “cuối” thường là nến đã đóng, không phải forming.
+    let formingFourHClose = resolveFormingCandleClose(symbolKlinesAll);
+    if (tickerPrice == null && formingFourHClose == null) {
+      formingFourHClose = await fetchFormingFourHCloseV41(tradeSymbol);
+    }
+
+    const liveMarkPrice = resolveLiveMarkPrice({
+      tickerPrice,
+      formingFourHClose,
+    });
+
+    if (liveMarkPrice == null) {
+      console.warn(
+        `[v41] liveMarkPrice unavailable for ${symbol}: ticker=${tickerPrice ?? 'fail'} ` +
+          `forming4H=${formingFourHClose ?? 'fail'} — scan will fall back to closed-4H close (may stale ≤4h)`,
+      );
+    } else if (tickerPrice == null) {
+      console.warn(
+        `[v41] liveMarkPrice for ${symbol} using forming-4H close=${liveMarkPrice} ` +
+          `(ticker failed/unavailable)`,
+      );
+    }
 
     return {
       symbol: tradeSymbol,
@@ -124,6 +208,7 @@ export async function fetchRawMarketV41(symbol: string): Promise<RawMarketSnapsh
       klines1H,
       btcKlines1H,
       fundingRate,
+      liveMarkPrice,
       fetchedAt: Date.now(),
     };
   } catch (error) {
