@@ -38,7 +38,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prebuild:android": "expo prebuild --platform android --clean",
-    "build:apk": "cd android && gradlew.bat assembleRelease && cd .. && node -e \"const fs=require('fs'),cp=require('child_process'),p=require('./package.json');const d='dist/TradeScore-v'+p.version+'.apk';fs.mkdirSync('dist',{recursive:true});fs.copyFileSync('android/app/build/outputs/apk/release/app-release.apk',d);if(fs.existsSync('dist/guideline.txt')){console.log('guideline.txt OK');}console.log('APK:',d);cp.execSync('node scripts/write-build-info.mjs apk dist/BUILD_INFO_APK_v'+p.version+'.txt',{stdio:'inherit'});\"",
+    "build:apk": "node scripts/stamp-build-date.mjs && cd android && gradlew.bat assembleRelease && cd .. && node -e \"const fs=require('fs'),cp=require('child_process'),p=require('./package.json');const d='dist/TradeScore-v'+p.version+'.apk';fs.mkdirSync('dist',{recursive:true});fs.copyFileSync('android/app/build/outputs/apk/release/app-release.apk',d);if(fs.existsSync('dist/guideline.txt')){console.log('guideline.txt OK');}console.log('APK:',d);cp.execSync('node scripts/write-build-info.mjs apk dist/BUILD_INFO_APK_v'+p.version+'.txt',{stdio:'inherit'});\"",
     "build:apk:debug": "cd android && gradlew.bat assembleDebug",
     "build:web": "powershell -ExecutionPolicy Bypass -File scripts/build-web-exe.ps1",
     "build:web-exe": "powershell -ExecutionPolicy Bypass -File scripts/build-web-exe.ps1",
