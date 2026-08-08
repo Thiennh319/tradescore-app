@@ -205,6 +205,9 @@ function buildBreakoutRc3Card(row: SignalRowV41): V41Rc3SignalCardModel {
     slMode: 'atr_break_level',
     atrMult: BREAKOUT_ATR_MULT,
     requireStrongBreakout: false,
+    /** Same-level multi-bar fan-out → one actionable setup (V41-SOL-4). */
+    dedupeByBrokenLevel: true,
+    maxHoldBarsForLevelDedupe: BREAKOUT_SIGNAL_MAX_AGE_BARS_1H,
   });
   const current = pickCurrentBreakoutSetup(setups, klines1H);
   return adaptBreakoutToRc3Card(current, row);

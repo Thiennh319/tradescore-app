@@ -4,12 +4,15 @@ import {
   barTouchesLevel,
   buildBreakoutLevels,
   computeDonchianRange,
+  dedupeBreakoutSetupsByBrokenLevel,
   detectBreakoutAtIndex,
   findRetestBarIndex,
   isStrongBreakoutCandle,
   isWidthConsolidation,
   tryImmediateBreakoutSetup,
   tryRetestBreakoutSetup,
+  type BreakoutTradeLevels,
+  brokenLevelsMatch,
 } from '../breakoutDetector';
 
 function k(
@@ -221,5 +224,263 @@ describe('confirm paths (momentum gate)', () => {
     }
     const ev = detectBreakoutAtIndex(series, 20, 20)!;
     expect(tryRetestBreakoutSetup(series, ev, 'width')).toBeNull();
+  });
+});
+
+function mockSetup(
+  partial: Pick<
+    BreakoutTradeLevels,
+    'side' | 'entry' | 'rangeHigh' | 'rangeLow' | 'breakoutOpenTime' | 'activeOpenTime'
+  > &
+    Partial<Pick<BreakoutTradeLevels, 'sl' | 'tp1'>>,
+): BreakoutTradeLevels {
+  return {
+    sl: partial.sl ?? partial.entry * (partial.side === 'LONG' ? 0.98 : 1.02),
+    tp1: partial.tp1 ?? partial.entry * (partial.side === 'LONG' ? 1.03 : 0.97),
+    slDistancePct: 2,
+    tp1RR: 1.5,
+    confirmMode: 'retest',
+    consolidationMode: 'width',
+    ...partial,
+  };
+}
+
+/** First setup still open through cascades (holds ≥12h, matches CSV bars_held). */
+function exitAfterBars(headActive: number, bars: number) {
+  return (setup: BreakoutTradeLevels) =>
+    setup.activeOpenTime === headActive
+      ? headActive + bars * 3_600_000
+      : setup.activeOpenTime + 80 * 3_600_000;
+}
+
+describe('dedupeBreakoutSetupsByBrokenLevel (V41-SOL-4 Task1)', () => {
+  it('collapses Confirm-B cascade: breakoutOpenTime == prior.activeOpenTime', () => {
+    // 2026-02-22 SHORT×3 pattern from SOL-3 trades CSV
+    const t0 = Date.parse('2026-02-22T12:00:00.000Z');
+    const active0 = t0 + 3_600_000;
+    const cluster = [
+      mockSetup({
+        side: 'SHORT',
+        entry: 83.94,
+        rangeHigh: 88,
+        rangeLow: 83.94,
+        breakoutOpenTime: t0,
+        activeOpenTime: active0,
+      }),
+      mockSetup({
+        side: 'SHORT',
+        entry: 83.6,
+        rangeHigh: 87.5,
+        rangeLow: 83.6, // slides >0.5% → price alone would miss
+        breakoutOpenTime: t0 + 3_600_000,
+        activeOpenTime: t0 + 2 * 3_600_000,
+      }),
+      mockSetup({
+        side: 'SHORT',
+        entry: 83.44,
+        rangeHigh: 87,
+        rangeLow: 83.44,
+        breakoutOpenTime: t0 + 2 * 3_600_000,
+        activeOpenTime: t0 + 3 * 3_600_000,
+      }),
+    ];
+    const kept = dedupeBreakoutSetupsByBrokenLevel(cluster, {
+      resolveExitOpenTime: exitAfterBars(active0, 11),
+    });
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.entry).toBe(83.94);
+    expect(kept[0]!.activeOpenTime).toBe(active0);
+  });
+
+  it('keeps one trade for each of the five SOL-3 duplicate clusters', () => {
+    const clusters: {
+      id: string;
+      side: 'LONG' | 'SHORT';
+      rows: { entry: number; breakout: string; active: string }[];
+    }[] = [
+      {
+        id: '2025-12-29 LONG',
+        side: 'LONG',
+        rows: [
+          { entry: 126.96, breakout: '2025-12-28T23:00:00.000Z', active: '2025-12-29T00:00:00.000Z' },
+          { entry: 128.7, breakout: '2025-12-29T00:00:00.000Z', active: '2025-12-29T01:00:00.000Z' },
+        ],
+      },
+      {
+        id: '2026-01-20 SHORT',
+        side: 'SHORT',
+        rows: [
+          { entry: 130.56, breakout: '2026-01-20T06:00:00.000Z', active: '2026-01-20T07:00:00.000Z' },
+          { entry: 129.03, breakout: '2026-01-20T07:00:00.000Z', active: '2026-01-20T08:00:00.000Z' },
+        ],
+      },
+      {
+        id: '2026-02-22 SHORT',
+        side: 'SHORT',
+        rows: [
+          { entry: 83.94, breakout: '2026-02-22T12:00:00.000Z', active: '2026-02-22T13:00:00.000Z' },
+          { entry: 83.6, breakout: '2026-02-22T13:00:00.000Z', active: '2026-02-22T14:00:00.000Z' },
+          { entry: 83.44, breakout: '2026-02-22T14:00:00.000Z', active: '2026-02-22T15:00:00.000Z' },
+        ],
+      },
+      {
+        id: '2026-03-06 SHORT',
+        side: 'SHORT',
+        rows: [
+          { entry: 85.54, breakout: '2026-03-06T12:00:00.000Z', active: '2026-03-06T13:00:00.000Z' },
+          { entry: 84.27, breakout: '2026-03-06T13:00:00.000Z', active: '2026-03-06T14:00:00.000Z' },
+        ],
+      },
+      {
+        id: '2026-07-05 SHORT',
+        side: 'SHORT',
+        rows: [
+          { entry: 80.82, breakout: '2026-07-05T00:00:00.000Z', active: '2026-07-05T01:00:00.000Z' },
+          { entry: 80.33, breakout: '2026-07-05T01:00:00.000Z', active: '2026-07-05T02:00:00.000Z' },
+        ],
+      },
+    ];
+
+    for (const c of clusters) {
+      const setups = c.rows.map((r) =>
+        mockSetup({
+          side: c.side,
+          entry: r.entry,
+          // Intentionally drift levels past ±0.5% so cascade path is required
+          rangeHigh: c.side === 'LONG' ? r.entry : r.entry * 1.05,
+          rangeLow: c.side === 'SHORT' ? r.entry : r.entry * 0.95,
+          breakoutOpenTime: Date.parse(r.breakout),
+          activeOpenTime: Date.parse(r.active),
+        }),
+      );
+      const headActive = setups[0]!.activeOpenTime;
+      const kept = dedupeBreakoutSetupsByBrokenLevel(setups, {
+        resolveExitOpenTime: exitAfterBars(headActive, 12),
+      });
+      expect(kept, c.id).toHaveLength(1);
+      expect(kept[0]!.entry, c.id).toBe(c.rows[0]!.entry);
+    }
+  });
+
+  it('does not merge opposite sides or far-apart same-level events', () => {
+    const t0 = Date.parse('2026-02-01T00:00:00.000Z');
+    const longThenShort = [
+      mockSetup({
+        side: 'LONG',
+        entry: 100,
+        rangeHigh: 100,
+        rangeLow: 95,
+        breakoutOpenTime: t0,
+        activeOpenTime: t0 + 3_600_000,
+      }),
+      mockSetup({
+        side: 'SHORT',
+        entry: 99,
+        rangeHigh: 105,
+        rangeLow: 99,
+        breakoutOpenTime: t0 + 3_600_000,
+        activeOpenTime: t0 + 2 * 3_600_000,
+      }),
+    ];
+    expect(
+      dedupeBreakoutSetupsByBrokenLevel(longThenShort, {
+        resolveExitOpenTime: (s) => s.activeOpenTime + 80 * 3_600_000,
+      }),
+    ).toHaveLength(2);
+
+    const farApart = [
+      mockSetup({
+        side: 'SHORT',
+        entry: 80,
+        rangeHigh: 85,
+        rangeLow: 80,
+        breakoutOpenTime: t0,
+        activeOpenTime: t0 + 3_600_000,
+      }),
+      mockSetup({
+        side: 'SHORT',
+        entry: 80.1,
+        rangeHigh: 85,
+        rangeLow: 80.1,
+        breakoutOpenTime: t0 + 100 * 3_600_000,
+        activeOpenTime: t0 + 101 * 3_600_000,
+      }),
+    ];
+    expect(
+      dedupeBreakoutSetupsByBrokenLevel(farApart, {
+        resolveExitOpenTime: (s) => s.activeOpenTime + 80 * 3_600_000,
+      }),
+    ).toHaveLength(2);
+  });
+
+  it('keeps 2 independent same-level events when first trade already closed (occupancy B)', () => {
+    // Event 1 TP after 10 bars; ~30 bars later same ±0.5% level breaks again — not a cascade.
+    const t0 = Date.parse('2026-04-01T00:00:00.000Z');
+    const active1 = t0 + 3_600_000;
+    const exit1 = active1 + 10 * 3_600_000;
+    const active2 = active1 + 40 * 3_600_000;
+    const level = 100;
+    const setups = [
+      mockSetup({
+        side: 'LONG',
+        entry: 100.2,
+        rangeHigh: level,
+        rangeLow: 96,
+        breakoutOpenTime: t0,
+        activeOpenTime: active1,
+        sl: 98,
+        tp1: 103,
+      }),
+      mockSetup({
+        side: 'LONG',
+        entry: 100.3,
+        rangeHigh: level * 1.002, // within ±0.5% of first rangeHigh
+        rangeLow: 96.5,
+        breakoutOpenTime: active2 - 3_600_000,
+        activeOpenTime: active2,
+        sl: 98.2,
+        tp1: 103.2,
+      }),
+    ];
+    expect(brokenLevelsMatch(level, level * 1.002)).toBe(true);
+
+    const kept = dedupeBreakoutSetupsByBrokenLevel(setups, {
+      resolveExitOpenTime: (s) =>
+        s.activeOpenTime === active1 ? exit1 : s.activeOpenTime + 10 * 3_600_000,
+    });
+    expect(kept).toHaveLength(2);
+    expect(kept.map((s) => s.activeOpenTime)).toEqual([active1, active2]);
+  });
+
+  it('still blocks same-level re-entry while first trade is open (occupancy B)', () => {
+    const t0 = Date.parse('2026-04-01T00:00:00.000Z');
+    const active1 = t0 + 3_600_000;
+    const exit1 = active1 + 10 * 3_600_000;
+    const activeWhileOpen = active1 + 5 * 3_600_000;
+    const level = 100;
+    const setups = [
+      mockSetup({
+        side: 'LONG',
+        entry: 100.2,
+        rangeHigh: level,
+        rangeLow: 96,
+        breakoutOpenTime: t0,
+        activeOpenTime: active1,
+      }),
+      mockSetup({
+        side: 'LONG',
+        entry: 100.4,
+        rangeHigh: level,
+        rangeLow: 96.2,
+        breakoutOpenTime: activeWhileOpen - 3_600_000,
+        activeOpenTime: activeWhileOpen,
+      }),
+    ];
+    const kept = dedupeBreakoutSetupsByBrokenLevel(setups, {
+      resolveExitOpenTime: (s) =>
+        s.activeOpenTime === active1 ? exit1 : s.activeOpenTime + 10 * 3_600_000,
+    });
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.activeOpenTime).toBe(active1);
   });
 });

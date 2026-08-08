@@ -327,6 +327,9 @@ async function main(): Promise<void> {
     requireStrongBreakout: false,
     evalStartOpenTime: evalStart,
     evalEndOpenTimeExclusive: endMs,
+    /** Task V41-SOL-4: collapse same broken-level multi-bar confirms. */
+    dedupeByBrokenLevel: true,
+    maxHoldBarsForLevelDedupe: MAX_HOLD_1H,
   });
   console.log(`[sol3] Confirm B setups=${setups.length}`);
 
