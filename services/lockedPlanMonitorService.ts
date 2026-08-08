@@ -3,10 +3,12 @@ import type { CvdTrend } from '../constants/aiJournal';
 import { analyzeCVD } from './indicators';
 import { buildAnalysisInputFromMarket, type AnalysisInput } from './analysisInput';
 import { getEntryZonePriceStatus } from './lockedPlanScoring';
-import { fetchAllMarketData, fetchTickerPrice, statsPeriodFor } from './binanceApi';
+import { fetchTickerPrice, type AllMarketData } from './binanceApi';
 import type { SignalRow } from './signalBoardScan';
-
-const KLINE_LIMIT = 220;
+import {
+  getFreshScanMarketSnapshot,
+  getLastPublishedBtcChange24h,
+} from './scanMarketSnapshotStore';
 
 export function cvdTrendFromAnalysis(
   cvdPoints: AnalysisInput['cvdPoints'],
@@ -34,26 +36,67 @@ export function rebalanceAnalysisInputPrice(
   return { ...input, currentPrice };
 }
 
-export async function refreshLockedPlanMonitorContext(
+/** Pure — build monitor context from an already-fetched market bundle. */
+export function buildLockedPlanMonitorContextFromMarket(
   symbol: AppTradeSymbol,
-  timeframe: AnalysisTimeframe,
+  market: AllMarketData,
+  price: number,
   psychologyChecklist: PsychologyChecklistV2,
   btcChange24h: number,
+): { price: number; analysisInput: AnalysisInput } | null {
+  const analysisInput = buildAnalysisInputFromMarket({
+    symbol,
+    currentPrice: price,
+    market,
+    psychologyChecklist,
+    btc24hChangePct: btcChange24h,
+  });
+  if (!analysisInput) return null;
+  return { price, analysisInput };
+}
+
+/**
+ * Prefer Unified scan snapshot. Ticker-only when refreshing price between scans.
+ * Does **not** call fetchAllMarketData.
+ */
+export async function refreshLockedPlanMonitorContext(
+  symbol: AppTradeSymbol,
+  _timeframe: AnalysisTimeframe,
+  psychologyChecklist: PsychologyChecklistV2,
+  btcChange24h: number,
+  options?: {
+    /** When true, always hit ticker API (30s monitor). Default true. */
+    fetchTicker?: boolean;
+  },
 ): Promise<{ price: number; analysisInput: AnalysisInput } | null> {
   try {
-    const [market, ticker] = await Promise.all([
-      fetchAllMarketData(symbol, KLINE_LIMIT, 12, statsPeriodFor(timeframe), '1h', 80),
-      fetchTickerPrice(symbol),
-    ]);
-    const analysisInput = buildAnalysisInputFromMarket({
+    const snap = getFreshScanMarketSnapshot(symbol);
+    if (snap == null) {
+      return null;
+    }
+
+    const btc = Number.isFinite(btcChange24h)
+      ? btcChange24h
+      : snap.btcChange24h || getLastPublishedBtcChange24h();
+
+    const fetchTicker = options?.fetchTicker !== false;
+    let price = snap.tickerPrice;
+    if (fetchTicker) {
+      try {
+        const ticker = await fetchTickerPrice(symbol);
+        if (ticker.price > 0) price = ticker.price;
+      } catch {
+        // keep snapshot price
+      }
+    }
+
+    return buildLockedPlanMonitorContextFromMarket(
       symbol,
-      currentPrice: ticker.price,
-      market,
+      snap.market,
+      price,
       psychologyChecklist,
-      btc24hChangePct: btcChange24h,
-    });
-    if (!analysisInput) return null;
-    return { price: ticker.price, analysisInput };
+      btc,
+    );
   } catch {
     return null;
   }

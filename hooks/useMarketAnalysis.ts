@@ -15,8 +15,15 @@ import {
   type TradeDirection,
   type TradePlanV3,
 } from '../constants/scoring';
-import { fetchBookTicker, fetchTickerPrice, type AllMarketData, type BookTickerResult } from '../services/binanceApi';
+import { fetchBookTicker, fetchTickerPrice, isBinanceTrafficBlocked, type AllMarketData, type BookTickerResult } from '../services/binanceApi';
+import { bookTickerFromMarketDepth } from '../services/bookTickerFromMarket';
 import { fetchMarketAnalysisBundle } from '../services/marketAnalysisFetch';
+import {
+  getFreshScanMarketSnapshot,
+  subscribeScanMarketSnapshots,
+  type ScanMarketSnapshot,
+} from '../services/scanMarketSnapshotStore';
+import { useResumeableBinanceInterval } from './useResumeableBinanceInterval';
 import {
   analyzeOrderFlow,
   calculateLiquidityHeatmap,
@@ -280,60 +287,91 @@ export function useMarketAnalysis(
   const [btcChange24h, setBtcChange24h] = useState(0);
   const prevPrice = useRef<number | null>(null);
 
-  const loadMarket = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const { market: result, btcChange24h: btcCh } = await fetchMarketAnalysisBundle(
-        symbol,
-        analysisTimeframe,
-      );
-      setMarket(result);
-      setBtcChange24h(btcCh);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [symbol, analysisTimeframe]);
-
-  const loadPrice = useCallback(async () => {
-    try {
-      const [ticker, bookTicker] = await Promise.all([
-        fetchTickerPrice(symbol),
-        fetchBookTicker(symbol),
-      ]);
+  const applySharedSnapshot = useCallback(
+    (snap: ScanMarketSnapshot, silent: boolean): void => {
+      if (!silent) setLoading(true);
+      setError(null);
+      setMarket(snap.market);
+      setBtcChange24h(snap.btcChange24h);
       if (prevPrice.current != null) {
-        if (ticker.price > prevPrice.current) setPriceDir('up');
-        else if (ticker.price < prevPrice.current) setPriceDir('down');
+        if (snap.tickerPrice > prevPrice.current) setPriceDir('up');
+        else if (snap.tickerPrice < prevPrice.current) setPriceDir('down');
         else setPriceDir('flat');
       }
-      prevPrice.current = ticker.price;
-      setPrice(ticker.price);
-      setBook(bookTicker);
-      setPriceUpdatedAt(Date.now());
-    } catch {
-      // keep last tick
-    }
-  }, [symbol]);
+      prevPrice.current = snap.tickerPrice;
+      setPrice(snap.tickerPrice);
+      setBook(bookTickerFromMarketDepth(symbol, snap.market));
+      setPriceUpdatedAt(snap.scannedAt);
+      setLoading(false);
+    },
+    [symbol],
+  );
+
+  const loadMarketNetwork = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const { market: result, ticker, btcChange24h: btcCh } =
+          await fetchMarketAnalysisBundle(symbol, analysisTimeframe);
+        setMarket(result);
+        setBtcChange24h(btcCh);
+        if (prevPrice.current != null) {
+          if (ticker.price > prevPrice.current) setPriceDir('up');
+          else if (ticker.price < prevPrice.current) setPriceDir('down');
+          else setPriceDir('flat');
+        }
+        prevPrice.current = ticker.price;
+        setPrice(ticker.price);
+        setBook(
+          bookTickerFromMarketDepth(symbol, result) ??
+            (await fetchBookTicker(symbol).catch(() => null)),
+        );
+        setPriceUpdatedAt(Date.now());
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [symbol, analysisTimeframe],
+  );
+
+  /** Prefer Unified snapshot; network only when no fresh scan data. */
+  const syncFromSharedOrNetwork = useCallback(
+    async (silent = false) => {
+      if (isBinanceTrafficBlocked()) {
+        const snap = getFreshScanMarketSnapshot(symbol);
+        if (snap) applySharedSnapshot(snap, silent);
+        return;
+      }
+      const snap = getFreshScanMarketSnapshot(symbol);
+      if (snap) {
+        applySharedSnapshot(snap, silent);
+        return;
+      }
+      await loadMarketNetwork(silent);
+    },
+    [symbol, applySharedSnapshot, loadMarketNetwork],
+  );
 
   useEffect(() => {
-    loadMarket();
-    loadPrice();
-  }, [loadMarket, loadPrice]);
+    void syncFromSharedOrNetwork(false);
+    return subscribeScanMarketSnapshots(() => {
+      const snap = getFreshScanMarketSnapshot(symbol);
+      if (snap) applySharedSnapshot(snap, true);
+    });
+  }, [symbol, analysisTimeframe, syncFromSharedOrNetwork, applySharedSnapshot]);
 
-  useEffect(() => {
-    const id = setInterval(loadPrice, SCAN_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [loadPrice]);
-
-  useEffect(() => {
-    const id = setInterval(
-      () => loadMarket(true),
-      SCAN_INTERVAL_MS,
-    );
-    return () => clearInterval(id);
-  }, [loadMarket]);
+  // Only network-poll when Unified snapshot is missing/stale (no duplicate full fetch each 60s).
+  useResumeableBinanceInterval(
+    () => {
+      if (getFreshScanMarketSnapshot(symbol)) return;
+      void syncFromSharedOrNetwork(true);
+    },
+    SCAN_INTERVAL_MS,
+    { runOnMount: false },
+  );
 
   const mtfChain = useMemo(() => computeMtfChain(market), [market]);
 
@@ -425,9 +463,8 @@ export function useMarketAnalysis(
   }, [market, price, scoringResultV4, analysis, analysisTimeframe, symbol, scoringContext]);
 
   const refresh = useCallback(() => {
-    loadMarket();
-    loadPrice();
-  }, [loadMarket, loadPrice]);
+    void loadMarketNetwork(false);
+  }, [loadMarketNetwork]);
 
   const tfLoaded = useMemo(
     () => mtfChain.filter((s) => s.loaded).length,

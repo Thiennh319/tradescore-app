@@ -16,7 +16,7 @@ import {
   type ProtectionSnapshot,
 } from './protectionLayer';
 import type { KlineV41 } from './indicators';
-import { fetchRawMarketV41 } from './rawMarketFetcher';
+import { fetchRawMarketV41, fetchSharedBtcMarketV41, type SharedBtcMarketV41 } from './rawMarketFetcher';
 import {
   checkRetestEMA20_1H,
   checkReversalSignals,
@@ -263,12 +263,15 @@ export function buildReversalTradeSetupFromRow(
   });
 }
 
-async function scanOneSymbolV41(symbol: string): Promise<SignalRowV41> {
+async function scanOneSymbolV41(
+  symbol: string,
+  sharedBtc: SharedBtcMarketV41,
+): Promise<SignalRowV41> {
   const { previousMode } = useV41Store.getState().getSymbolState(symbol);
   const positionState = resolvePositionState(symbol);
 
   try {
-    const raw = await fetchRawMarketV41(symbol);
+    const raw = await fetchRawMarketV41(symbol, sharedBtc);
     const protection = resolveProtection(raw.klines);
     const snapshot = runMarketIntelligenceLayer(raw.klines, raw.btcKlines);
     const { momentum, exhaustion } = resolveMomentumExhaustion(raw, snapshot);
@@ -350,7 +353,8 @@ async function scanOneSymbolV41(symbol: string): Promise<SignalRowV41> {
 }
 
 /**
- * Scan danh sách symbol V4.1 — song song, lỗi từng symbol không dừng cả batch.
+ * Scan danh sách symbol V4.1 — BTC 4H/1H fetch một lần rồi share; symbols song song.
+ * HTTP thực tế vẫn đi qua concurrency queue toàn cục (DATA-2d), không burst vượt max slots.
  */
 export async function scanV41(
   symbols: string[] = [...DEFAULT_SCAN_SYMBOLS_V41],
@@ -358,7 +362,10 @@ export async function scanV41(
   useV41Store.getState().setScanning(true);
 
   try {
-    const results = await Promise.allSettled(symbols.map((symbol) => scanOneSymbolV41(symbol)));
+    const sharedBtc = await fetchSharedBtcMarketV41();
+    const results = await Promise.allSettled(
+      symbols.map((symbol) => scanOneSymbolV41(symbol, sharedBtc)),
+    );
 
     return results.map((result, index) => {
       if (result.status === 'fulfilled') {

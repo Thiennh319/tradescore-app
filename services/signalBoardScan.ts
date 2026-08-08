@@ -30,6 +30,7 @@ import {
   statsPeriodFor,
   type Kline,
 } from './binanceApi';
+import { publishScanMarketSnapshot } from './scanMarketSnapshotStore';
 import {
   fetchBtcChange24hPct,
   MARKET_KLINE_LIMIT,
@@ -1037,6 +1038,15 @@ export async function scanSignalSymbol(
         ? Promise.resolve(btcChange24h)
         : fetch24hTickerChange(symbol).catch(() => 0),
     ]);
+
+    publishScanMarketSnapshot({
+      symbol,
+      market,
+      tickerPrice: ticker.price,
+      change24h,
+      btcChange24h,
+      scannedAt: Date.now(),
+    });
 
     const mtfChain = computeMtfChain(market);
     const analysis = computeTradeAnalysis(market, timeframe, mtfChain);

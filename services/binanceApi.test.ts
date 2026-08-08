@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  __getBinanceConcurrencyForTests,
   __resetApiGuardForTests,
+  __setBinanceBlockForTests,
+  BINANCE_IP_BAN_MIN_MS,
+  BINANCE_MAX_CONCURRENT,
+  BINANCE_RATE_LIMIT_DEFAULT_MS,
+  BinanceTrafficBlockedError,
   calculateFundingMetrics,
   fetchAllMarketData,
   fetchBookTicker,
@@ -10,6 +16,13 @@ import {
   fetchKlines,
   fetchTickerPrice,
   fundingRatesNewestFirst,
+  getBinanceBlockState,
+  isBinanceTrafficBlocked,
+  msUntilBinanceTrafficAllowed,
+  parseBannedUntilMs,
+  parseRetryAfterMs,
+  subscribeBinanceBlockState,
+  withBinanceConcurrency,
 } from './binanceApi';
 
 const store = new Map<string, string>();
@@ -322,5 +335,209 @@ describe('binanceApi', () => {
     expect(data.fundingHistory?.records).toHaveLength(1);
     expect(data.forceOrders?.orders.length).toBeGreaterThanOrEqual(0);
     expect(data.errors.forceOrders).toBeUndefined();
+  });
+
+  describe('429 / 418 traffic gate', () => {
+    it('parseRetryAfterMs supports seconds and HTTP-date', () => {
+      expect(parseRetryAfterMs('12')).toBe(12_000);
+      expect(parseRetryAfterMs(null)).toBeNull();
+      const future = new Date(Date.now() + 30_000).toUTCString();
+      const ms = parseRetryAfterMs(future);
+      expect(ms).toBeGreaterThan(25_000);
+      expect(ms).toBeLessThanOrEqual(30_000);
+    });
+
+    it('parseBannedUntilMs reads Binance body', () => {
+      const until = Date.now() + 60_000;
+      expect(parseBannedUntilMs(`{"code":-1003,"msg":"banned until ${until}"}`)).toBe(until);
+      expect(parseBannedUntilMs('no ban')).toBeNull();
+    });
+
+    it('HTTP 429 + Retry-After activates rate_limit backoff and blocks further fetch', async () => {
+      const fetchMock = vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ msg: 'Too many requests' }), {
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: { 'Retry-After': '7' },
+          }),
+        ),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(fetchTickerPrice('BTCUSDT')).rejects.toThrow(/HTTP 429/);
+
+      const state = getBinanceBlockState();
+      expect(state.blocked).toBe(true);
+      expect(state.kind).toBe('rate_limit');
+      expect(msUntilBinanceTrafficAllowed()).toBeGreaterThanOrEqual(6_500);
+      expect(msUntilBinanceTrafficAllowed()).toBeLessThanOrEqual(7_000);
+
+      fetchMock.mockClear();
+      await expect(fetchTickerPrice('BTCUSDT')).rejects.toBeInstanceOf(BinanceTrafficBlockedError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('HTTP 429 without Retry-After uses default backoff', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(new Response('{}', { status: 429, statusText: 'Too Many Requests' })),
+        ),
+      );
+
+      await expect(fetchTickerPrice('BTCUSDT')).rejects.toThrow(/HTTP 429/);
+      expect(getBinanceBlockState().kind).toBe('rate_limit');
+      expect(msUntilBinanceTrafficAllowed()).toBeGreaterThanOrEqual(
+        BINANCE_RATE_LIMIT_DEFAULT_MS - 50,
+      );
+    });
+
+    it('HTTP 418 activates ip_ban ≥ BINANCE_IP_BAN_MIN_MS and notifies listeners', async () => {
+      const untilBody = Date.now() + 2 * 60_000;
+      const listener = vi.fn();
+      const unsub = subscribeBinanceBlockState(listener);
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(
+            new Response(JSON.stringify({ msg: `banned until ${untilBody}` }), {
+              status: 418,
+              statusText: "I'm a teapot",
+            }),
+          ),
+        ),
+      );
+
+      await expect(fetchTickerPrice('BTCUSDT')).rejects.toThrow(/HTTP 418/);
+      unsub();
+
+      expect(listener).toHaveBeenCalled();
+      const state = getBinanceBlockState();
+      expect(state.kind).toBe('ip_ban');
+      expect(state.blocked).toBe(true);
+      expect(state.untilMs).toBeGreaterThanOrEqual(Date.now() + BINANCE_IP_BAN_MIN_MS - 1000);
+      // body until is only 2m < 10m floor → floor wins
+      expect(state.untilMs).toBeGreaterThanOrEqual(Date.now() + BINANCE_IP_BAN_MIN_MS - 2000);
+    });
+
+    it('HTTP 418 with far banned-until uses body deadline', async () => {
+      const untilBody = Date.now() + 45 * 60_000;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(
+            new Response(JSON.stringify({ msg: `Way too many requests; banned until ${untilBody}` }), {
+              status: 418,
+              statusText: "I'm a teapot",
+            }),
+          ),
+        ),
+      );
+
+      await expect(fetchKlines('NEARUSDT', '1h', 5)).rejects.toThrow(/HTTP 418/);
+      expect(getBinanceBlockState().untilMs).toBe(untilBody);
+    });
+
+    it('after block expires, traffic resume and fetch works again', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const fetchMock = vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response('{}', {
+              status: 429,
+              statusText: 'Too Many Requests',
+              headers: { 'Retry-After': '1' },
+            }),
+          )
+          .mockResolvedValueOnce(
+            new Response(JSON.stringify({ symbol: 'BTCUSDT', price: '65000.0' }), {
+              status: 200,
+            }),
+          );
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(fetchTickerPrice('BTCUSDT')).rejects.toThrow(/HTTP 429/);
+        expect(isBinanceTrafficBlocked()).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(1_100);
+        expect(isBinanceTrafficBlocked()).toBe(false);
+
+        const ok = await fetchTickerPrice('BTCUSDT');
+        expect(ok.price).toBe(65000);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('concurrency queue never exceeds BINANCE_MAX_CONCURRENT under burst', async () => {
+      __resetApiGuardForTests();
+      let inFlight = 0;
+      let observedPeak = 0;
+
+      const jobs = Array.from({ length: 12 }, () =>
+        withBinanceConcurrency(async () => {
+          inFlight += 1;
+          observedPeak = Math.max(observedPeak, inFlight);
+          expect(inFlight).toBeLessThanOrEqual(BINANCE_MAX_CONCURRENT);
+          await new Promise((r) => setTimeout(r, 30));
+          inFlight -= 1;
+        }),
+      );
+
+      await Promise.all(jobs);
+      expect(observedPeak).toBe(BINANCE_MAX_CONCURRENT);
+      expect(__getBinanceConcurrencyForTests().active).toBe(0);
+      expect(__getBinanceConcurrencyForTests().peak).toBeLessThanOrEqual(BINANCE_MAX_CONCURRENT);
+    });
+
+    it('block rejects concurrency waiters without hanging', async () => {
+      __resetApiGuardForTests();
+      const releaseSlots: Array<() => void> = [];
+
+      const holders = Array.from({ length: BINANCE_MAX_CONCURRENT }, () =>
+        withBinanceConcurrency(
+          () =>
+            new Promise<void>((resolve) => {
+              releaseSlots.push(resolve);
+            }),
+        ),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      expect(__getBinanceConcurrencyForTests().active).toBe(BINANCE_MAX_CONCURRENT);
+
+      const queued = Array.from({ length: 5 }, () =>
+        withBinanceConcurrency(async () => 'should-not-run'),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      expect(__getBinanceConcurrencyForTests().waiting).toBe(5);
+
+      __setBinanceBlockForTests('ip_ban', Date.now() + 60_000, 'test flush queue');
+
+      const settled = await Promise.allSettled(queued);
+      expect(settled.every((s) => s.status === 'rejected')).toBe(true);
+      expect(
+        settled.every(
+          (s) =>
+            s.status === 'rejected' && s.reason instanceof BinanceTrafficBlockedError,
+        ),
+      ).toBe(true);
+
+      for (const release of releaseSlots) release();
+      await Promise.allSettled(holders);
+      expect(__getBinanceConcurrencyForTests().waiting).toBe(0);
+      expect(__getBinanceConcurrencyForTests().active).toBe(0);
+    });
+
+    it('__setBinanceBlockForTests pauses until cleared by expiry', () => {
+      __setBinanceBlockForTests('ip_ban', Date.now() + 5_000, 'manual');
+      expect(isBinanceTrafficBlocked()).toBe(true);
+      __setBinanceBlockForTests('ip_ban', Date.now() - 1_000, 'expired already');
+      // until in the past → getBinanceBlockState clears
+      expect(isBinanceTrafficBlocked()).toBe(false);
+    });
   });
 });

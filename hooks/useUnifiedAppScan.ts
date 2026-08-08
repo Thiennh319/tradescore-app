@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { SCAN_INTERVAL_MS } from '../constants/scanSchedule';
+import { isBinanceTrafficBlocked } from '../services/binanceApi';
 import { scanUnified } from '../services/scanUnified';
 import { notifyScanMarkPricesUpdated } from './scanMarkPriceBus';
+import { useResumeableBinanceInterval } from './useResumeableBinanceInterval';
 import { buildRc3ViewModelsFromScan } from '../services/v41/rc3/buildRc3ViewModel';
 import type { V41Rc3SignalCardModel } from '../services/v41/rc3/rc3ViewModelTypes';
 import {
@@ -17,6 +19,7 @@ const DEFAULT_SYMBOLS: string[] = [...DEFAULT_SCAN_SYMBOLS_V41];
 /**
  * Một nhịp quét 60s cho toàn app — V3/V4 → V4.1 → ViewModel RC3 → Tổng hợp.
  * ViewModel build tại biên scan (Task 10) — UI chỉ nhận cards.
+ * Interval pauses while Binance 429/418 gate is active.
  */
 export function useUnifiedAppScan(
   scanV3V4: ScanV3V4Fn,
@@ -37,6 +40,7 @@ export function useUnifiedAppScan(
 
   const runUnifiedScan = useCallback(async (force = false) => {
     if (runningRef.current) return;
+    if (isBinanceTrafficBlocked()) return;
 
     const last = lastUnifiedRef.current;
     if (!force && last > 0 && Date.now() - last < SCAN_INTERVAL_MS) {
@@ -61,27 +65,11 @@ export function useUnifiedAppScan(
     }
   }, []);
 
-  const runUnifiedScanRef = useRef(runUnifiedScan);
-  runUnifiedScanRef.current = runUnifiedScan;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const tick = async (force: boolean) => {
-      if (cancelled) return;
-      await runUnifiedScanRef.current(force);
-    };
-
-    void tick(true);
-    const intervalId = setInterval(() => {
-      void tick(false);
-    }, SCAN_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(intervalId);
-    };
-  }, []);
+  useResumeableBinanceInterval(
+    () => runUnifiedScan(false),
+    SCAN_INTERVAL_MS,
+    { runOnMount: true },
+  );
 
   return { runUnifiedScan, v41Rows, v41Cards, v41Loading, v41LastScannedAt };
 }

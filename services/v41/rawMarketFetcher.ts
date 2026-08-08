@@ -1,6 +1,10 @@
 import { BINANCE_BASE_URL, type TradeSymbol } from '../../constants/scoring';
-import { fetchKlines, fetchTickerPrice, type Kline } from '../binanceApi';
-
+import {
+  binancePublicFetch,
+  fetchKlines,
+  fetchTickerPrice,
+  type Kline,
+} from '../binanceApi';
 export interface KlineV41 {
   openTime: number;
   open: number;
@@ -98,7 +102,7 @@ export async function fetchFormingFourHCloseV41(symbol: TradeSymbol): Promise<nu
     const url =
       `${BINANCE_BASE_URL}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}` +
       `&interval=4h&limit=2`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    const res = await binancePublicFetch(url);
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
@@ -129,7 +133,7 @@ async function fetchClosedKlinesV41(
 async function fetchFundingRateV41(symbol: TradeSymbol): Promise<number | undefined> {
   try {
     const url = `${BINANCE_BASE_URL}/fapi/v1/fundingRate?symbol=${encodeURIComponent(symbol)}&limit=1`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    const res = await binancePublicFetch(url);
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
@@ -147,30 +151,85 @@ async function fetchFundingRateV41(symbol: TradeSymbol): Promise<number | undefi
 }
 
 /**
- * Fetch klines 4H symbol + BTCUSDT song song (limit 250).
- * Bước 0 — Raw Market Data Layer (V4.1).
+ * Shared BTC 4H + 1H for one V4.1 scan cycle (fetch once, inject into every symbol).
+ * Uses normal fetchKlines / cache-fail path — honors 429/418 gate (no bypass).
  */
-export async function fetchRawMarketV41(symbol: string): Promise<RawMarketSnapshot> {
+export interface SharedBtcMarketV41 {
+  btcKlines4H: KlineV41[];
+  btcKlines1H: KlineV41[];
+}
+
+/** Fetch BTCUSDT 4H + 1H once per scan cycle. */
+export async function fetchSharedBtcMarketV41(): Promise<SharedBtcMarketV41> {
+  const [btc4h, btc1h] = await Promise.all([
+    fetchKlines('BTCUSDT', KLINES_INTERVAL, KLINES_LIMIT),
+    fetchClosedKlinesV41('BTCUSDT', '1h', KLINES_LIMIT_MTF),
+  ]);
+  return {
+    btcKlines4H: filterClosedKlinesV41(btc4h.klines.map(binanceKlineToV41)),
+    btcKlines1H: btc1h,
+  };
+}
+
+/**
+ * Fetch klines 4H symbol (+ MTF / funding / ticker).
+ * When `sharedBtc` is provided (preferred from scanV41), BTC 4H/1H are injected —
+ * not re-fetched. Standalone callers may omit it (legacy per-symbol BTC fetch).
+ */
+export async function fetchRawMarketV41(
+  symbol: string,
+  sharedBtc?: SharedBtcMarketV41,
+): Promise<RawMarketSnapshot> {
   const tradeSymbol = symbol as TradeSymbol;
+  const isBtc = tradeSymbol === 'BTCUSDT';
 
   try {
-    const [symbolResult, btcResult, klines30M, klines1H, btcKlines1H, fundingRate, tickerResult] =
-      await Promise.all([
-      fetchKlines(tradeSymbol, KLINES_INTERVAL, KLINES_LIMIT),
-      fetchKlines('BTCUSDT', KLINES_INTERVAL, KLINES_LIMIT),
-      fetchClosedKlinesV41(tradeSymbol, '30m', KLINES_LIMIT_MTF),
-      fetchClosedKlinesV41(tradeSymbol, '1h', KLINES_LIMIT_MTF),
-      fetchClosedKlinesV41('BTCUSDT', '1h', KLINES_LIMIT_MTF),
-      fetchFundingRateV41(tradeSymbol),
-      fetchTickerPrice(tradeSymbol).catch((error) => {
-        console.error(`[v41] fetchTickerPrice failed for ${symbol}:`, error);
-        return null;
-      }),
-    ]);
+    const symbolFourHPromise =
+      sharedBtc != null && isBtc
+        ? Promise.resolve(null)
+        : fetchKlines(tradeSymbol, KLINES_INTERVAL, KLINES_LIMIT);
 
-    const symbolKlinesAll = symbolResult.klines.map(binanceKlineToV41);
-    const klines = filterClosedKlinesV41(symbolKlinesAll);
-    const btcKlines = filterClosedKlinesV41(btcResult.klines.map(binanceKlineToV41));
+    const btcFourHPromise =
+      sharedBtc != null
+        ? Promise.resolve(sharedBtc.btcKlines4H)
+        : fetchKlines('BTCUSDT', KLINES_INTERVAL, KLINES_LIMIT).then((r) =>
+            filterClosedKlinesV41(r.klines.map(binanceKlineToV41)),
+          );
+
+    const symbol1HPromise =
+      sharedBtc != null && isBtc
+        ? Promise.resolve(sharedBtc.btcKlines1H)
+        : fetchClosedKlinesV41(tradeSymbol, '1h', KLINES_LIMIT_MTF);
+
+    const btc1HPromise =
+      sharedBtc != null
+        ? Promise.resolve(sharedBtc.btcKlines1H)
+        : fetchClosedKlinesV41('BTCUSDT', '1h', KLINES_LIMIT_MTF);
+
+    const [symbolResult, btcKlines, klines30M, klines1H, btcKlines1H, fundingRate, tickerResult] =
+      await Promise.all([
+        symbolFourHPromise,
+        btcFourHPromise,
+        fetchClosedKlinesV41(tradeSymbol, '30m', KLINES_LIMIT_MTF),
+        symbol1HPromise,
+        btc1HPromise,
+        fetchFundingRateV41(tradeSymbol),
+        fetchTickerPrice(tradeSymbol).catch((error) => {
+          console.error(`[v41] fetchTickerPrice failed for ${symbol}:`, error);
+          return null;
+        }),
+      ]);
+
+    let symbolKlinesAll: KlineV41[];
+    let klines: KlineV41[];
+    if (symbolResult == null) {
+      // BTCUSDT + shared: reuse shared closed 4H (ticker covers live mark).
+      symbolKlinesAll = sharedBtc!.btcKlines4H;
+      klines = sharedBtc!.btcKlines4H;
+    } else {
+      symbolKlinesAll = symbolResult.klines.map(binanceKlineToV41);
+      klines = filterClosedKlinesV41(symbolKlinesAll);
+    }
 
     const tickerPrice =
       tickerResult?.price != null && Number.isFinite(tickerResult.price) && tickerResult.price > 0
