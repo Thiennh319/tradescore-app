@@ -1,8 +1,9 @@
 /**
- * V4.1 RC3 — Trade Session store (UI only).
- * Không ghi Journal. Không gọi API. Không đụng V3/V4 trade store.
+ * V4.1 RC3 — Trade Session store.
+ * Persist local + sync GitHub Gist (APK master / Web mirror). Không ghi Journal V3/V4.
  */
 
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import type {
   V41TradeSession,
@@ -10,8 +11,14 @@ import type {
   V41TriggerType,
 } from '../components/v41/v41Rc3Types';
 import { symbolDisplayName } from '../components/v41/v41Rc3Types';
+import { syncOnAction } from '../services/driveSyncService';
+import { mergeDriveSyncStoreBridge } from '../services/driveSyncStoreBridge';
+import { mergeByIdRemoteWins } from '../services/driveSyncMerge';
+import { persistGetJson, persistSetJson } from '../services/persistStorage';
 import { toAdvisorUpdatedAtUtc } from '../services/v41/rc3/adviserMetadata';
 import type { V41SessionAdviserPatch } from '../services/v41/rc3/tradeSessionAdviserTypes';
+
+const V41_SESSIONS_STORAGE_KEY = '@tradescore/v41_trade_sessions_v1';
 
 type CreateSessionInput = {
   symbol: string;
@@ -26,6 +33,7 @@ type CreateSessionInput = {
 
 type V41TradeSessionStore = {
   sessions: V41TradeSession[];
+  hydrated: boolean;
   createSession: (input: CreateSessionInput) => V41TradeSession | null;
   updateSession: (
     id: string,
@@ -48,11 +56,19 @@ type V41TradeSessionStore = {
     >,
   ) => void;
   applyAdviserPatches: (patches: V41SessionAdviserPatch[]) => void;
-  /** Kết thúc lệnh → xoá khỏi Execution Monitor (Journal = task khác). */
+  /** Kết thúc lệnh → status Closed (giữ lịch sử để sync), không xoá. */
   endSession: (id: string) => void;
   clearAll: () => void;
   /** True nếu coin đang Pending / Running. */
   hasActiveSession: (symbol: string) => boolean;
+  hydrate: () => Promise<void>;
+  /**
+   * Web mirror / APK empty-push restore — MERGE theo id (remote thắng khi trùng).
+   * Giữ session local-only (vd Closed) khi remote không gửi. Alias lịch sử: replaceSessionsFromRemote.
+   */
+  mergeSessionsFromRemote: (remote: V41TradeSession[]) => Promise<number>;
+  /** @deprecated dùng mergeSessionsFromRemote — giữ tên cũ cho bridge/tests */
+  replaceSessionsFromRemote: (remote: V41TradeSession[]) => Promise<number>;
 };
 
 function makeId(symbol: string, action: string): string {
@@ -63,11 +79,79 @@ function isActiveStatus(status: V41TradeSession['status']): boolean {
   return status === 'Pending' || status === 'Running';
 }
 
+function isValidSession(value: unknown): value is V41TradeSession {
+  if (value == null || typeof value !== 'object') return false;
+  const s = value as V41TradeSession;
+  return (
+    typeof s.id === 'string' &&
+    typeof s.symbol === 'string' &&
+    (s.action === 'LONG' || s.action === 'SHORT') &&
+    typeof s.status === 'string' &&
+    typeof s.entry === 'number' &&
+    typeof s.openedAt === 'number'
+  );
+}
+
+function normalizeSessions(raw: unknown): V41TradeSession[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidSession);
+}
+
+async function persistSessions(sessions: V41TradeSession[]): Promise<void> {
+  await persistSetJson(V41_SESSIONS_STORAGE_KEY, sessions);
+}
+
+function triggerV41SessionSync(): void {
+  syncOnAction('V41_SESSION_UPDATED').catch((err) => {
+    console.warn('[V41Session] Drive sync failed (non-critical):', err);
+  });
+}
+
+function patchIsMeaningful(
+  session: V41TradeSession,
+  patch: V41SessionAdviserPatch,
+): boolean {
+  if (patch.status != null && patch.status !== session.status) return true;
+  if (
+    patch.advisorActionCode != null &&
+    patch.advisorActionCode !== session.advisorActionCode
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export const useV41TradeSessionStore = create<V41TradeSessionStore>((set, get) => ({
   sessions: [],
+  hydrated: false,
 
   hasActiveSession: (symbol) =>
     get().sessions.some((s) => s.symbol === symbol && isActiveStatus(s.status)),
+
+  hydrate: async () => {
+    try {
+      const saved = await persistGetJson<unknown>(V41_SESSIONS_STORAGE_KEY);
+      const sessions = normalizeSessions(saved);
+      set({ sessions, hydrated: true });
+    } catch (err) {
+      console.warn('[V41Session] hydrate failed:', err);
+      set({ hydrated: true });
+    }
+  },
+
+  mergeSessionsFromRemote: async (remote) => {
+    const normalized = normalizeSessions(remote);
+    const prev = get().sessions;
+    const { merged, changes } = mergeByIdRemoteWins(prev, normalized);
+    if (changes === 0) return 0;
+    set({ sessions: merged });
+    await persistSessions(merged);
+    return changes;
+  },
+
+  replaceSessionsFromRemote: async (remote) => {
+    return get().mergeSessionsFromRemote(remote);
+  },
 
   createSession: (input) => {
     if (get().hasActiveSession(input.symbol)) {
@@ -107,45 +191,95 @@ export const useV41TradeSessionStore = create<V41TradeSessionStore>((set, get) =
       openedAt: now,
       triggerType: input.triggerType,
     };
-    set({ sessions: [session, ...get().sessions] });
+    const sessions = [session, ...get().sessions];
+    set({ sessions });
+    void persistSessions(sessions);
+    triggerV41SessionSync();
     return session;
   },
 
   updateSession: (id, patch) => {
-    set({
-      sessions: get().sessions.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-    });
+    const sessions = get().sessions.map((s) => (s.id === id ? { ...s, ...patch } : s));
+    set({ sessions });
+    void persistSessions(sessions);
+    const meaningful =
+      patch.status != null ||
+      patch.advisorActionCode != null ||
+      patch.stop != null ||
+      patch.tp != null;
+    if (meaningful) triggerV41SessionSync();
   },
 
   applyAdviserPatches: (patches) => {
     if (patches.length === 0) return;
     const byId = new Map(patches.map((p) => [p.sessionId, p]));
-    set({
-      sessions: get().sessions.map((session) => {
-        const patch = byId.get(session.id);
-        if (!patch) return session;
-        return {
-          ...session,
-          status: patch.status ?? session.status,
-          current: patch.current ?? session.current,
-          pnl: patch.pnl !== undefined ? patch.pnl : session.pnl,
-          advisor: patch.advisor,
-          advisorActionCode: patch.advisorActionCode,
-          advisorReason: patch.advisorReason,
-          advisorReasonCode: patch.advisorReasonCode,
-          advisorUpdatedAt: patch.advisorUpdatedAt,
-          advisorSequence: patch.advisorSequence,
-          advisorHistory: patch.historyAppend
-            ? [...session.advisorHistory, patch.historyAppend]
-            : session.advisorHistory,
-        };
-      }),
+    let meaningful = false;
+    const sessions = get().sessions.map((session) => {
+      const patch = byId.get(session.id);
+      if (!patch) return session;
+      if (patchIsMeaningful(session, patch)) meaningful = true;
+      return {
+        ...session,
+        status: patch.status ?? session.status,
+        current: patch.current ?? session.current,
+        pnl: patch.pnl !== undefined ? patch.pnl : session.pnl,
+        advisor: patch.advisor,
+        advisorActionCode: patch.advisorActionCode,
+        advisorReason: patch.advisorReason,
+        advisorReasonCode: patch.advisorReasonCode,
+        advisorUpdatedAt: patch.advisorUpdatedAt,
+        advisorSequence: patch.advisorSequence,
+        advisorHistory: patch.historyAppend
+          ? [...session.advisorHistory, patch.historyAppend]
+          : session.advisorHistory,
+      };
     });
+    set({ sessions });
+    void persistSessions(sessions);
+    if (meaningful) triggerV41SessionSync();
   },
 
   endSession: (id) => {
-    set({ sessions: get().sessions.filter((s) => s.id !== id) });
+    const sessions = get().sessions.map((s) =>
+      s.id === id
+        ? {
+            ...s,
+            status: 'Closed' as const,
+            advisor: s.advisor === 'Waiting Fill' ? ('Close' as const) : s.advisor,
+          }
+        : s,
+    );
+    set({ sessions });
+    void persistSessions(sessions);
+    triggerV41SessionSync();
   },
 
-  clearAll: () => set({ sessions: [] }),
+  clearAll: () => {
+    set({ sessions: [] });
+    void persistSessions([]);
+    triggerV41SessionSync();
+  },
 }));
+
+/** Register V41 get/apply into Drive sync bridge (merge — không ghi đè journal/positions). */
+export function registerV41DriveSyncBridge(): void {
+  mergeDriveSyncStoreBridge({
+    getV41Sessions: () => useV41TradeSessionStore.getState().sessions,
+    applyV41SessionsMirrorFromApk: async (remoteSessions, meta) => {
+      const allow =
+        Platform.OS === 'web' || meta?.restoreReason === 'empty_push_guard';
+      if (!allow) return 0;
+      if (
+        meta?.restoreReason !== 'empty_push_guard' &&
+        meta?.deviceId &&
+        meta.deviceId !== 'APK'
+      ) {
+        return 0;
+      }
+      return useV41TradeSessionStore
+        .getState()
+        .mergeSessionsFromRemote(normalizeSessions(remoteSessions));
+    },
+  });
+}
+

@@ -30,10 +30,12 @@ vi.mock('../../../store/useV41Store', () => ({
 }));
 
 const fetchRawMarketV41 = vi.fn();
+const fetchSharedBtcMarketV41 = vi.fn();
 const runMarketIntelligenceLayer = vi.fn();
 
 vi.mock('../rawMarketFetcher', () => ({
   fetchRawMarketV41: (...args: unknown[]) => fetchRawMarketV41(...args),
+  fetchSharedBtcMarketV41: (...args: unknown[]) => fetchSharedBtcMarketV41(...args),
 }));
 
 vi.mock('../marketIntelligenceLayer', async (importOriginal) => {
@@ -133,8 +135,13 @@ describe('scanV41 — Bước 3 opportunity', () => {
     v41StoreRef.updateSymbolState.mockClear();
     v41StoreRef.setScanning.mockClear();
     fetchRawMarketV41.mockReset();
+    fetchSharedBtcMarketV41.mockReset();
     runMarketIntelligenceLayer.mockReset();
 
+    fetchSharedBtcMarketV41.mockResolvedValue({
+      btcKlines4H: [],
+      btcKlines1H: [],
+    });
     fetchRawMarketV41.mockResolvedValue({
       symbol: 'NEARUSDT',
       klines: [],
@@ -156,6 +163,11 @@ describe('scanV41 — Bước 3 opportunity', () => {
 
     const [row] = await scanV41(['NEARUSDT']);
 
+    expect(fetchSharedBtcMarketV41).toHaveBeenCalledTimes(1);
+    expect(fetchRawMarketV41).toHaveBeenCalledWith(
+      'NEARUSDT',
+      expect.objectContaining({ btcKlines4H: [], btcKlines1H: [] }),
+    );
     expect(row.visibilityMode).toBe('TRADE_MODE');
     expect(row.opportunity).toBeDefined();
     expect(row.opportunity?.entryQualityLong).toBe(92);
@@ -212,5 +224,82 @@ describe('scanV41 — Bước 3 opportunity', () => {
     expect(lowQuality.opportunity).toBeDefined();
     expect(lowQuality.opportunity?.entryQuality).toBeLessThan(70);
     expect(lowQuality.opportunity?.opportunityValid).toBe(false);
+  });
+
+  it('markPrice prefers raw.liveMarkPrice over last closed 4H close', async () => {
+    runMarketIntelligenceLayer.mockReturnValue(
+      miSnapshot({
+        trendDirection: 'BULL',
+        marketState: 'HealthyUptrend',
+        trendStrength: 80,
+        marketConfidence: 72,
+        reversalProbability: 30,
+      }),
+    );
+    fetchRawMarketV41.mockResolvedValue({
+      symbol: 'NEARUSDT',
+      klines: [
+        {
+          openTime: 1,
+          open: 1.64,
+          high: 1.65,
+          low: 1.63,
+          close: 1.642,
+          volume: 1,
+          takerBuyVolume: 0.5,
+          closeTime: 2,
+        },
+      ],
+      btcKlines: [],
+      klines30M: [],
+      klines1H: [],
+      btcKlines1H: [],
+      liveMarkPrice: 1.635,
+      fetchedAt: 1_700_000_000_000,
+    });
+
+    const [row] = await scanV41(['NEARUSDT']);
+    expect(row.markPrice).toBe(1.635);
+  });
+
+  it('missing liveMarkPrice → closed-4H markPrice + console.warn (not silent)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    runMarketIntelligenceLayer.mockReturnValue(
+      miSnapshot({
+        trendDirection: 'BULL',
+        marketState: 'HealthyUptrend',
+        trendStrength: 80,
+        marketConfidence: 72,
+        reversalProbability: 30,
+      }),
+    );
+    fetchRawMarketV41.mockResolvedValue({
+      symbol: 'NEARUSDT',
+      klines: [
+        {
+          openTime: 1,
+          open: 1.64,
+          high: 1.65,
+          low: 1.63,
+          close: 1.642,
+          volume: 1,
+          takerBuyVolume: 0.5,
+          closeTime: 2,
+        },
+      ],
+      btcKlines: [],
+      klines30M: [],
+      klines1H: [],
+      btcKlines1H: [],
+      // liveMarkPrice absent — both ticker+forming failed at fetch layer
+      fetchedAt: 1_700_000_000_000,
+    });
+
+    const [row] = await scanV41(['NEARUSDT']);
+    expect(row.markPrice).toBe(1.642);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/markPrice fallback to closed-4H close=1\.642 for NEARUSDT/),
+    );
+    warn.mockRestore();
   });
 });

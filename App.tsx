@@ -55,6 +55,10 @@ import { registerWebPersistGuard } from './services/webPersistGuard';
 import { registerNativePersistGuard } from './services/nativePersistGuard';
 import { registerWebTabSync } from './services/webDataSync';
 import { computeDailyLossUsdt, derivePsychology, startAutoRefresh, toScoringPsychologyChecklist, useTradeStore } from './store/useTradeStore';
+import {
+  registerV41DriveSyncBridge,
+  useV41TradeSessionStore,
+} from './store/useV41TradeSessionStore';
 import { useTradeAppState } from './store/useTradeAppState';
 import {
   initialDriveSyncState,
@@ -595,7 +599,9 @@ export default function App() {
     let unregisterNativePersist = () => {};
 
     void (async () => {
+      registerV41DriveSyncBridge();
       await useTradeStore.getState().hydrate();
+      await useV41TradeSessionStore.getState().hydrate();
 
       if (Platform.OS !== 'web') {
         try {

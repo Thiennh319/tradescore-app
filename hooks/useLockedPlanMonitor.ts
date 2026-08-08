@@ -19,6 +19,8 @@ import { buildPlanHealthFromSignalRow } from '../services/planHealth';
 import { evaluatePendingPlanAdvisor } from '../services/pendingPlanAdvisor';
 import type { PlanHealth } from '../types/tradePlan';
 import { useTradeStore } from '../store/useTradeStore';
+import { subscribeScanMarketSnapshots } from '../services/scanMarketSnapshotStore';
+import { useResumeableBinanceInterval } from './useResumeableBinanceInterval';
 
 const MONITOR_INTERVAL_MS = 30_000;
 
@@ -127,12 +129,12 @@ export function useLockedPlanMonitor(options: LockedPlanMonitorOptions) {
       setCancelWarning(null);
       setEntryZoneResult(null);
       setPlanHealth(null);
-      return;
     }
+  }, [activePlan]);
 
-    let cancelled = false;
-
-    const refresh = async () => {
+  /** Hydrate analysisInput from Unified snapshot (no full Binance market fetch). */
+  const hydrateFromShared = useCallback(
+    async (fetchTicker: boolean) => {
       const plan = useTradeStore.getState().lockedPlan;
       if (!plan || plan.status !== 'WAITING') return;
 
@@ -145,31 +147,42 @@ export function useLockedPlanMonitor(options: LockedPlanMonitorOptions) {
         options.timeframe,
         options.psychologyChecklist,
         options.btcChange24h,
+        { fetchTicker },
       );
-      if (cancelled || !result) return;
+      if (!result) return;
 
       setContext(result);
       const row = pickSignalRowForSymbol(options.rows, planAfterExpiry.symbol);
       const rowPrice = row?.price;
       runMonitorTick(planAfterExpiry, result.analysisInput, rowPrice ?? result.price, row);
-    };
+    },
+    [
+      checkPlanExpiry,
+      options.timeframe,
+      options.psychologyChecklist,
+      options.btcChange24h,
+      options.rows,
+      runMonitorTick,
+    ],
+  );
 
-    void refresh();
-    const id = setInterval(() => void refresh(), MONITOR_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [
-    activePlan?.id,
-    activePlan?.symbol,
-    options.timeframe,
-    options.psychologyChecklist,
-    options.btcChange24h,
-    options.rows,
-    runMonitorTick,
-    checkPlanExpiry,
-  ]);
+  useEffect(() => {
+    if (!activePlan) return;
+    void hydrateFromShared(false);
+    return subscribeScanMarketSnapshots(() => {
+      void hydrateFromShared(false);
+    });
+  }, [activePlan?.id, activePlan?.symbol, hydrateFromShared]);
+
+  // Between Unified scans: ticker-only (weight 1), keep analysisInput from snapshot.
+  useResumeableBinanceInterval(
+    () => hydrateFromShared(true),
+    MONITOR_INTERVAL_MS,
+    {
+      enabled: activePlan != null,
+      runOnMount: false,
+    },
+  );
 
   useEffect(() => {
     if (!activePlan || !context?.analysisInput || currentPrice == null) return;

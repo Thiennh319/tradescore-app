@@ -9,7 +9,8 @@ import { storageGetItem, storageSetItem } from './storage';
 // ─── Config ────────────────────────────────────────────────────────────────────
 
 const REQUEST_TIMEOUT_MS = 8000;
-const MIN_REQUEST_GAP_MS = 120;
+/** Max in-flight Binance REST/WS market calls (global concurrency queue). */
+export const BINANCE_MAX_CONCURRENT = 3;
 const CACHE_PREFIX = '@tradescore/binance/v1/';
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const ORDERBOOK_CACHE_TTL_MS = 15_000;
@@ -17,6 +18,33 @@ const TICKER_CACHE_TTL_MS = 3_000;
 const FORCE_ORDERS_WS_COLLECT_MS = 2_000;
 const FORCE_ORDERS_CACHE_TTL_MS = 45_000;
 const BINANCE_WS_BASE = 'wss://fstream.binance.com/ws';
+
+/** Floor for IP ban pause when Binance returns HTTP 418 (ms). */
+export const BINANCE_IP_BAN_MIN_MS = 10 * 60 * 1000;
+/** Fallback backoff when HTTP 429 has no Retry-After header (ms). */
+export const BINANCE_RATE_LIMIT_DEFAULT_MS = 5_000;
+
+export type BinanceBlockKind = 'none' | 'rate_limit' | 'ip_ban';
+
+export interface BinanceBlockState {
+  kind: BinanceBlockKind;
+  /** Epoch ms — no Binance traffic until this instant (inclusive guard uses Date.now() < untilMs). */
+  untilMs: number;
+  reason: string;
+  blocked: boolean;
+}
+
+export class BinanceTrafficBlockedError extends Error {
+  readonly kind: 'rate_limit' | 'ip_ban';
+  readonly untilMs: number;
+
+  constructor(kind: 'rate_limit' | 'ip_ban', untilMs: number, message: string) {
+    super(message);
+    this.name = 'BinanceTrafficBlockedError';
+    this.kind = kind;
+    this.untilMs = untilMs;
+  }
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -182,20 +210,227 @@ interface CacheEnvelope<T> {
   cachedAt: number;
 }
 
-// ─── Anti-spam: throttle + in-flight dedup ─────────────────────────────────────
+// ─── Anti-spam: concurrency queue + in-flight dedup ────────────────────────────
 
-let lastRequestAt = 0;
 const inflightRequests = new Map<string, Promise<unknown>>();
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** Global 429/418 gate — shared by binanceGet, OI raw fetch, V41 raw fetch. */
+let blockKind: BinanceBlockKind = 'none';
+let blockUntilMs = 0;
+let blockReason = '';
+const blockListeners = new Set<() => void>();
+
+/** Global concurrency slot queue for every Binance network call. */
+let concurrentActive = 0;
+let concurrentPeak = 0;
+type QueueWaiter = {
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
+const concurrencyWaiters: QueueWaiter[] = [];
+
+function notifyBlockListeners(): void {
+  for (const listener of blockListeners) {
+    try {
+      listener();
+    } catch {
+      // listener failure must not break gate
+    }
+  }
 }
 
-async function throttle(): Promise<void> {
-  const now = Date.now();
-  const wait = Math.max(0, MIN_REQUEST_GAP_MS - (now - lastRequestAt));
-  if (wait > 0) await sleep(wait);
-  lastRequestAt = Date.now();
+function clearBlockIfExpired(): boolean {
+  if (blockKind === 'none') return false;
+  if (Date.now() < blockUntilMs) return false;
+  blockKind = 'none';
+  blockUntilMs = 0;
+  blockReason = '';
+  console.info('[binanceApi] Binance traffic resumed (block expired)');
+  notifyBlockListeners();
+  return true;
+}
+
+function rejectConcurrencyWaiters(error: Error): void {
+  while (concurrencyWaiters.length > 0) {
+    const waiter = concurrencyWaiters.shift()!;
+    waiter.reject(error);
+  }
+}
+
+function activateBlock(
+  kind: 'rate_limit' | 'ip_ban',
+  untilMs: number,
+  reason: string,
+): void {
+  // Keep the stricter (later) deadline if already blocked.
+  if (blockKind !== 'none' && untilMs < blockUntilMs && Date.now() < blockUntilMs) {
+    return;
+  }
+  blockKind = kind;
+  blockUntilMs = untilMs;
+  blockReason = reason;
+  console.warn(`[binanceApi] ${reason}`);
+  rejectConcurrencyWaiters(
+    new BinanceTrafficBlockedError(
+      kind,
+      untilMs,
+      reason || `Binance traffic blocked until ${new Date(untilMs).toISOString()}`,
+    ),
+  );
+  notifyBlockListeners();
+}
+
+/** Parse Retry-After: delta-seconds or HTTP-date. */
+export function parseRetryAfterMs(header: string | null): number | null {
+  if (header == null || header.trim() === '') return null;
+  const raw = header.trim();
+  if (/^\d+$/.test(raw)) {
+    const seconds = Number(raw);
+    if (!Number.isFinite(seconds) || seconds < 0) return null;
+    return Math.ceil(seconds * 1000);
+  }
+  const when = Date.parse(raw);
+  if (!Number.isFinite(when)) return null;
+  return Math.max(0, when - Date.now());
+}
+
+/** Binance ban body often includes `banned until <epochMs>`. */
+export function parseBannedUntilMs(bodyText: string): number | null {
+  const match = bodyText.match(/banned until (\d+)/i);
+  if (!match) return null;
+  const until = Number(match[1]);
+  return Number.isFinite(until) && until > 0 ? until : null;
+}
+
+/**
+ * Record HTTP 429 / 418 from any Binance call path (binanceGet, raw fetch, OI).
+ * Safe to call with a response clone when the caller still needs the body.
+ */
+export async function applyBinanceHttpFailure(response: Response): Promise<void> {
+  const status = response.status;
+  if (status !== 429 && status !== 418) return;
+
+  let bodyText = '';
+  try {
+    bodyText = await response.text();
+  } catch {
+    bodyText = '';
+  }
+
+  if (status === 418) {
+    const untilFromBody = parseBannedUntilMs(bodyText);
+    const untilMs = Math.max(Date.now() + BINANCE_IP_BAN_MIN_MS, untilFromBody ?? 0);
+    activateBlock(
+      'ip_ban',
+      untilMs,
+      `HTTP 418 IP ban — pausing all Binance traffic until ${new Date(untilMs).toISOString()}`,
+    );
+    return;
+  }
+
+  const retryAfterMs = parseRetryAfterMs(response.headers.get('Retry-After'));
+  const backoffMs = retryAfterMs ?? BINANCE_RATE_LIMIT_DEFAULT_MS;
+  const untilMs = Date.now() + backoffMs;
+  activateBlock(
+    'rate_limit',
+    untilMs,
+    `HTTP 429 rate limit — backoff ${backoffMs}ms (Retry-After=${response.headers.get('Retry-After') ?? 'none'})`,
+  );
+}
+
+export function getBinanceBlockState(): BinanceBlockState {
+  clearBlockIfExpired();
+  const blocked = blockKind !== 'none' && Date.now() < blockUntilMs;
+  return {
+    kind: blocked ? blockKind : 'none',
+    untilMs: blocked ? blockUntilMs : 0,
+    reason: blocked ? blockReason : '',
+    blocked,
+  };
+}
+
+export function isBinanceTrafficBlocked(): boolean {
+  return getBinanceBlockState().blocked;
+}
+
+export function msUntilBinanceTrafficAllowed(): number {
+  const state = getBinanceBlockState();
+  if (!state.blocked) return 0;
+  return Math.max(0, state.untilMs - Date.now());
+}
+
+export function subscribeBinanceBlockState(listener: () => void): () => void {
+  blockListeners.add(listener);
+  return () => {
+    blockListeners.delete(listener);
+  };
+}
+
+export function assertBinanceTrafficAllowed(): void {
+  const state = getBinanceBlockState();
+  if (!state.blocked) return;
+  if (state.kind === 'none') return;
+  throw new BinanceTrafficBlockedError(
+    state.kind === 'ip_ban' ? 'ip_ban' : 'rate_limit',
+    state.untilMs,
+    state.reason || `Binance traffic blocked until ${new Date(state.untilMs).toISOString()}`,
+  );
+}
+
+function dispatchConcurrencyWaiters(): void {
+  while (
+    concurrentActive < BINANCE_MAX_CONCURRENT &&
+    concurrencyWaiters.length > 0
+  ) {
+    if (isBinanceTrafficBlocked()) {
+      const state = getBinanceBlockState();
+      rejectConcurrencyWaiters(
+        new BinanceTrafficBlockedError(
+          state.kind === 'ip_ban' ? 'ip_ban' : 'rate_limit',
+          state.untilMs,
+          state.reason || 'Binance traffic blocked',
+        ),
+      );
+      return;
+    }
+    const next = concurrencyWaiters.shift()!;
+    concurrentActive += 1;
+    if (concurrentActive > concurrentPeak) concurrentPeak = concurrentActive;
+    next.resolve();
+  }
+}
+
+async function acquireBinanceSlot(): Promise<void> {
+  assertBinanceTrafficAllowed();
+  if (concurrentActive < BINANCE_MAX_CONCURRENT) {
+    concurrentActive += 1;
+    if (concurrentActive > concurrentPeak) concurrentPeak = concurrentActive;
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    concurrencyWaiters.push({ resolve, reject });
+  });
+  // Slot already reserved by dispatcher; re-check gate before network.
+  assertBinanceTrafficAllowed();
+}
+
+function releaseBinanceSlot(): void {
+  concurrentActive = Math.max(0, concurrentActive - 1);
+  dispatchConcurrencyWaiters();
+}
+
+/**
+ * Run `fn` holding one global Binance concurrency slot.
+ * Gate is checked before acquire and again before `fn` runs.
+ */
+export async function withBinanceConcurrency<T>(fn: () => Promise<T>): Promise<T> {
+  await acquireBinanceSlot();
+  try {
+    assertBinanceTrafficAllowed();
+    return await fn();
+  } finally {
+    releaseBinanceSlot();
+  }
 }
 
 async function withDedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -207,6 +442,26 @@ async function withDedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
   });
   inflightRequests.set(key, promise);
   return promise;
+}
+
+/**
+ * Shared REST entry for paths that bypass binanceGet (V41 funding / forming candle, OI).
+ * Honors global 429/418 block + concurrency queue; applies failure gate on non-OK.
+ */
+export async function binancePublicFetch(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  return withBinanceConcurrency(async () => {
+    const headers = new Headers(init?.headers);
+    if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+
+    const response = await fetch(url, { ...init, headers });
+    if (!response.ok) {
+      await applyBinanceHttpFailure(response.clone());
+    }
+    return response;
+  });
 }
 
 // ─── Cache layer ───────────────────────────────────────────────────────────────
@@ -263,41 +518,42 @@ async function binanceGet<TPayload>(
   const key = cacheKey(storageKey);
   const requestKey = `${path}?${JSON.stringify(params)}`;
 
-  return withDedup(requestKey, async () => {
-    await throttle();
+  return withDedup(requestKey, async () =>
+    withBinanceConcurrency(async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const response = await fetch(buildUrl(path, params), {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
 
-    try {
-      const response = await fetch(buildUrl(path, params), {
-        signal: controller.signal,
-        headers: { Accept: 'application/json' },
-      });
+        if (!response.ok) {
+          await applyBinanceHttpFailure(response.clone());
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const json: unknown = await response.json();
+        const payload = parse(json);
+        await writeCache(key, payload);
+
+        return { payload, fromCache: false };
+      } catch (error) {
+        const cached = await readCache<TPayload>(key);
+        if (cached && Date.now() - cached.cachedAt <= ttlMs * 10) {
+          return {
+            payload: cached.data,
+            fromCache: true,
+            cachedAt: cached.cachedAt,
+          };
+        }
+        throw error;
+      } finally {
+        clearTimeout(timer);
       }
-
-      const json: unknown = await response.json();
-      const payload = parse(json);
-      await writeCache(key, payload);
-
-      return { payload, fromCache: false };
-    } catch (error) {
-      const cached = await readCache<TPayload>(key);
-      if (cached && Date.now() - cached.cachedAt <= ttlMs * 10) {
-        return {
-          payload: cached.data,
-          fromCache: true,
-          cachedAt: cached.cachedAt,
-        };
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-  });
+    }),
+  );
 }
 
 // ─── Parsers ───────────────────────────────────────────────────────────────────
@@ -636,8 +892,6 @@ export async function fetchForceOrders(
   const key = cacheKey(storageKey);
 
   return withDedup(`forceOrders:ws:${symbol}:${limit}`, async () => {
-    await throttle();
-
     const cached = await readCache<ForceOrder[]>(key);
     if (cached && Date.now() - cached.cachedAt <= FORCE_ORDERS_CACHE_TTL_MS) {
       return {
@@ -648,21 +902,23 @@ export async function fetchForceOrders(
       };
     }
 
-    try {
-      const orders = await collectForceOrdersWebSocket(symbol, limit);
-      await writeCache(key, orders);
-      return { symbol, orders: orders.slice(0, limit), fromCache: false };
-    } catch (error) {
-      if (cached) {
-        return {
-          symbol,
-          orders: cached.data.slice(0, limit),
-          fromCache: true,
-          cachedAt: cached.cachedAt,
-        };
+    return withBinanceConcurrency(async () => {
+      try {
+        const orders = await collectForceOrdersWebSocket(symbol, limit);
+        await writeCache(key, orders);
+        return { symbol, orders: orders.slice(0, limit), fromCache: false };
+      } catch (error) {
+        if (cached) {
+          return {
+            symbol,
+            orders: cached.data.slice(0, limit),
+            fromCache: true,
+            cachedAt: cached.cachedAt,
+          };
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   });
 }
 
@@ -674,24 +930,23 @@ export async function fetchOIEngine(
   const storageKey = `oiEngine:${symbol}:${period}:${limit}`;
 
   return withDedup(storageKey, async () => {
-    await throttle();
+    assertBinanceTrafficAllowed();
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const [oiRes, histRes] = await Promise.all([
-        fetch(buildUrl('/fapi/v1/openInterest', { symbol }), {
+        binancePublicFetch(buildUrl('/fapi/v1/openInterest', { symbol }), {
           signal: controller.signal,
-          headers: { Accept: 'application/json' },
         }),
-        fetch(
+        binancePublicFetch(
           buildUrl('/futures/data/openInterestHist', {
             symbol,
             period,
             limit,
           }),
-          { signal: controller.signal, headers: { Accept: 'application/json' } },
+          { signal: controller.signal },
         ),
       ]);
 
@@ -865,10 +1120,52 @@ export async function fetchAllMarketData(
   };
 }
 
-/** Reset throttle state — for tests only */
+/** Reset concurrency queue + block gate — for tests only */
 export function __resetApiGuardForTests(): void {
-  lastRequestAt = 0;
   inflightRequests.clear();
+  blockKind = 'none';
+  blockUntilMs = 0;
+  blockReason = '';
+  blockListeners.clear();
+  concurrentActive = 0;
+  concurrentPeak = 0;
+  rejectConcurrencyWaiters(new Error('binanceApi guard reset'));
+  concurrencyWaiters.length = 0;
+}
+
+/** Test helper — force a traffic block without HTTP (overwrites existing). */
+export function __setBinanceBlockForTests(
+  kind: 'rate_limit' | 'ip_ban',
+  untilMs: number,
+  reason = 'test block',
+): void {
+  blockKind = kind;
+  blockUntilMs = untilMs;
+  blockReason = reason;
+  console.warn(`[binanceApi] ${reason}`);
+  rejectConcurrencyWaiters(
+    new BinanceTrafficBlockedError(
+      kind,
+      untilMs,
+      reason || `Binance traffic blocked until ${new Date(untilMs).toISOString()}`,
+    ),
+  );
+  notifyBlockListeners();
+}
+
+/** Test helper — observe concurrency peak / active. */
+export function __getBinanceConcurrencyForTests(): {
+  active: number;
+  peak: number;
+  waiting: number;
+  max: number;
+} {
+  return {
+    active: concurrentActive,
+    peak: concurrentPeak,
+    waiting: concurrencyWaiters.length,
+    max: BINANCE_MAX_CONCURRENT,
+  };
 }
 
 export { fetchAnalysisDataForSymbol } from './symbolAnalysisFetch';

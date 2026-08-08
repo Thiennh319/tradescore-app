@@ -190,6 +190,11 @@ import {
 import { syncOnAction } from '../services/driveSyncService';
 import { applyPartialCloseToEntry } from '../services/partialClose';
 import { registerDriveSyncStoreBridge } from '../services/driveSyncStoreBridge';
+import { mergeByIdRemoteWins } from '../services/driveSyncMerge';
+import {
+  isCapitalPayloadDefaultEmpty,
+  mergePositionsFieldsRemote,
+} from '../services/driveSyncPayloadGuards';
 import type { CancelReason } from '../services/lockedPlanScoring';
 
 // ─── Phase 1 AI Journal (re-export types) ────────────────────────────────────
@@ -2350,24 +2355,7 @@ function countJournalMirrorChanges(
   local: AiTradeJournalEntry[],
   remote: AiTradeJournalEntry[],
 ): number {
-  const localById = new Map(local.map((entry) => [entry.id, entry]));
-  const remoteById = new Map(remote.map((entry) => [entry.id, entry]));
-  let changes = 0;
-
-  for (const entry of remote) {
-    const existing = localById.get(entry.id);
-    if (!existing || JSON.stringify(existing) !== JSON.stringify(entry)) {
-      changes++;
-    }
-  }
-
-  for (const entry of local) {
-    if (!remoteById.has(entry.id)) {
-      changes++;
-    }
-  }
-
-  return changes;
+  return mergeByIdRemoteWins(local, remote).changes;
 }
 
 registerDriveSyncStoreBridge({
@@ -2375,19 +2363,21 @@ registerDriveSyncStoreBridge({
   getJournal: () => useTradeStore.getState().aiTradeJournal,
   getPositions: () => buildDrivePositionsPayload(useTradeStore.getState()),
   getCapital: () => buildDriveCapitalPayload(useTradeStore.getState()),
-  applyJournalMirrorFromApk: async (remoteJournal) => {
-    if (Platform.OS !== 'web') return 0;
+  applyJournalMirrorFromApk: async (remoteJournal, meta) => {
+    const allow =
+      Platform.OS === 'web' || meta?.restoreReason === 'empty_push_guard';
+    if (!allow) return 0;
 
     const remote = remoteJournal as AiTradeJournalEntry[];
     const local = useTradeStore.getState().aiTradeJournal;
-    const changes = countJournalMirrorChanges(local, remote);
+    const { merged, changes } = mergeByIdRemoteWins(local, remote);
     if (changes === 0) return 0;
 
     const state = useTradeStore.getState();
-    const nextStats = refreshDailyStatsForEntry(remote, state.dailyStats);
-    const persisted = applyJournalPersist(remote, nextStats);
-    const tradeJournal = syncLegacyJournalClosedFromAi(state.tradeJournal, remote);
-    const nextHistory = rebuildAccountHistoryFromJournal(remote);
+    const nextStats = refreshDailyStatsForEntry(merged, state.dailyStats);
+    const persisted = applyJournalPersist(merged, nextStats);
+    const tradeJournal = syncLegacyJournalClosedFromAi(state.tradeJournal, merged);
+    const nextHistory = rebuildAccountHistoryFromJournal(merged);
 
     useTradeStore.setState({
       ...persisted,
@@ -2411,8 +2401,10 @@ registerDriveSyncStoreBridge({
 
     return changes;
   },
-  applyPositionsMirrorFromApk: async (remote) => {
-    if (Platform.OS !== 'web') return 0;
+  applyPositionsMirrorFromApk: async (remote, meta) => {
+    const allow =
+      Platform.OS === 'web' || meta?.restoreReason === 'empty_push_guard';
+    if (!allow) return 0;
 
     const payload = remote as {
       currentOpenTrade?: AiTradeJournalEntry | null;
@@ -2421,8 +2413,19 @@ registerDriveSyncStoreBridge({
     };
 
     const state = useTradeStore.getState();
-    const nextOpen = payload.currentOpenTrade ?? null;
-    const nextLocked = payload.lockedPlan ?? null;
+    const { nextOpen, nextLocked, protectedOpen, protectedLocked } =
+      mergePositionsFieldsRemote(
+        state.currentOpenDataTrade,
+        state.lockedPlan,
+        payload,
+      );
+
+    if (protectedOpen || protectedLocked) {
+      console.warn(
+        '[DriveSync] 🛡️ Web positions mirror: giữ field local vì remote null',
+        { protectedOpen, protectedLocked },
+      );
+    }
 
     const openChanged =
       JSON.stringify(state.currentOpenDataTrade) !== JSON.stringify(nextOpen);
@@ -2431,8 +2434,8 @@ registerDriveSyncStoreBridge({
     if (!openChanged && !lockedChanged) return 0;
 
     useTradeStore.setState({
-      currentOpenDataTrade: nextOpen,
-      lockedPlan: nextLocked,
+      currentOpenDataTrade: nextOpen as AiTradeJournalEntry | null,
+      lockedPlan: nextLocked as LockedTradePlan | null,
       lastSavedAt: Date.now(),
     });
 
@@ -2446,12 +2449,28 @@ registerDriveSyncStoreBridge({
 
     return (openChanged ? 1 : 0) + (lockedChanged ? 1 : 0);
   },
-  applyCapitalMirrorFromApk: async (remote) => {
-    if (Platform.OS !== 'web') return false;
+  applyCapitalMirrorFromApk: async (remote, meta) => {
+    const allow =
+      Platform.OS === 'web' || meta?.restoreReason === 'empty_push_guard';
+    if (!allow) return false;
 
     const remoteState = remote as import('../constants/capitalManagement').CapitalStatePersisted;
     const state = useTradeStore.getState();
     const localState = await loadCapitalState();
+    const localPayload =
+      localState ??
+      capitalStateFromSettings(state.settings, state.milestoneJournal);
+
+    // V3V4-SYNC-3e: local có data thật, remote về default/rỗng → không ghi đè.
+    if (
+      !isCapitalPayloadDefaultEmpty(localPayload) &&
+      isCapitalPayloadDefaultEmpty(remoteState)
+    ) {
+      console.warn(
+        '[DriveSync] 🛡️ Web capital mirror: giữ local — remote rỗng/default trong khi local có data thật',
+      );
+      return false;
+    }
 
     const sameCapital =
       localState?.currentCapital === remoteState.currentCapital &&

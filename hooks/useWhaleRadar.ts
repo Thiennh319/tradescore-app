@@ -4,6 +4,7 @@ import { WHALE_RADAR_INTERVAL_MS } from '../constants/whaleRadar';
 import { alertLockKey, type WhaleRadarEvent } from '../services/whaleRadarDetect';
 import { formatWhaleEventLine } from '../services/whaleRadarNotificationMessage';
 import { runWhaleRadarScan, runWhaleRadarScanIfDue } from '../services/whaleRadarScan';
+import { useResumeableBinanceInterval } from './useResumeableBinanceInterval';
 
 const TOAST_TTL_MS = 12_000;
 
@@ -71,10 +72,11 @@ export function useWhaleRadar(): WhaleRadarState {
     [pushToasts],
   );
 
-  useEffect(() => {
-    void scan(false);
-    const interval = setInterval(() => void scan(false), WHALE_RADAR_INTERVAL_MS);
+  useResumeableBinanceInterval(() => scan(false), WHALE_RADAR_INTERVAL_MS, {
+    runOnMount: true,
+  });
 
+  useEffect(() => {
     const appStateSub =
       Platform.OS === 'web'
         ? null
@@ -83,7 +85,6 @@ export function useWhaleRadar(): WhaleRadarState {
           });
 
     return () => {
-      clearInterval(interval);
       appStateSub?.remove();
       for (const timer of timersRef.current.values()) {
         clearTimeout(timer);
