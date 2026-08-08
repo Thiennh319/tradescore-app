@@ -4,7 +4,7 @@
  * Gọi engine hiện có theo pipeline chuẩn.
  * KHÔNG sửa thuật toán engine. KHÔNG thêm API. Chỉ map output → ViewModel.
  *
- * Task 3: symbol strategy routing — NEAR → breakout adapter; others → TR unchanged.
+ * Task 3 / V41-XRP-3: allow-list breakout → Confirm-B adapter; others → TR unchanged.
  */
 
 import { scanBreakoutSetups, type BreakoutTradeLevels } from '../breakoutDetector';
@@ -15,6 +15,10 @@ import { evaluateTrendReversalWithContext } from '../marketContextFilter';
 import { computePositionAdviserExplainResult } from '../positionAdviserExplainV41';
 import type { SignalRowV41 } from '../scanV41';
 import { adaptBreakoutToRc3Card } from '../strategy/adaptBreakoutToRc3Card';
+import {
+  BREAKOUT_PRODUCTION_MAX_HOLD_1H,
+  buildProductionBreakoutScanParams,
+} from '../strategy/breakoutProductionParams';
 import { resolveSymbolStrategy } from '../strategy/resolveSymbolStrategy';
 import {
   planTradeExecution,
@@ -37,12 +41,8 @@ import {
   type V41TrGateSummaryUi,
 } from './rc3ViewModelTypes';
 
-/** Confirm B research config (NEAR) — W_N20_X5, ATR SL×1.0, no strong-candle / no BTC filter. */
-const BREAKOUT_LOOKBACK_N = 20;
-const BREAKOUT_MAX_WIDTH_PCT = 5;
-const BREAKOUT_ATR_MULT = 1.0;
-/** After Confirm B active bar — keep signal actionable for research max-hold window (80×1H). */
-const BREAKOUT_SIGNAL_MAX_AGE_BARS_1H = 80;
+/** After Confirm B active bar — keep signal actionable for production max-hold (80×1H). */
+const BREAKOUT_SIGNAL_MAX_AGE_BARS_1H = BREAKOUT_PRODUCTION_MAX_HOLD_1H;
 const MS_1H = 3_600_000;
 
 /** Đúng 4 signal legacy TR gate — không dùng BTC Confirm / Market Context. */
@@ -196,16 +196,8 @@ export function pickCurrentBreakoutSetup(
 
 function buildBreakoutRc3Card(row: SignalRowV41): V41Rc3SignalCardModel {
   const klines1H: KlineV41[] = row.klines1H ?? [];
-  const setups = scanBreakoutSetups({
-    klines1H,
-    lookbackN: BREAKOUT_LOOKBACK_N,
-    consolidationMode: 'width',
-    maxWidthPct: BREAKOUT_MAX_WIDTH_PCT,
-    confirmMode: 'retest',
-    slMode: 'atr_break_level',
-    atrMult: BREAKOUT_ATR_MULT,
-    requireStrongBreakout: false,
-  });
+  /** Shared NEAR-default SSOT — same path for NEARUSDT + XRPUSDT (V41-XRP-3). */
+  const setups = scanBreakoutSetups(buildProductionBreakoutScanParams(klines1H));
   const current = pickCurrentBreakoutSetup(setups, klines1H);
   return adaptBreakoutToRc3Card(current, row);
 }

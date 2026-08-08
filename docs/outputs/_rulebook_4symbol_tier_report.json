@@ -1,0 +1,222 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_BTCUSDT_LIVE_SCAN.md",
+    "mdLen": 23195,
+    "confidence": 12.909375,
+    "decision_final_output": "IGNORE",
+    "matchedTier": "ignore",
+    "tierConsistency": "INFO",
+    "decision_long_short": {
+      "status": "FAIL",
+      "actual": 12.909375,
+      "threshold": "≥ 75",
+      "reasonVi": "actual 12.909375 < 75 — ngoài band LONG/SHORT"
+    },
+    "decision_watch": {
+      "status": "FAIL",
+      "actual": 12.909375,
+      "threshold": "45 ≤ x < 75",
+      "reasonVi": "actual 12.909375 ∉ [45, 75) — ngoài band WATCH"
+    },
+    "decision_ignore": {
+      "status": "PASS",
+      "actual": 12.909375,
+      "threshold": "< 45 (band IGNORE; config.ignore=25 = isIgnoreCase floor)",
+      "reasonVi": "Không đủ tín hiệu — dưới ngưỡng ignore gốc (25), gần như không có dữ liệu hỗ trợ hướng đi"
+    },
+    "decision_final_trace": {
+      "status": "INFO",
+      "actual": "IGNORE",
+      "threshold": null,
+      "reasonVi": "Engine decision cuối = IGNORE (mô tả only; không so threshold)"
+    },
+    "visibilityMode": "TRADE_MODE",
+    "trendReversalState": "WATCH",
+    "decisionChain": [
+      "MarketState=WeakDowntrend",
+      "Visibility=TRADE_MODE",
+      "TrendReversal=WATCH(signals=1/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=12.909375",
+      "Decision=IGNORE",
+      "EarlyWarning=CLEAR",
+      "MomentumLong=false|Short=false"
+    ],
+    "marketContextApplied": null,
+    "totals": {
+      "total": 19,
+      "passed": 3,
+      "failed": 9,
+      "watch": 1,
+      "skipped": 5,
+      "info": 1
+    },
+    "rowError": null
+  },
+  {
+    "symbol": "NEARUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_NEARUSDT_LIVE_SCAN.md",
+    "mdLen": 23171,
+    "confidence": 12.909375,
+    "decision_final_output": "IGNORE",
+    "matchedTier": "ignore",
+    "tierConsistency": "INFO",
+    "decision_long_short": {
+      "status": "FAIL",
+      "actual": 12.909375,
+      "threshold": "≥ 75",
+      "reasonVi": "actual 12.909375 < 75 — ngoài band LONG/SHORT"
+    },
+    "decision_watch": {
+      "status": "FAIL",
+      "actual": 12.909375,
+      "threshold": "45 ≤ x < 75",
+      "reasonVi": "actual 12.909375 ∉ [45, 75) — ngoài band WATCH"
+    },
+    "decision_ignore": {
+      "status": "PASS",
+      "actual": 12.909375,
+      "threshold": "< 45 (band IGNORE; config.ignore=25 = isIgnoreCase floor)",
+      "reasonVi": "Không đủ tín hiệu — dưới ngưỡng ignore gốc (25), gần như không có dữ liệu hỗ trợ hướng đi"
+    },
+    "decision_final_trace": {
+      "status": "INFO",
+      "actual": "IGNORE",
+      "threshold": null,
+      "reasonVi": "Engine decision cuối = IGNORE (mô tả only; không so threshold)"
+    },
+    "visibilityMode": "TRADE_MODE",
+    "trendReversalState": "WATCH",
+    "decisionChain": [
+      "MarketState=StrongDowntrend",
+      "Visibility=TRADE_MODE",
+      "TrendReversal=WATCH(signals=1/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=12.909375",
+      "Decision=IGNORE",
+      "EarlyWarning=CLEAR",
+      "MomentumLong=false|Short=false"
+    ],
+    "marketContextApplied": null,
+    "totals": {
+      "total": 19,
+      "passed": 3,
+      "failed": 9,
+      "watch": 1,
+      "skipped": 5,
+      "info": 1
+    },
+    "rowError": null
+  },
+  {
+    "symbol": "SOLUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_SOLUSDT_LIVE_SCAN.md",
+    "mdLen": 23195,
+    "confidence": 12.909375,
+    "decision_final_output": "IGNORE",
+    "matchedTier": "ignore",
+    "tierConsistency": "INFO",
+    "decision_long_short": {
+      "status": "FAIL",
+      "actual": 12.909375,
+      "threshold": "≥ 75",
+      "reasonVi": "actual 12.909375 < 75 — ngoài band LONG/SHORT"
+    },
+    "decision_watch": {
+      "status": "FAIL",
+      "actual": 12.909375,
+      "threshold": "45 ≤ x < 75",
+      "reasonVi": "actual 12.909375 ∉ [45, 75) — ngoài band WATCH"
+    },
+    "decision_ignore": {
+      "status": "PASS",
+      "actual": 12.909375,
+      "threshold": "< 45 (band IGNORE; config.ignore=25 = isIgnoreCase floor)",
+      "reasonVi": "Không đủ tín hiệu — dưới ngưỡng ignore gốc (25), gần như không có dữ liệu hỗ trợ hướng đi"
+    },
+    "decision_final_trace": {
+      "status": "INFO",
+      "actual": "IGNORE",
+      "threshold": null,
+      "reasonVi": "Engine decision cuối = IGNORE (mô tả only; không so threshold)"
+    },
+    "visibilityMode": "TRADE_MODE",
+    "trendReversalState": "WATCH",
+    "decisionChain": [
+      "MarketState=WeakDowntrend",
+      "Visibility=TRADE_MODE",
+      "TrendReversal=WATCH(signals=1/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=12.909375",
+      "Decision=IGNORE",
+      "EarlyWarning=CLEAR",
+      "MomentumLong=false|Short=false"
+    ],
+    "marketContextApplied": null,
+    "totals": {
+      "total": 19,
+      "passed": 3,
+      "failed": 9,
+      "watch": 1,
+      "skipped": 5,
+      "info": 1
+    },
+    "rowError": null
+  },
+  {
+    "symbol": "BNBUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_BNBUSDT_LIVE_SCAN.md",
+    "mdLen": 22965,
+    "confidence": 7.875,
+    "decision_final_output": "IGNORE",
+    "matchedTier": "ignore",
+    "tierConsistency": "INFO",
+    "decision_long_short": {
+      "status": "FAIL",
+      "actual": 7.875,
+      "threshold": "≥ 75",
+      "reasonVi": "actual 7.875 < 75 — ngoài band LONG/SHORT"
+    },
+    "decision_watch": {
+      "status": "FAIL",
+      "actual": 7.875,
+      "threshold": "45 ≤ x < 75",
+      "reasonVi": "actual 7.875 ∉ [45, 75) — ngoài band WATCH"
+    },
+    "decision_ignore": {
+      "status": "PASS",
+      "actual": 7.875,
+      "threshold": "< 45 (band IGNORE; config.ignore=25 = isIgnoreCase floor)",
+      "reasonVi": "Không đủ tín hiệu — dưới ngưỡng ignore gốc (25), gần như không có dữ liệu hỗ trợ hướng đi"
+    },
+    "decision_final_trace": {
+      "status": "INFO",
+      "actual": "IGNORE",
+      "threshold": null,
+      "reasonVi": "Engine decision cuối = IGNORE (mô tả only; không so threshold)"
+    },
+    "visibilityMode": "INACTIVE",
+    "trendReversalState": "WATCH",
+    "decisionChain": [
+      "MarketState=Transition",
+      "Visibility=INACTIVE",
+      "TrendReversal=WATCH(signals=0/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=7.875",
+      "Decision=IGNORE",
+      "EarlyWarning=CLEAR",
+      "MomentumLong=false|Short=false"
+    ],
+    "marketContextApplied": null,
+    "totals": {
+      "total": 19,
+      "passed": 2,
+      "failed": 10,
+      "watch": 1,
+      "skipped": 5,
+      "info": 1
+    },
+    "rowError": null
+  }
+]

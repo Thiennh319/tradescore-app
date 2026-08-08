@@ -1,0 +1,571 @@
+﻿ M .gitignore
+ M android/app/build.gradle
+ M android/app/src/main/AndroidManifest.xml
+ M android/gradle.properties
+ M components/dashboard/SignalBoard.tsx
+ M components/journal/JournalFilterBar.tsx
+ M components/journal/JournalTradeMobileCard.tsx
+ M components/journal/JournalTradeTable.tsx
+ M config/featureFlags.ts
+ M constants/scoring.ts
+ M docs/03_ENTRY_DECISION_BTCUSDT_LONG_v4.md
+ D docs/CVDX_FEATURE_REPORT.md
+ D docs/DIRECTION_ACTIVE_SIDE_INVESTIGATION.md
+ D docs/DIRECTION_ACTIVE_SIDE_INVESTIGATION.txt
+ D docs/DetectionLayerArchitecture.md
+ D docs/ENTRY_RULEBOOK_STATE_MISMATCH_FIX_REPORT.md
+ M docs/ENTRY_TRACE_BTCUSDT_LONG_v4_RULEBOOK_STATE_SSOT_VERIFY.md
+ D docs/Entry_SLTP_Audit_Package_Design_Report.txt
+ D docs/Entry_SLTP_Audit_Package_Final_Report.txt
+ D docs/Entry_SLTP_Audit_Package_Sample_Output.txt
+ D docs/Entry_SLTP_Section8_Mechanism_Report.txt
+ D docs/Entry_SLTP_Section8_Worksheet_Completion_Report.txt
+ D docs/Entry_SLTP_Section8_vs9_Source_Verification_Report.txt
+ D docs/Evidence_Export_GD2_Task01_RemoveV41Export_Report.txt
+ D docs/Evidence_Export_GD2_Task02_AuditPackage_Report.txt
+ D docs/Evidence_Export_GD2_Task03_PackageHeader_Report.txt
+ D docs/Evidence_Export_GD2_Task04_RuleBook_Report.txt
+ D docs/Evidence_Export_GD2_Task05_DecisionTrace_Report.txt
+ D docs/Evidence_Export_RuleAuditSnapshot_Report.txt
+ D docs/Evidence_Export_Task02_SignalRow_Wire_Report.txt
+ D docs/Evidence_Export_Task03_Builder_Report.txt
+ D docs/Evidence_Export_Task04_Populate_Report.txt
+ D docs/Evidence_Export_Task05A_EMA_Populate_Report.txt
+ D docs/Evidence_Export_Task05B_RSI_Populate_Report.txt
+ D docs/Evidence_Export_Task05C_MACD_Populate_Report.txt
+ D docs/Evidence_Export_Task05D_Bollinger_Populate_Report.txt
+ D docs/Evidence_Export_Task06A_Volume_CVD_Populate_Report.txt
+ D docs/Evidence_Export_Task06B_Derivatives_Populate_Report.txt
+ D docs/Evidence_Export_Task07A_MarketContext_Populate_Report.txt
+ D docs/Evidence_Export_Task07B_TrendContext_Populate_Report.txt
+ D docs/Evidence_Export_Task07C_TradeContext_Populate_Report.txt
+ D docs/Evidence_Export_Task08_Wire_Report.txt
+ D docs/Evidence_Export_Task09A1_Coverage_Report.txt
+ D docs/Evidence_Export_Task09A_CSV_Report.txt
+ D docs/Evidence_Export_Task10A_ExecutiveSummary_Report.txt
+ D docs/Evidence_Export_Task10_HumanReport.txt
+ D docs/Evidence_Export_Task11_Acceptance_Report.txt
+ D docs/Evidence_Export_Task12_Baseline_Report.txt
+ D docs/Evidence_Export_Task13_Wire_Report.txt
+ D docs/Evidence_Export_UI_Path_Audit_Report.txt
+ D docs/Export_AuditPackage_Snapshot_Consistency_Fix_Report.txt
+ D docs/Export_GroupScore_Legend_Change_Report.txt
+ D docs/Group_Score_A_V4_Audit_Report.txt
+ D docs/Investigation_L6_Funding_SOLUSDT_Direction_Report.txt
+ D docs/JOURNAL_STORAGE_REPORT.md
+ D docs/L1_SHORT_Fix_Report.txt
+ D docs/L1_SHORT_Logic_Audit_Report.txt
+ D docs/L1_SHORT_UnitTest_Report.txt
+ D docs/L3_MACD_Fix_Report.txt
+ D docs/L3_MACD_Investigation_Report.txt
+ D docs/L6_Funding_Elevated_Applied_Report.txt
+ D docs/L6_Funding_Elevated_Rescan_Report.txt
+ D docs/L6_Funding_Elevated_State_Proposed_Diff.txt
+ D docs/L6_Funding_State_Reference_Report.txt
+ D docs/NEAR_TP1_SL_DISTANCE_INVESTIGATION.md
+ D docs/NEAR_TP1_SL_DISTANCE_INVESTIGATION.txt
+ D docs/OfficialTotalScore_Formula_Investigation_Report.txt
+ D docs/PARTIAL_CLOSE_JOURNAL_REPORT.md
+ D docs/POSITION_ADVISOR_V4_REPORT.md
+ D docs/Production_Execution_Path_Audit_Report.txt
+ D docs/RULE_REFERENCE.md
+ D docs/RULE_REFERENCE.txt
+ M docs/RULE_TRACE_OPTION_B_BTCUSDT_LONG_v4_SAMPLE.md
+ D docs/RuleBook_V2_Task01_Completion_Report.txt
+ D docs/SCORER_DATA_REPORT.md
+ D docs/SCORING_ENTRY_LOGIC_REPORT.txt
+ D docs/SL_LOGIC_V3_V4_REPORT.txt
+ D docs/SOLUSDT_Replay_After_L6_Fix_Report.txt
+ D docs/SOLUSDT_SHORT_Gap_Investigation_Report.txt
+ D docs/STRUCTURE_SL_FEATURE_REPORT.md
+ D docs/TASK18_6_1_GROUP_BREAKDOWN_QA.md
+ D docs/TASK18_6_FINAL_PREMERGE_SIGNOFF.md
+ D docs/TASK18_6_SCORE_CONTRIBUTION_TOTAL_ROOT_CAUSE.md
+ D docs/TASK_1_2_3_IMPLEMENTATION_REPORT.md
+ D docs/TP_RR_Ladder_DecisionBand_Investigation_Report.txt
+ D docs/TP_RR_PathB_Fix_Report.txt
+ D docs/Task_02_1_1_Architecture_Report.txt
+ D docs/Task_02_1_1_Completion_Report.txt
+ D docs/Task_02_1_1_Dependency_Report.txt
+ D docs/Task_02_1_1_Production_Impact_Report.txt
+ D docs/Task_02_1_Architecture_Report.txt
+ D docs/Task_02_1_Completion_Report.txt
+ D docs/Task_02_2_1_Report.txt
+ D docs/Task_02_2_2_1_Report.txt
+ D docs/Task_02_2_2_2_Report.txt
+ D docs/Task_02_2_2_Report.txt
+ D docs/Task_02_3_1_Report.txt
+ D docs/Task_02_3_2_Report.txt
+ D docs/Task_02_4_10_Report.txt
+ D docs/Task_02_4_11_Report.txt
+ D docs/Task_02_4_1_Report.txt
+ D docs/Task_02_4_2_Report.txt
+ D docs/Task_02_4_3_Report.txt
+ D docs/Task_02_4_4_Report.txt
+ D docs/Task_02_4_5_Report.txt
+ D docs/Task_02_4_6_Report.txt
+ D docs/Task_02_4_7_Report.txt
+ D docs/Task_02_4_8_Report.txt
+ D docs/Task_02_4_9_Report.txt
+ D docs/Task_02_4_R_Report.txt
+ D docs/Task_02_5_1_Report.txt
+ D docs/Task_02_5_2_Report.txt
+ D docs/Task_02_5_3_Fix_Report.txt
+ D docs/Task_02_5_3_Report.txt
+ D docs/Task_02_5_4_Fix_Report.txt
+ D docs/Task_02_5_4_Report.txt
+ D docs/Task_02_5_5_1_Fix_Report.txt
+ D docs/Task_02_5_5_Fix_Report.txt
+ D docs/Task_02_5_5_Report.txt
+ D docs/Task_02_5_6_Report.txt
+ D docs/Task_02_6_1_Report.txt
+ D docs/Task_02_6_2_Report.txt
+ D docs/Task_02_6_3_Fix_Report.txt
+ D docs/Task_02_6_3_Report.txt
+ D docs/Task_02_6_4_Report.txt
+ D docs/Task_02_6_5_Report.txt
+ D docs/Task_02_6_6_Report.txt
+ D docs/Task_02_6_7_Report.txt
+ D docs/Task_02_7_1_Report.txt
+ D docs/Task_02_7_2_Report.txt
+ D docs/Task_02_7_3_Report.txt
+ D docs/Task_02_7_4_Report.txt
+ D docs/Task_02_8_1_Report.txt
+ D docs/Task_02_8_2_Report.txt
+ D docs/Task_02_8_3_Report.txt
+ D docs/Task_02_8_4_Report.txt
+ D docs/Task_02_9_0_Report.txt
+ D docs/TradeScore_v1.0.5_Architecture_Review.txt
+ D docs/UL_01_1_Report.txt
+ D docs/UL_01_Report.txt
+ D docs/UL_02_Report.txt
+ D docs/UL_03_1_Report.txt
+ D docs/UL_03_2_Report.txt
+ D docs/UL_03_3_Report.txt
+ D docs/UL_03_Report.txt
+ D docs/UL_04_0_Report.txt
+ D docs/UL_04_1_Report.txt
+ D docs/UL_04_2_Report.txt
+ D docs/V3_V4_Export_EMA_RSI_Report.txt
+ D docs/V3_V4_Export_Gap_Analysis_Report.txt
+ D docs/V3_V4_Export_Implementation_Report.txt
+ D docs/V3_V4_HARDLOCK_SOFTBLOCK_ENTRY_SL_REPORT.md
+ D docs/V3_V4_Layer_Threshold_Audit_Report.txt
+ D docs/V3_V4_Recommendations_Warnings_Audit_Report.txt
+ D docs/V3_V4_Rule_Comparison_Report.txt
+ D docs/V3_V4_Rule_Completeness_Classification_Report.txt
+ D docs/V4.1_ARCHITECTURE.md
+ D docs/V4.1_BTC_CONTEXT_BUILDER_REPORT.txt
+ D docs/V4.1_FORMULAS.md
+ D docs/V4.1_PHASE_D_SPEC.md
+ D docs/V4.1_PROGRESS_REPORT.md
+ D docs/V4.1_SCAN_UI_INTEGRATION_REPORT.txt
+ D docs/V4.1_SYSTEM_STATUS_REPORT.md
+ D docs/V4.1_SYSTEM_STATUS_REPORT.txt
+ D docs/V4.1_TAKERBUYVOLUME_VERIFICATION_REPORT.md
+ D docs/V4_1_FULL_REFERENCE.md
+ D docs/V4_1_REVERSAL_ENGINE_REPORT.md
+ D docs/VWAP_FEATURE_REPORT.md
+ M docs/exports/EMERGENCY_STATUS_2026-08-03.md
+ D docs/rulebook_v2.md
+ M hooks/useJournalMarketSync.ts
+ M scripts/backtest-v41-near-pipeline-funnel.ts
+ M scripts/build-web-exe.ps1
+ M scripts/write-build-info.mjs
+ M services/__tests__/exportAuditCoin.test.ts
+ M services/exportAuditCoin.ts
+ M services/productionEsmBridge/signalRowScanContext.ts
+ M services/scanUnified.ts
+ M services/signalBoardScan.ts
+ M services/signalRowView.ts
+ M services/tradePlanDisplay.ts
+ M services/v41/__tests__/breakoutDetector.test.ts
+ M services/v41/__tests__/rc3ViewModelWire.test.ts
+ M services/v41/breakoutDetector.ts
+ M services/v41/rc3/__tests__/rc3ViewModelRegression.test.ts
+ M services/v41/rc3/buildRc3ViewModel.ts
+ M services/v41/rc3/rc3ViewModelTypes.ts
+ M services/v41/scanV41.ts
+ M services/v41/strategy/__tests__/resolveSymbolStrategy.test.ts
+ M services/v41/strategy/resolveSymbolStrategy.ts
+ M store/useV41TradeSessionStore.ts
+ M utils/esmUlReviewDecision.ts
+ M utils/esmUlReviewExecutiveSummary.ts
+ M utils/journalLiveDebug.ts
+ M utils/journalRecommendationDisplay.test.ts
+ M utils/journalRecommendationDisplay.ts
+ M vitest.config.ts
+?? .github/workflows/archive-oi-ls-funding.yml
+?? constants/layout.ts
+?? data/market-archive/README.md
+?? data/market-archive/bnbusdt_1h.csv
+?? data/market-archive/btcusdt_1h.csv
+?? data/market-archive/nearusdt_1h.csv
+?? data/market-archive/solusdt_1h.csv
+?? docs/AUDIT_BINANCE_US_IP_BLOCK_IMPACT_2026-07-31.md
+?? docs/AUDIT_TRADESCORE_SYNC_GITHUB_2026-07-31.md
+?? docs/BUILD_REPORT_v1_0_8_GIST_TOKEN_REBUILD_2026-07-31.md
+?? docs/BUILD_REPORT_v1_0_8_NEAR_BREAKOUT_2026-08-01.md
+?? docs/ENTRY_TRACE_TASK18_8_BTCUSDT_SHORT_v4_PRODUCTION.md
+?? docs/POSITION_TRACE_TASK18_8_BTCUSDT_SHORT_v4_PRODUCTION.md
+?? docs/REPORT_AUDIT_APK_WEB_GITHUB_GIST_SYNC_2026-07-31.md
+?? docs/REPORT_GIST_TOKEN_VERIFY_REBUILD_GUIDE_2026-07-31.md
+?? docs/REPORT_REAUDIT_SYNC_PAT_SCOPE_2026-07-31.md
+?? docs/REPORT_V41_BACKTEST_180D_WINRATE_2026-08-01.md
+?? docs/REPORT_V41_BOTH_VERIFICATION_AND_WIN_LOSS_ANALYSIS_2026-08-01.md
+?? docs/REPORT_V41_COMBINED_EXHAUSTION_CVD_RECALC_2026-08-01.md
+?? docs/REPORT_V41_CVD_FLIP_THRESHOLD_INVESTIGATION_2026-08-01.md
+?? docs/REPORT_V41_CVD_PRODUCTION_VS_PRIORAVG_POSTFIX_180D_2026-08-01.md
+?? docs/REPORT_V41_EXHAUSTION_DROP_VS_LOWER_COMPARISON_2026-08-01.md
+?? docs/REPORT_V41_NO_SL_SWING_LOOKBACK_INVESTIGATION_2026-08-01.md
+?? docs/REPORT_V41_REVERSAL_SCORING_ALTERNATIVES_30D_2026-07-31.md
+?? docs/REPORT_V41_SL_GEOMETRY_BUG_INVESTIGATION_2026-08-01.md
+?? docs/REPORT_V41_SL_GEOMETRY_FIX_AND_REBACKTEST_180D_2026-08-01.md
+?? docs/REPORT_V41_SL_WINDOW_FIX_AND_REBACKTEST_180D_2026-08-01.md
+?? docs/REPORT_V41_TR_CONFIDENCE_REAL_RECALC_2026-08-01.md
+?? docs/REPORT_V41_TR_EXHAUSTION_1H_ZERO_INVESTIGATION_2026-07-31.md
+?? docs/REPORT_V41_TR_EXHAUSTION_THRESHOLD_SWEEP_2026-08-01.md
+?? docs/RULE_TRACE_TASK18_6_3_BTCUSDT_LONG_v4_SAMPLE.md
+?? docs/RULE_TRACE_TASK18_8_BTCUSDT_SHORT_v4_FIXTURE_SAMPLE.md
+?? docs/RULE_TRACE_TASK18_8_BTCUSDT_SHORT_v4_PRODUCTION.md
+?? docs/SCORE_TRACE_TASK18_7_BTCUSDT_LONG_v4_FIXTURE_SAMPLE.md
+?? docs/SCORE_TRACE_TASK18_7_BTCUSDT_LONG_v4_PRODUCTION_SAMPLE.md
+?? docs/SCORE_TRACE_TASK18_8_BTCUSDT_SHORT_v4_PRODUCTION.md
+?? docs/TRADEPLAN_TRACE_TASK18_8_BTCUSDT_SHORT_v4_PRODUCTION.md
+?? docs/UI_RULEBOOK_TRACE_SIGNALBOARD_EXPORT.md
+?? docs/_build_stash_backup/CHANGELOG.md.pre-stash
+?? docs/_build_stash_backup/vi.ts.pre-stash
+?? docs/exports/BUILD_REPORT_v1_0_8_S1_AMBIGUITY_U1_2026-08-02.md
+?? docs/exports/BUILD_REPORT_v1_0_8_V41_SYNC_3_SHIP_2026-08-07.md
+?? docs/exports/FIX_REPORT_ACTIVE_TRADES_RECOMMENDATION_BINDING_2026-08-07.md
+?? docs/exports/FIX_REPORT_RESTORE_TRADESCORE_DOCS_TEST_BLOCKER_2026-08-07.md
+?? docs/exports/REPORT_AUDIT_UI_SCORE_RULE_ENGINE_VS_EXPORT_1_0_8_2026-08-08.md
+?? docs/exports/REPORT_EMERGENCY_FILE_WIPE_RESTORE_2026-08-03.md
+?? docs/exports/REPORT_FIX_HARD_REASON_LABELING_2026-08-08.md
+?? docs/exports/REPORT_FIX_HARD_REASON_LABELING_NEAR_180D_AB_2026-08-08.md
+?? docs/exports/REPORT_HARD_BLOCKED_DERIVE_SIGNALBOARD_2026-08-08.md
+?? docs/exports/REPORT_INVESTIGATE_4COIN_BUTTONS_DIM_AFTER_WIPE_2026-08-03.md
+?? docs/exports/REPORT_INVESTIGATE_ACTIVE_TRADES_HOLD_CLOSE_RECOMMENDATION_2026-08-07.md
+?? docs/exports/REPORT_INVESTIGATE_V41_REUSE_OI_WHALE_FUNDING_INFRA_2026-08-04.md
+?? docs/exports/REPORT_LIVE_DUMP_BUTTON_GATES_PASS_L10_2026-08-03.md
+?? docs/exports/REPORT_LIVE_MULTI_CYCLE_BANNER_VS_BUTTONS_2026-08-03.md
+?? docs/exports/REPORT_NEAR_180D_WINDOW_CONFIRM_2026-08-08.md
+?? docs/exports/REPORT_NEAR_WR_145_VS_751_EXPLAIN_2026-08-08.md
+?? docs/exports/REPORT_POST_WIPE_CAUSE_AND_PROTECTION_2026-08-03.md
+?? docs/exports/REPORT_POST_WIPE_SUMMARY_EXPORT_2026-08-03.md
+?? docs/exports/REPORT_TASK2_AMBIGUITY_SWEEP_AND_UI_2026-08-02.md
+?? docs/exports/REPORT_V3V4_DATA_BUILD_2026-08-08.md
+?? docs/exports/REPORT_V3V4_DATA_BUILD_FAIL_VERIFY_PREEXISTING_2026-08-08.md
+?? docs/exports/REPORT_V41_10_SIGNAL_REVERSAL_TRADE_SESSION_INTERACTION_2026-08-08.md
+?? docs/exports/REPORT_V41_8_GATE_ACTIVE_CONDITIONS_INVESTIGATION_2026-08-07.md
+?? docs/exports/REPORT_V41_9_PENDING_RETEST_EXPIRY_INVESTIGATION_2026-08-08.md
+?? docs/exports/REPORT_V41_BREAKOUT_B_CROSS_SYMBOL_FILTER_SEARCH_2026-08-01.md
+?? docs/exports/REPORT_V41_BREAKOUT_DETECTOR_BUILD_AND_NEAR_VALIDATION_2026-08-01.md
+?? docs/exports/REPORT_V41_CONFIDENCE_THRESHOLD_COMMIT_2026-08-01.md
+?? docs/exports/REPORT_V41_MARKET_CONTEXT_TEST_VERIFICATION_2026-08-01.md
+?? docs/exports/REPORT_V41_NEAR_ROUTING_DISCOVERY_2026-08-01.md
+?? docs/exports/REPORT_V41_NEAR_TASK6B_SOURCE_MODULE_2026-08-02.md
+?? docs/exports/REPORT_V41_REVERSAL_CROSS_SYMBOL_FILTER_SEARCH_2026-08-01.md
+?? docs/exports/REPORT_V41_SOL_1_BACKTEST_INFRASTRUCTURE_INVESTIGATION_2026-08-08.md
+?? docs/exports/REPORT_V41_SOL_2_BASELINE_TR_365D_QUARTERLY_2026-08-08.md
+?? docs/exports/REPORT_V41_SOL_3_BASELINE_BREAKOUT_365D_QUARTERLY_2026-08-08.md
+?? docs/exports/REPORT_V41_SOL_4_FINAL_2026-08-08.md
+?? docs/exports/REPORT_V41_SOL_4_TASK1_BUGFIX_DEDUPE_2026-08-08.md
+?? docs/exports/REPORT_V41_SOL_4_TASK3_CLEAN_BASELINE_2026-08-08.md
+?? docs/exports/REPORT_V41_TASK2_DECISION_CONFIDENCE_SWEEP_2026-08-04.md
+?? docs/exports/REPORT_V41_UI_CHECKLIST_FIX_2026-08-01.md
+?? docs/exports/REPORT_V41_XRP_1_BASELINE_2026-08-08.md
+?? docs/exports/REPORT_V41_XRP_2_SWEEP_2026-08-08.md
+?? docs/exports/REPORT_V41_XRP_3_PRODUCTION_WIRE_2026-08-08.md
+?? docs/exports/REPORT_V4_EXPORT_1_BUILD_2026-08-07.md
+?? docs/exports/REPORT_V4_NEAR_180D_CVD220_BASELINE_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_180D_LONG_ZERO_INVESTIGATION_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_L1_L3_L6_OPTIMIZE_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_L1_L3_L6_OPTIMIZE_CVD220_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_SHORT_L3_EXPORT_ALIGN_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_SHORT_L3_GATE_ARCHITECTURE_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_SHORT_L3_S1_IMPLEMENT_2026-08-02.md
+?? docs/exports/REPORT_V4_NEAR_SHORT_S1_N144_VS_128_EXPLAIN_2026-08-02.md
+?? docs/exports/VERIFY_REPORT_73_FAILS_PREEXISTING_VS_BUGFIX_2026-08-07.md
+?? docs/exports/_full-vitest-2026-08-02.txt
+?? docs/exports/_full_vitest_2026-08-07.txt
+?? docs/exports/_full_vitest_baseline_nobugfix_2026-08-07.json
+?? docs/exports/_full_vitest_baseline_nobugfix_2026-08-07.txt
+?? docs/exports/_smoke_near_amb1.csv
+?? docs/exports/_verify_2e_fail_batch_HEAD.json
+?? docs/exports/_verify_baseline_fail_tests.txt
+?? docs/exports/_verify_fail_batch_AT_V4EXPORT1.txt
+?? docs/exports/_verify_fail_batch_BEFORE_V4EXPORT1.txt
+?? docs/exports/_verify_fail_compare_2026-08-07.txt
+?? docs/exports/_verify_fail_files_compare.json
+?? docs/exports/_verify_fail_files_final.json
+?? docs/exports/_verify_step1_bugfix_diffstat.txt
+?? docs/exports/_verify_step1_bugfix_sha256.txt
+?? docs/exports/_verify_step1_diffstat_before.txt
+?? docs/exports/_verify_step1_status_before.txt
+?? docs/exports/ambiguity-sweep-180d/REPORT_AMBIGUITY_SWEEP.md
+?? docs/exports/ambiguity-sweep-180d/SWEEP_SUMMARY.csv
+?? docs/exports/ambiguity-sweep-180d/bnb_180d_amb1.csv
+?? docs/exports/ambiguity-sweep-180d/bnb_180d_amb1p5.csv
+?? docs/exports/ambiguity-sweep-180d/bnb_180d_amb2.csv
+?? docs/exports/ambiguity-sweep-180d/bnb_180d_amb2p5.csv
+?? docs/exports/ambiguity-sweep-180d/bnb_180d_amb3.csv
+?? docs/exports/ambiguity-sweep-180d/btc_180d_amb1.csv
+?? docs/exports/ambiguity-sweep-180d/btc_180d_amb1p5.csv
+?? docs/exports/ambiguity-sweep-180d/btc_180d_amb2.csv
+?? docs/exports/ambiguity-sweep-180d/btc_180d_amb2p5.csv
+?? docs/exports/ambiguity-sweep-180d/btc_180d_amb3.csv
+?? docs/exports/ambiguity-sweep-180d/near_180d_amb1.csv
+?? docs/exports/ambiguity-sweep-180d/near_180d_amb1p5.csv
+?? docs/exports/ambiguity-sweep-180d/near_180d_amb2.csv
+?? docs/exports/ambiguity-sweep-180d/near_180d_amb2p5.csv
+?? docs/exports/ambiguity-sweep-180d/near_180d_amb3.csv
+?? docs/exports/ambiguity-sweep-180d/sol_180d_amb1.csv
+?? docs/exports/ambiguity-sweep-180d/sol_180d_amb1p5.csv
+?? docs/exports/ambiguity-sweep-180d/sol_180d_amb2.csv
+?? docs/exports/ambiguity-sweep-180d/sol_180d_amb2p5.csv
+?? docs/exports/ambiguity-sweep-180d/sol_180d_amb3.csv
+?? docs/exports/multi-coin-trace/01_RULEBOOK_BNBUSDT.md
+?? docs/exports/multi-coin-trace/01_RULEBOOK_NEARUSDT.md
+?? docs/exports/multi-coin-trace/01_RULEBOOK_SOLUSDT.md
+?? docs/exports/multi-coin-trace/02_SCORE_ENGINE_BNBUSDT.md
+?? docs/exports/multi-coin-trace/02_SCORE_ENGINE_NEARUSDT.md
+?? docs/exports/multi-coin-trace/02_SCORE_ENGINE_SOLUSDT.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_BNBUSDT.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_BNBUSDT_v108_softfix.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_BTCUSDT_v108_softfix.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_NEARUSDT.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_NEARUSDT_v108_softfix.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_SOLUSDT.md
+?? docs/exports/multi-coin-trace/03_ENTRY_DECISION_SOLUSDT_v108_softfix.md
+?? docs/exports/multi-coin-trace/04_POSITION_ADVISER_BNBUSDT.md
+?? docs/exports/multi-coin-trace/04_POSITION_ADVISER_NEARUSDT.md
+?? docs/exports/multi-coin-trace/04_POSITION_ADVISER_SOLUSDT.md
+?? docs/exports/multi-coin-trace/05_TRADE_PLAN_BNBUSDT.md
+?? docs/exports/multi-coin-trace/05_TRADE_PLAN_NEARUSDT.md
+?? docs/exports/multi-coin-trace/05_TRADE_PLAN_SOLUSDT.md
+?? docs/exports/multi-coin-trace/GENERATE_REPORT.json
+?? docs/exports/multi-coin-trace/GENERATE_REPORT.md
+?? docs/exports/multi-coin-trace/_entry_softfix_4coin_report.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-07-21T23-57-33-067Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-07-26T15-15-05-476Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T01-47-36-113Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T12-11-03-393Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T12-22-54-526Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T13-04-58-205Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T13-43-13-725Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T14-22-33-277Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-01T15-06-18-060Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-02T01-12-24-933Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-02T01-32-21-459Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-02T02-08-17-133Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-02T16-16-12-051Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-02T16-34-48-932Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-07T02-36-54-808Z.json
+?? docs/exports/multi-coin-trace/_scan_snapshot_2026-08-07T02-52-27-025Z.json
+?? docs/exports/near-short-l3-gate/01_RULEBOOK_NEARUSDT_SHORT_S1_BLOCKED.md
+?? docs/exports/near-short-l3-gate/01_RULEBOOK_NEARUSDT_SHORT_STRONG_L3.md
+?? docs/exports/near-short-l3-gate/02_SCORE_ENGINE_NEARUSDT_SHORT_S1_BLOCKED.md
+?? docs/exports/near-short-l3-gate/02_SCORE_ENGINE_NEARUSDT_SHORT_STRONG_L3.md
+?? docs/exports/near-short-l3-gate/03_ENTRY_DECISION_NEARUSDT_SHORT_S1_BLOCKED.md
+?? docs/exports/near-short-l3-gate/03_ENTRY_DECISION_NEARUSDT_SHORT_STRONG_L3.md
+?? docs/exports/near-short-l3-gate/04_POSITION_ADVISER_NEARUSDT_SHORT_S1_BLOCKED.md
+?? docs/exports/near-short-l3-gate/04_POSITION_ADVISER_NEARUSDT_SHORT_STRONG_L3.md
+?? docs/exports/near-short-l3-gate/05_TRADE_PLAN_NEARUSDT_SHORT_S1_BLOCKED.md
+?? docs/exports/near-short-l3-gate/05_TRADE_PLAN_NEARUSDT_SHORT_STRONG_L3.md
+?? docs/exports/near_backtest_180d.csv
+?? docs/exports/near_backtest_180d_cvd220_s1.csv
+?? docs/exports/near_backtest_30d_real.csv
+?? docs/exports/near_backtest_365d.csv
+?? docs/exports/near_backtest_90d.csv
+?? docs/exports/near_rule_comparison.md
+?? docs/exports/near_rule_comparison_180d_cvd220_s1.md
+?? docs/exports/near_rule_comparison_30d_real.md
+?? docs/exports/near_rule_comparison_multi_period.md
+?? docs/exports/near_v4_l1l3l6_optimize_cvd220.json
+?? docs/exports/near_v4_s1_gate_verify.json
+?? docs/exports/near_v4_s1_n144_vs_128_explain.json
+?? docs/exports/rule-trace-l5a-block-type/01_RULEBOOK_CVD_EXTREME_SHORT_HARD.md
+?? docs/exports/rule-trace-l5a-block-type/CVD_EXTREME_HARD_EVIDENCE.txt
+?? docs/exports/rule-trace-l5a-block-type/CVD_EXTREME_HARD_L5A_BLOCKTYPE.png
+?? docs/exports/rule-trace-l5a-block-type/cvd-extreme-hard-preview.html
+?? docs/exports/soft-block-live-smoke-2026-07-26/03_ENTRY_DECISION_BNBUSDT.md
+?? docs/exports/soft-block-live-smoke-2026-07-26/03_ENTRY_DECISION_BTCUSDT.md
+?? docs/exports/soft-block-live-smoke-2026-07-26/03_ENTRY_DECISION_NEARUSDT.md
+?? docs/exports/soft-block-live-smoke-2026-07-26/03_ENTRY_DECISION_SOLUSDT.md
+?? docs/exports/soft-block-live-smoke-2026-07-26/_smoke_result.json
+?? docs/exports/soft-block-static-ab/_diff_before_after.json
+?? docs/exports/soft-block-static-ab/after/03_ENTRY_DECISION_BNBUSDT.md
+?? docs/exports/soft-block-static-ab/after/03_ENTRY_DECISION_BTCUSDT.md
+?? docs/exports/soft-block-static-ab/after/03_ENTRY_DECISION_NEARUSDT.md
+?? docs/exports/soft-block-static-ab/after/03_ENTRY_DECISION_SOLUSDT.md
+?? docs/exports/soft-block-static-ab/after/_fields.json
+?? docs/exports/soft-block-static-ab/before/03_ENTRY_DECISION_BNBUSDT.md
+?? docs/exports/soft-block-static-ab/before/03_ENTRY_DECISION_BTCUSDT.md
+?? docs/exports/soft-block-static-ab/before/03_ENTRY_DECISION_NEARUSDT.md
+?? docs/exports/soft-block-static-ab/before/03_ENTRY_DECISION_SOLUSDT.md
+?? docs/exports/soft-block-static-ab/before/_fields.json
+?? docs/exports/v41-breakout-trend-btc-filter-near.csv
+?? docs/exports/v41-decision-funnel-180d/SWEEP_SUMMARY.json
+?? docs/exports/v41-decision-funnel-180d/v41-funnel-BNB-180d.csv
+?? docs/exports/v41-decision-funnel-180d/v41-funnel-BTC-180d.csv
+?? docs/exports/v41-decision-funnel-180d/v41-funnel-NEAR-180d.csv
+?? docs/exports/v41-decision-funnel-180d/v41-funnel-SOL-180d.csv
+?? docs/exports/v41-exhaustion-drop-vs-lower-comparison-30d-summary.json
+?? docs/exports/v41-sol-4-breakout-365d-quarterly-clean-summary.json
+?? docs/exports/v41-sol-4-breakout-365d-quarterly-clean-trades.csv
+?? docs/exports/v41-sol-4-breakout-365d-quarterly-clean.csv
+?? docs/exports/v41-sol-4-sweep-results-summary.json
+?? docs/exports/v41-sol-4-sweep-results.csv
+?? docs/exports/v41-sol-4-task4b-dropped-trades.json
+?? docs/exports/v41-sol-4-winning-combo-oos-prior365d-summary.json
+?? docs/exports/v41-sol-4-winning-combo-oos-prior365d-trades.csv
+?? docs/exports/v41-sol-4-winning-combo-trades.csv
+?? docs/exports/v41-sol-breakout-365d-quarterly-summary.json
+?? docs/exports/v41-sol-breakout-365d-quarterly-trades.csv
+?? docs/exports/v41-sol-breakout-365d-quarterly.csv
+?? docs/exports/v41-sol-tr-365d-quarterly-summary.json
+?? docs/exports/v41-sol-tr-365d-quarterly-trades.csv
+?? docs/exports/v41-sol-tr-365d-quarterly.csv
+?? docs/exports/v41-xrp-1-breakout-365d-quarterly-oos-trades.csv
+?? docs/exports/v41-xrp-1-breakout-365d-quarterly-summary.json
+?? docs/exports/v41-xrp-1-breakout-365d-quarterly-trades.csv
+?? docs/exports/v41-xrp-1-breakout-365d-quarterly.csv
+?? docs/exports/v41-xrp-2-sweep-results-summary.json
+?? docs/exports/v41-xrp-2-sweep-results.csv
+?? docs/outputs/01_RULEBOOK_V41_BNBUSDT_LIVE_SCAN.md
+?? docs/outputs/01_RULEBOOK_V41_BNBUSDT_LIVE_SCAN_MIN3.md
+?? docs/outputs/01_RULEBOOK_V41_BTCUSDT_LIVE_SCAN.md
+?? docs/outputs/01_RULEBOOK_V41_BTCUSDT_LIVE_SCAN_METHOD_A.md
+?? docs/outputs/01_RULEBOOK_V41_BTCUSDT_LIVE_SCAN_MIN3.md
+?? docs/outputs/01_RULEBOOK_V41_NEARUSDT_LIVE_SCAN.md
+?? docs/outputs/01_RULEBOOK_V41_NEARUSDT_LIVE_SCAN_MIN3.md
+?? docs/outputs/01_RULEBOOK_V41_SOLUSDT_LIVE_SCAN.md
+?? docs/outputs/01_RULEBOOK_V41_SOLUSDT_LIVE_SCAN_MIN3.md
+?? docs/outputs/REPORT_RULEBOOK_V41_METHOD_A_RAW_EVIDENCE_2026-07-26.md
+?? docs/outputs/_dump-rulebook-stderr.txt
+?? docs/outputs/_rulebook_4symbol_min3_report.json
+?? docs/outputs/_rulebook_4symbol_tier_report.json
+?? docs/outputs/_tsc_full_method_a_verify.txt
+?? docs/outputs/mockup-v41-export-like-v3v4.html
+?? docs/outputs/mockup-v41-export-mi-button.html
+?? docs/outputs/v41-app-live-attempt.png
+?? docs/outputs/v41-export-header-live.png
+?? docs/outputs/v41-export-like-v3v4-mockup.png
+?? docs/outputs/v41-export-mi-button-live.png
+?? docs/outputs/v41-export-mi-button-mockup.png
+?? docs/reports/AUDIT_UI_SCORE_RULE_ENGINE_VS_EXPORT_1_0_8.md
+?? docs/reports/REPORT_FIX_HARD_REASON_LABELING_2026-08-08.md
+?? docs/reports/REPORT_FIX_HARD_REASON_LABELING_NEAR_180D_AB_2026-08-08.md
+?? docs/reports/REPORT_HARD_BLOCKED_DERIVE_SIGNALBOARD_2026-08-08.md
+?? docs/reports/REPORT_NEAR_180D_WINDOW_CONFIRM_2026-08-08.md
+?? docs/reports/REPORT_NEAR_WR_145_VS_751_EXPLAIN_2026-08-08.md
+?? docs/reports/V41-SOL-4-FINAL.md
+?? docs/reports/V41-XRP-1-BASELINE.md
+?? docs/reports/V41-XRP-2-SWEEP.md
+?? docs/reports/V41-XRP-3-PRODUCTION-WIRE.md
+?? docs/reports/v41-sol-4-task1-bugfix-summary.md
+?? docs/reports/v41-sol-4-task2-tr-baseline-check.md
+?? docs/reports/v41-sol-4-task3-clean-baseline.md
+?? docs/reports/v41-sol-4-task4-sweep-results.md
+?? docs/reports/v41-sol-4-task4b-winning-combo-verification.md
+?? docs/screenshots/v41-export-dropdown-rulebook-enabled.png
+?? docs/screenshots/v41-export-dropdown.html
+?? docs/ui-mockups/export-coin-dropdown/00-overview-all-states.png
+?? docs/ui-mockups/export-coin-dropdown/01-closed.png
+?? docs/ui-mockups/export-coin-dropdown/02-coin-open.png
+?? docs/ui-mockups/export-coin-dropdown/03-trace-open.png
+?? docs/ui-mockups/export-coin-dropdown/IMPLEMENTATION.md
+?? docs/ui-mockups/export-coin-dropdown/README.md
+?? docs/ui-mockups/export-coin-dropdown/mockup.html
+?? scripts/_investigate-u1-buttons-live-scores.ts
+?? scripts/_scan-transcript-wipe.mjs
+?? scripts/_uiVerifyEntryRuleBook.mjs
+?? scripts/_uiVerifyPositionTrace.mjs
+?? scripts/_uiVerifyPositionTraceV41.mjs
+?? scripts/analyze-v41-both-and-winloss-180d.ts
+?? scripts/analyze-v41-decision-conf-sweep.ts
+?? scripts/analyze-v41-rulebook-bottleneck.ts
+?? scripts/apk-thin-client-lint.mjs
+?? scripts/archive-oi-ls-funding.ts
+?? scripts/auto-hourly-backup.ps1
+?? scripts/backtest-v4-near-30d-real.test.ts
+?? scripts/backtest-v4-near-90d.test.ts
+?? scripts/backtest-v4-near-l6-multi-period.test.ts
+?? scripts/backtest-v4-near-l6-multi-period.ts
+?? scripts/backtest-v41-breakout-btc-filter-multi.ts
+?? scripts/backtest-v41-breakout-near-180d.ts
+?? scripts/backtest-v41-breakout-near-production-180d.ts
+?? scripts/backtest-v41-breakout-near-production-pipeline.ts
+?? scripts/backtest-v41-breakout-near-time-stability.ts
+?? scripts/backtest-v41-breakout-refinement-near-180d.ts
+?? scripts/backtest-v41-breakout-trend-btc-near.ts
+?? scripts/backtest-v41-breakout-v1-multi-symbol-longer.ts
+?? scripts/backtest-v41-breakout-volratio-oos.ts
+?? scripts/backtest-v41-combined-180d-winrate.ts
+?? scripts/backtest-v41-continuous-scoring.ts
+?? scripts/backtest-v41-exhaustion-threshold.ts
+?? scripts/backtest-v41-final-multi-symbol-fees.ts
+?? scripts/backtest-v41-ls-oi-confirmation.ts
+?? scripts/backtest-v41-multi-symbol-longer.ts
+?? scripts/backtest-v41-near-oi-rr-ev.ts
+?? scripts/backtest-v41-rr-atr.ts
+?? scripts/backtest-v41-sl-window-fix-180d.ts
+?? scripts/backtest-v41-sol-breakout-365d-quarterly.ts
+?? scripts/backtest-v41-sol-breakout-param-sweep.ts
+?? scripts/backtest-v41-sol-tr-365d-quarterly.ts
+?? scripts/backtest-v41-tr-confirmation-layers.ts
+?? scripts/backtest-v41-trendfollow-c-multi.ts
+?? scripts/backtest-v41-trendfollow-loosen-near.ts
+?? scripts/backtest-v41-trendfollow-near.ts
+?? scripts/backtest-v41-xrp-breakout-365d-quarterly.ts
+?? scripts/backtest-v41-xrp-breakout-param-sweep.ts
+?? scripts/capture-v41-export-dropdown.mts
+?? scripts/check-market-archive-progress.ts
+?? scripts/compare-v41-cvd-prod-vs-prioravg-180d.ts
+?? scripts/compare-v41-exhaustion-drop-vs-lower-30d.ts
+?? scripts/dump-sl-geometry-fixtures.ts
+?? scripts/dump-sl-window-fixtures.ts
+?? scripts/export-near-rulebook-live.ts
+?? scripts/generate-multi-coin-trace-exports.ts
+?? scripts/investigate-near-180d-long-zero.ts
+?? scripts/investigate-v41-context-momentum-30d.ts
+?? scripts/investigate-v41-cvd-flip-threshold-30d.ts
+?? scripts/investigate-v41-market-confidence-30d.ts
+?? scripts/investigate-v41-near-momentum-ew15.ts
+?? scripts/investigate-v41-no-sl-swing-lookback-ext.ts
+?? scripts/investigate-v41-no-sl-swing-lookback.ts
+?? scripts/investigate-v41-reversal-checklist-scoring-30d.ts
+?? scripts/investigate-v41-sl-geometry-bug.ts
+?? scripts/investigate-v41-tr-exhaustion-1h-zero-30d.ts
+?? scripts/node-async-storage-shim.cjs
+?? scripts/pixel-match-14-6-5.mjs
+?? scripts/recalc-v41-combined-exhaustion-cvd-30d.ts
+?? scripts/recalc-v41-tr-confidence-real-30d.ts
+?? scripts/render-cvd-extreme-hard-evidence.mjs
+?? scripts/render-export-coin-dropdown-mockups.mjs
+?? scripts/screenshot-15-1-bind.mjs
+?? scripts/screenshot-bottom-14-6-8.mjs
+?? scripts/screenshot-equity-14-6-7b.mjs
+?? scripts/screenshot-equity-coin-14-6-7.mjs
+?? scripts/screenshot-equity-coin-14-6-7a.mjs
+?? scripts/screenshot-global-14-6-9.mjs
+?? scripts/screenshot-performance-compare-14-6-4.mjs
+?? scripts/screenshot-performance-compare.mjs
+?? scripts/screenshot-performance-tab.mjs
+?? scripts/screenshot-pixel-14-6-10.mjs
+?? scripts/screenshot-signal-tab.mjs
+?? scripts/screenshot-v41-export-header.mjs
+?? scripts/screenshot-v41-export-mi.mjs
+?? scripts/search-v41-breakout-b-cross-symbol-filters.ts
+?? scripts/search-v41-reversal-cross-symbol-filters.ts
+?? scripts/simulate-ui-rulebook-export.ts
+?? scripts/sweep-v41-tr-exhaustion-threshold-30d.ts
+?? scripts/verify-fix-hard-reason-labeling-near-180d.ts
+?? scripts/verify-v41-sol-4-winning-combo.ts
+?? services/__tests__/fixHardReasonLabeling.test.ts
+?? services/entryBlockedLabeling.ts
+?? services/v41/strategy/__tests__/breakoutProductionSafeguard.test.ts
+?? services/v41/strategy/breakoutProductionParams.ts
+?? services/v41/strategy/xrpBreakoutProductionSafeguard.ts
+?? tsconfig.apk-thin.json

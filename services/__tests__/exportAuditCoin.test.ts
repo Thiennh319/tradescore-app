@@ -38,20 +38,23 @@ function row(symbol: AppTradeSymbol, error?: string): SignalRow {
 }
 
 describe('exportAuditCoin helpers', () => {
-  it('tree options: Tất cả + 4 coins with brand colors from mockup', () => {
+  it('tree options: Tất cả + TRADE_SYMBOLS with brand colors', () => {
     expect(AUDIT_EXPORT_COIN_OPTIONS.map((o) => o.id)).toEqual([
       'ALL',
       'BTCUSDT',
       'NEARUSDT',
       'SOLUSDT',
       'BNBUSDT',
+      'XRPUSDT',
     ]);
     expect(AUDIT_EXPORT_COIN_BRAND.BTCUSDT).toBe('#F7931A');
     expect(AUDIT_EXPORT_COIN_BRAND.NEARUSDT).toBe('#00C08B');
     expect(AUDIT_EXPORT_COIN_BRAND.SOLUSDT).toBe('#9945FF');
     expect(AUDIT_EXPORT_COIN_BRAND.BNBUSDT).toBe('#F0B90B');
+    expect(AUDIT_EXPORT_COIN_BRAND.XRPUSDT).toBe('#23292F');
     expect(auditExportCoinLabel('ALL')).toBe('Tất cả coin');
     expect(auditExportCoinLabel('NEARUSDT')).toBe('NEAR');
+    expect(auditExportCoinLabel('XRPUSDT')).toBe('XRP');
     expect(auditExportCoinDotColor('ALL')).toBe('#848E9C');
   });
 
@@ -78,9 +81,9 @@ describe('exportAuditCoin helpers', () => {
     expect(gNear.disabled).toBe(true);
     expect(gNear.reason).toMatch(/NEAR/);
 
-    const allFour = TRADE_SYMBOLS.map((s) => row(s));
-    expect(resolveExportCoinGate('ALL', allFour, false).disabled).toBe(false);
-    expect(resolveExportCoinGate('BNBUSDT', allFour, false).disabled).toBe(false);
+    const allSymbols = TRADE_SYMBOLS.map((s) => row(s));
+    expect(resolveExportCoinGate('ALL', allSymbols, false).disabled).toBe(false);
+    expect(resolveExportCoinGate('BNBUSDT', allSymbols, false).disabled).toBe(false);
   });
 
   it('resolveHealthyExportCoins skips errored when ALL', () => {
@@ -139,10 +142,10 @@ describe('exportTraceOrReviewMarkdown + context.coin', () => {
     }
   });
 
-  it('ALL selection loop exports 4 distinct Coin lines', () => {
+  it('ALL selection loop exports TRADE_SYMBOLS.count distinct Coin lines', () => {
     const rows = TRADE_SYMBOLS.map((s) => row(s));
     const coins = resolveHealthyExportCoins('ALL', rows);
-    expect(coins).toHaveLength(4);
+    expect(coins).toHaveLength(TRADE_SYMBOLS.length);
     for (const coin of coins) {
       const result = exportTraceOrReviewMarkdown('trace-score', {
         rows,

@@ -1,9 +1,12 @@
 ﻿# EMERGENCY STATUS — 2026-08-03
 
+> Báo cáo đầy đủ: [`REPORT_EMERGENCY_FILE_WIPE_RESTORE_2026-08-03.md`](./REPORT_EMERGENCY_FILE_WIPE_RESTORE_2026-08-03.md)  
+> Tổng hợp sau bảo vệ: [`REPORT_POST_WIPE_SUMMARY_EXPORT_2026-08-03.md`](./REPORT_POST_WIPE_SUMMARY_EXPORT_2026-08-03.md)
+
 ## Git
 - Previous branch: feature/ui-redesign @ f5cf251
 - Safety branch: backup/emergency-file-wipe-restore-20260803
-- Commit: see `git log -1` on that branch
+- Commits: `4e5fcb3` (snapshot) → `a7fcaa7` (status note) — HEAD hiện tại
 
 ## Empty files
 - Before restore scan: ~223 near-empty source files (0–2 bytes) across services/components/hooks/screens/utils/scripts

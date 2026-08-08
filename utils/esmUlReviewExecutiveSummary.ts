@@ -9,6 +9,7 @@
 
 import type { LayerResult } from '../constants/scoring';
 import type { TradeDirection } from '../constants/scoring';
+import { isFixHardReasonLabelingEnabled } from '../config/featureFlags';
 import type { ProductionEsmBridgeSnapshot } from '../services/productionEsmBridge/productionEsmBridgeTypes';
 import type { ProductionEsmScanContext } from '../services/productionEsmBridge/signalRowScanContext';
 import { StateMachineEntryState } from '../services/entryStateManager';
@@ -545,7 +546,11 @@ function collectAdvancedDiagnostics(
     lines.push(`Can enter: ${scan.canEnter ? 'yes' : 'no'}`);
     if (scan.winrate) lines.push(`Winrate: ${scan.winrate}`);
     if (scan.finalEntryStatus) lines.push(`Entry status: ${scan.finalEntryStatus}`);
-    if (scan.hardBlocked) lines.push('Hard blocked: yes');
+    if (scan.hardBlocked) {
+      lines.push(
+        isFixHardReasonLabelingEnabled() ? 'Entry blocked: yes' : 'Hard blocked: yes',
+      );
+    }
 
     if (scan.layers.length > 0) {
       lines.push('— Layer diagnostics —');

@@ -1,0 +1,72 @@
+﻿[
+    {
+        "tradeId":  "BTCUSDT-LONG-v4",
+        "changedFields":  [
+                              {
+                                  "field":  "softBlock",
+                                  "before":  "0",
+                                  "after":  "1"
+                              },
+                              {
+                                  "field":  "typeSoft",
+                                  "before":  "NO",
+                                  "after":  "YES"
+                              },
+                              {
+                                  "field":  "softBlocks",
+                                  "before":  "0",
+                                  "after":  "1"
+                              }
+                          ],
+        "changedCount":  3
+    },
+    {
+        "tradeId":  "SOLUSDT-LONG-v4",
+        "changedFields":  [
+                              {
+                                  "field":  "softBlock",
+                                  "before":  "0",
+                                  "after":  "1"
+                              },
+                              {
+                                  "field":  "typeSoft",
+                                  "before":  "NO",
+                                  "after":  "YES"
+                              },
+                              {
+                                  "field":  "softBlocks",
+                                  "before":  "0",
+                                  "after":  "1"
+                              }
+                          ],
+        "changedCount":  3
+    },
+    {
+        "tradeId":  "BNBUSDT-SHORT-v4",
+        "changedFields":  [
+
+                          ],
+        "changedCount":  0
+    },
+    {
+        "tradeId":  "NEARUSDT-LONG-v4",
+        "changedFields":  [
+                              {
+                                  "field":  "softBlock",
+                                  "before":  "0",
+                                  "after":  "1"
+                              },
+                              {
+                                  "field":  "typeSoft",
+                                  "before":  "NO",
+                                  "after":  "YES"
+                              },
+                              {
+                                  "field":  "softBlocks",
+                                  "before":  "0",
+                                  "after":  "1"
+                              }
+                          ],
+        "changedCount":  3
+    }
+]

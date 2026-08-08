@@ -1,0 +1,54 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "tradeId": "BTCUSDT-LONG-v4",
+    "softBlock": 1,
+    "softBlocks": 1,
+    "scoreBlocks": 1,
+    "hardBlock": 1,
+    "groupBlock": 1,
+    "hardBlocks": 1,
+    "groupBlocks": 1,
+    "decision": "WAIT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_BTCUSDT_v108_softfix.md"
+  },
+  {
+    "symbol": "NEARUSDT",
+    "tradeId": "NEARUSDT-SHORT-v4",
+    "softBlock": 0,
+    "softBlocks": 0,
+    "scoreBlocks": 0,
+    "hardBlock": 2,
+    "groupBlock": 1,
+    "hardBlocks": 2,
+    "groupBlocks": 1,
+    "decision": "WAIT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_NEARUSDT_v108_softfix.md"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tradeId": "SOLUSDT-LONG-v4",
+    "softBlock": 1,
+    "softBlocks": 1,
+    "scoreBlocks": 1,
+    "hardBlock": 1,
+    "groupBlock": 1,
+    "hardBlocks": 1,
+    "groupBlocks": 1,
+    "decision": "WAIT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_SOLUSDT_v108_softfix.md"
+  },
+  {
+    "symbol": "BNBUSDT",
+    "tradeId": "BNBUSDT-SHORT-v4",
+    "softBlock": 0,
+    "softBlocks": 0,
+    "scoreBlocks": 0,
+    "hardBlock": 1,
+    "groupBlock": 1,
+    "hardBlocks": 1,
+    "groupBlocks": 1,
+    "decision": "WAIT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_BNBUSDT_v108_softfix.md"
+  }
+]

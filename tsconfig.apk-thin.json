@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "moduleSuffixes": [".native", ".web", ""]
+  },
+  "files": ["constants/platformUi.ts"],
+  "exclude": ["node_modules", "android", "ios", "dist", "TradeScore-web-v1"]
+}

@@ -34,7 +34,12 @@ export interface JournalLiveDebugRow {
   unrealizedPnl?: number | null;
   ulReviewLabel?: string;
   recommendationUi?: string;
-  recommendationSource?: 'ul-review-esm' | 'closed' | 'none';
+  recommendationSource?:
+    | 'waiting-fill'
+    | 'position-advisor'
+    | 'ul-review-esm'
+    | 'closed'
+    | 'none';
   pnlBreakdown?: JournalPnlBreakdown;
 }
 

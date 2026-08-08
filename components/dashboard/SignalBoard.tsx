@@ -36,12 +36,16 @@ import {
   resolveTradePlanV3,
 } from '../../services/signalRowView';
 import {
+  collectGroupBlockReasons,
   collectHardBlockReasons,
+  collectScoreSoftBlockReasons,
   resolveFinalEntryDecision,
   type HardBlockSnapInput,
 } from '../../services/tradePlanDisplay';
 import { FinalEntryStatus } from '../../types/scoring';
 import { calculateFinalEntryStatus, resolveFinalEntryDisplay } from '../../services/finalEntryStatus';
+import { isFixHardReasonLabelingEnabled } from '../../config/featureFlags';
+import { resolveSnapEntryBlocked } from '../../services/entryBlockedLabeling';
 import { FinalEntryBadge } from '../FinalEntryBadge';
 import { GroupScoreBar } from '../GroupScoreBar';
 import { AdxMarketRegimeSection } from './AdxMarketRegimeSection';
@@ -464,7 +468,7 @@ function hasAnyHardBlock(
 ): boolean {
   return (
     row.adxGate?.block === true ||
-    snap.hardBlocked === true ||
+    resolveSnapEntryBlocked(snap) ||
     blockReasons.length > 0
   );
 }
@@ -1250,7 +1254,10 @@ function SignalCard({
     groupBlocks: snap.groupBlocks,
     longHardBlocks: snap.longHardBlocks,
     shortHardBlocks: snap.shortHardBlocks,
-    hardBlocked: snap.hardBlocked,
+    longBlockReasons: snap.longBlockReasons,
+    shortBlockReasons: snap.shortBlockReasons,
+    hardBlocked: resolveSnapEntryBlocked(snap),
+    entryBlocked: snap.entryBlocked,
     lockedPlanHealthStatus: lockedPlanForRow
       ? planForRow?.planHealth?.status
       : undefined,
@@ -1263,15 +1270,22 @@ function SignalCard({
     snap.direction === 'LONG'
       ? (snap.longHardBlocks ?? [])
       : (snap.shortHardBlocks ?? []);
-  const rawHardBlockReasons =
-    sideHardBlocks.length > 0
+  const rawHardBlockReasons = isFixHardReasonLabelingEnabled()
+    ? sideHardBlocks
+    : sideHardBlocks.length > 0
       ? sideHardBlocks
-      : !snap.hardBlocked
+      : !resolveSnapEntryBlocked(snap)
         ? []
         : snap.mandatoryViolations.filter(
             (v) => !(snap.groupBlocks ?? []).includes(v),
           );
   const hardBlockReasons = collectHardBlockReasons(hardBlockSnapInput);
+  const groupBlockReasonsForDisplay = isFixHardReasonLabelingEnabled()
+    ? collectGroupBlockReasons(hardBlockSnapInput)
+    : (snap.groupBlocks ?? []);
+  const softBlockReasonsForDisplay = isFixHardReasonLabelingEnabled()
+    ? collectScoreSoftBlockReasons(hardBlockSnapInput)
+    : [];
   const macdSuppressed =
     rawHardBlockReasons.some((reason) => reason.startsWith('L3 MACD vi phạm')) &&
     !hardBlockReasons.some((reason) => reason.startsWith('L3 MACD vi phạm'));
@@ -1303,7 +1317,7 @@ function SignalCard({
     hardBlockReasons: adxBlocked
       ? [row.adxGate?.message ?? row.adxBlockReason ?? 'ADX_CHOPPY', ...hardBlockReasons]
       : hardBlockReasons,
-    groupBlockReasons: snap.groupBlocks ?? [],
+    groupBlockReasons: groupBlockReasonsForDisplay,
   });
   const isAmbiguous = snap.isAmbiguousDirection === true;
   const cardBorderColor = isAmbiguous ? AMBIGUOUS_BORDER_COLOR : entryDisplay.borderColor;
@@ -1691,6 +1705,22 @@ function SignalCard({
                 <>
                   {activePlanV3 ? (
                     <>
+                      {isFixHardReasonLabelingEnabled() &&
+                      (groupBlockReasonsForDisplay.length > 0 ||
+                        softBlockReasonsForDisplay.length > 0) ? (
+                        <View style={{ gap: 4, marginBottom: 8 }}>
+                          {groupBlockReasonsForDisplay.map((r) => (
+                            <Text key={`g-${r}`} style={{ color: COLORS.warning, fontSize: 12 }}>
+                              Lý do chặn nhóm: {r}
+                            </Text>
+                          ))}
+                          {softBlockReasonsForDisplay.map((r) => (
+                            <Text key={`s-${r}`} style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                              Lý do điểm chưa đạt: {r}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
                       <TradePlanV3View
                         plan={activePlanV3}
                         finalDecision={finalDecision}

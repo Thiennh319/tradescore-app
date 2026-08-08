@@ -10,6 +10,8 @@
 import type { LayerResult, TradeDirection } from '../../constants/scoring';
 import type { FinalEntryStatus } from '../../types/scoring';
 import type { SignalRow } from '../signalBoardScan';
+import { resolveSnapEntryBlocked } from '../entryBlockedLabeling';
+import { isFixHardReasonLabelingEnabled } from '../../config/featureFlags';
 
 /** Read-only scan fields copied from production SignalRow at bridge time. */
 export interface ProductionEsmScanContext {
@@ -20,7 +22,10 @@ export interface ProductionEsmScanContext {
   readonly decisionLabel: string;
   readonly decisionDisplay: string;
   readonly canEnter: boolean;
+  /** Legacy — use resolveSnapEntryBlocked semantics (hard OR group). */
   readonly hardBlocked: boolean;
+  /** Present when FIX_HARD_REASON_LABELING ON — mirrors hardBlocked (rename). */
+  readonly entryBlocked?: boolean;
   readonly regimeConfidence: number;
   readonly winrate: string;
   readonly layers: readonly LayerResult[];
@@ -81,7 +86,16 @@ export function extractScanContextFromSignalRow(
     decisionLabel: snapshot?.decisionLabel ?? row.decisionLabel,
     decisionDisplay: snapshot?.decisionDisplay ?? row.decisionDisplay,
     canEnter: snapshot?.canEnter ?? row.canEnter,
-    hardBlocked: snapshot?.hardBlocked ?? row.hardBlocked,
+    hardBlocked: resolveSnapEntryBlocked({
+      hardBlocked: snapshot?.hardBlocked ?? row.hardBlocked,
+      entryBlocked: snapshot?.entryBlocked ?? row.entryBlocked,
+    }),
+    entryBlocked: isFixHardReasonLabelingEnabled()
+      ? resolveSnapEntryBlocked({
+          hardBlocked: snapshot?.hardBlocked ?? row.hardBlocked,
+          entryBlocked: snapshot?.entryBlocked ?? row.entryBlocked,
+        })
+      : snapshot?.entryBlocked ?? row.entryBlocked,
     regimeConfidence: row.regimeConfidence,
     winrate: snapshot?.winrate ?? row.winrate,
     layers,

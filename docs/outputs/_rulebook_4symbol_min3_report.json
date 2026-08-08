@@ -1,0 +1,250 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_BTCUSDT_LIVE_SCAN_MIN3.md",
+    "mdLen": 23310,
+    "trendReversalState": "WATCH",
+    "activeConditionCount": 1,
+    "trConfidence": 17.5,
+    "signals": {
+      "cvdFlip": false,
+      "volumeConfirmation": false,
+      "trendExhaustion": false,
+      "structureBreak": true
+    },
+    "marketContextApplied": null,
+    "marketContextPass": null,
+    "tierConsistency": "INFO",
+    "rules": {
+      "trend_reversal_confidence": {
+        "status": "WATCH",
+        "actual": 17.5
+      },
+      "market_context_btc": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "market_context_funding": {
+        "status": "SKIPPED",
+        "actual": true
+      },
+      "market_context_oi": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_whale": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_volatility": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "decision_eligibility": {
+        "status": "FAIL",
+        "actual": false
+      },
+      "decision_final_output": {
+        "status": "INFO",
+        "actual": "IGNORE"
+      }
+    },
+    "decisionChain": [
+      "MarketState=WeakDowntrend",
+      "Visibility=TRADE_MODE",
+      "TrendReversal=WATCH(signals=1/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=12.909375",
+      "Decision=IGNORE",
+      "EarlyWarning=WARNING_SOFT",
+      "MomentumLong=false|Short=false"
+    ],
+    "rowError": null
+  },
+  {
+    "symbol": "NEARUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_NEARUSDT_LIVE_SCAN_MIN3.md",
+    "mdLen": 23250,
+    "trendReversalState": "WATCH",
+    "activeConditionCount": 1,
+    "trConfidence": 17.5,
+    "signals": {
+      "cvdFlip": false,
+      "volumeConfirmation": false,
+      "trendExhaustion": false,
+      "structureBreak": true
+    },
+    "marketContextApplied": null,
+    "marketContextPass": null,
+    "tierConsistency": "INFO",
+    "rules": {
+      "trend_reversal_confidence": {
+        "status": "WATCH",
+        "actual": 17.5
+      },
+      "market_context_btc": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "market_context_funding": {
+        "status": "SKIPPED",
+        "actual": true
+      },
+      "market_context_oi": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_whale": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_volatility": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "decision_eligibility": {
+        "status": "FAIL",
+        "actual": false
+      },
+      "decision_final_output": {
+        "status": "INFO",
+        "actual": "IGNORE"
+      }
+    },
+    "decisionChain": [
+      "MarketState=StrongDowntrend",
+      "Visibility=TRADE_MODE",
+      "TrendReversal=WATCH(signals=1/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=12.909375",
+      "Decision=IGNORE",
+      "EarlyWarning=WARNING_SOFT",
+      "MomentumLong=false|Short=false"
+    ],
+    "rowError": null
+  },
+  {
+    "symbol": "SOLUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_SOLUSDT_LIVE_SCAN_MIN3.md",
+    "mdLen": 23282,
+    "trendReversalState": "WATCH",
+    "activeConditionCount": 1,
+    "trConfidence": 17.5,
+    "signals": {
+      "cvdFlip": false,
+      "volumeConfirmation": false,
+      "trendExhaustion": false,
+      "structureBreak": true
+    },
+    "marketContextApplied": null,
+    "marketContextPass": null,
+    "tierConsistency": "INFO",
+    "rules": {
+      "trend_reversal_confidence": {
+        "status": "WATCH",
+        "actual": 17.5
+      },
+      "market_context_btc": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "market_context_funding": {
+        "status": "SKIPPED",
+        "actual": true
+      },
+      "market_context_oi": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_whale": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_volatility": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "decision_eligibility": {
+        "status": "FAIL",
+        "actual": false
+      },
+      "decision_final_output": {
+        "status": "INFO",
+        "actual": "IGNORE"
+      }
+    },
+    "decisionChain": [
+      "MarketState=WeakDowntrend",
+      "Visibility=WATCH_MODE",
+      "TrendReversal=WATCH(signals=1/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=12.909375",
+      "Decision=IGNORE",
+      "EarlyWarning=BLOCK",
+      "MomentumLong=false|Short=false"
+    ],
+    "rowError": null
+  },
+  {
+    "symbol": "BNBUSDT",
+    "outPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\outputs\\01_RULEBOOK_V41_BNBUSDT_LIVE_SCAN_MIN3.md",
+    "mdLen": 23086,
+    "trendReversalState": "WATCH",
+    "activeConditionCount": 0,
+    "trConfidence": 0,
+    "signals": {
+      "cvdFlip": false,
+      "volumeConfirmation": false,
+      "trendExhaustion": false,
+      "structureBreak": false
+    },
+    "marketContextApplied": null,
+    "marketContextPass": null,
+    "tierConsistency": "INFO",
+    "rules": {
+      "trend_reversal_confidence": {
+        "status": "WATCH",
+        "actual": 0
+      },
+      "market_context_btc": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_funding": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_oi": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_whale": {
+        "status": "SKIPPED",
+        "actual": "skipped:true"
+      },
+      "market_context_volatility": {
+        "status": "SKIPPED",
+        "actual": false
+      },
+      "decision_eligibility": {
+        "status": "FAIL",
+        "actual": false
+      },
+      "decision_final_output": {
+        "status": "INFO",
+        "actual": "IGNORE"
+      }
+    },
+    "decisionChain": [
+      "MarketState=Transition",
+      "Visibility=INACTIVE",
+      "TrendReversal=WATCH(signals=0/4)",
+      "MarketContext=NOT_APPLIED",
+      "Confidence=7.875",
+      "Decision=IGNORE",
+      "EarlyWarning=WARNING_SOFT",
+      "MomentumLong=false|Short=false"
+    ],
+    "rowError": null
+  }
+]

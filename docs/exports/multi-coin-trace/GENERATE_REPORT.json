@@ -1,0 +1,192 @@
+{
+  "scannedAt": "2026-08-07T02:52:27.025Z",
+  "snapshotPath": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\_scan_snapshot_2026-08-07T02-52-27-025Z.json",
+  "reports": [
+    {
+      "coin": "NEARUSDT",
+      "ok": false,
+      "files": [
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\01_RULEBOOK_NEARUSDT.md",
+          "kind": "trace-rulebook",
+          "bytes": 19140,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected NEARUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\02_SCORE_ENGINE_NEARUSDT.md",
+          "kind": "trace-score",
+          "bytes": 22984,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected NEARUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_NEARUSDT.md",
+          "kind": "trace-entry",
+          "bytes": 21626,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected NEARUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\04_POSITION_ADVISER_NEARUSDT.md",
+          "kind": "trace-position",
+          "bytes": 15049,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected NEARUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\05_TRADE_PLAN_NEARUSDT.md",
+          "kind": "trace-tradeplan",
+          "bytes": 14107,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected NEARUSDT, got BTCUSDT"
+          ]
+        }
+      ],
+      "rowSummary": {
+        "symbol": "NEARUSDT",
+        "price": 1.662,
+        "hasV4": true,
+        "hasPlanV4": false
+      }
+    },
+    {
+      "coin": "SOLUSDT",
+      "ok": false,
+      "files": [
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\01_RULEBOOK_SOLUSDT.md",
+          "kind": "trace-rulebook",
+          "bytes": 19140,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected SOLUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\02_SCORE_ENGINE_SOLUSDT.md",
+          "kind": "trace-score",
+          "bytes": 22984,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected SOLUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_SOLUSDT.md",
+          "kind": "trace-entry",
+          "bytes": 21626,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected SOLUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\04_POSITION_ADVISER_SOLUSDT.md",
+          "kind": "trace-position",
+          "bytes": 15049,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected SOLUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\05_TRADE_PLAN_SOLUSDT.md",
+          "kind": "trace-tradeplan",
+          "bytes": 14107,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected SOLUSDT, got BTCUSDT"
+          ]
+        }
+      ],
+      "rowSummary": {
+        "symbol": "SOLUSDT",
+        "price": 72.72,
+        "hasV4": true,
+        "hasPlanV4": false
+      }
+    },
+    {
+      "coin": "BNBUSDT",
+      "ok": false,
+      "files": [
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\01_RULEBOOK_BNBUSDT.md",
+          "kind": "trace-rulebook",
+          "bytes": 19140,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected BNBUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\02_SCORE_ENGINE_BNBUSDT.md",
+          "kind": "trace-score",
+          "bytes": 22984,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected BNBUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\03_ENTRY_DECISION_BNBUSDT.md",
+          "kind": "trace-entry",
+          "bytes": 21626,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected BNBUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\04_POSITION_ADVISER_BNBUSDT.md",
+          "kind": "trace-position",
+          "bytes": 15049,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected BNBUSDT, got BTCUSDT"
+          ]
+        },
+        {
+          "path": "D:\\Thiennh3\\APP\\Trading\\TradeScore\\docs\\exports\\multi-coin-trace\\05_TRADE_PLAN_BNBUSDT.md",
+          "kind": "trace-tradeplan",
+          "bytes": 14107,
+          "coinMetadata": "BTCUSDT",
+          "coinMatch": false,
+          "structuralNotes": [
+            "Coin lệch: expected BNBUSDT, got BTCUSDT"
+          ]
+        }
+      ],
+      "rowSummary": {
+        "symbol": "BNBUSDT",
+        "price": 593.55,
+        "hasV4": true,
+        "hasPlanV4": false
+      }
+    }
+  ]
+}

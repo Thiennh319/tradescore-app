@@ -8,7 +8,7 @@ Timestamp: 2026-07-21T01:41:56.458Z
 Rule Version: UNAVAILABLE
 Entry Version: v4
 Score Version: UNAVAILABLE
-Engine Version: 1.0.7
+Engine Version: 1.0.8
 
 --------------------------------
 
@@ -38,7 +38,7 @@ Score Block Count: 0
 TopLSRatio: 1.3337
 Total Blocking Events: 0
 Trend: BULLISH
-Warning Count: 0
+Warning Count: 1
 
 NOTE — Hard/Group Blocked State: YES if Hard Block OR Group Block is active (not Hard Block alone).
 
@@ -78,7 +78,7 @@ Actual: 1.5
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: LONG alignment
+Reason: Giá trên EMA20/50 cả 2 khung, EMA dốc lên
 Recommendation: UNAVAILABLE
 Source: Layer 1
 Evidence:
@@ -99,7 +99,7 @@ Actual: 1.5
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: RSI optimal
+Reason: RSI 1H 61.1 & 4H 58.8 — vùng tối ưu 45-65
 Recommendation: UNAVAILABLE
 Source: Layer 2
 Evidence:
@@ -120,7 +120,7 @@ Actual: 1.5
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: Histogram dương
+Reason: Histogram dương cả 1H & 4H
 Recommendation: UNAVAILABLE
 Source: Layer 3
 Evidence:
@@ -134,18 +134,18 @@ Check ID: L4
 Check Name: Bollinger %B + Bandwidth
 Rule ID: L4
 Rule Name: Bollinger %B + Bandwidth
-Status: PASS
+Status: WARNING
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 1.13
+Actual: 0
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: BB mid
+Reason: %B=81 Không thuận Long Ranging
 Recommendation: UNAVAILABLE
 Source: Layer 4
 Evidence:
-- Score=1.13
+- Score=0
 
 --------------------------------
 
@@ -158,15 +158,15 @@ Rule Name: L5a — CVD Strength
 Status: PASS
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 1.13
+Actual: 1.5
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: CVD 6742 UP
+Reason: CVD +7K dương & slope tăng rõ trên 1H
 Recommendation: UNAVAILABLE
 Source: Layer 5
 Evidence:
-- Score=1.13
+- Score=1.5
 
 --------------------------------
 
@@ -179,15 +179,15 @@ Rule Name: L5b — Volume / OI
 Status: PASS
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 0.98
+Actual: 0.75
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: Vol confirm
+Reason: OI tăng+giá tăng
 Recommendation: UNAVAILABLE
 Source: Layer 52
 Evidence:
-- Score=0.98
+- Score=0.75
 
 --------------------------------
 
@@ -200,15 +200,15 @@ Rule Name: Funding Rate + Trend
 Status: PASS
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 0.75
+Actual: 0.38
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: Funding 0.0054
+Reason: Funding 0.0054% · 📊 Funding dương vừa phải
 Recommendation: UNAVAILABLE
 Source: Layer 6
 Evidence:
-- Score=0.75
+- Score=0.38
 
 --------------------------------
 
@@ -221,15 +221,15 @@ Rule Name: L/S Ratio + Whale Wall
 Status: PASS
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 1.13
+Actual: 0.75
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: LS 1.33
+Reason: L/S ratio đi ngang — trung tính (whale không kích hoạt entry)
 Recommendation: UNAVAILABLE
 Source: Layer 7
 Evidence:
-- Score=1.13
+- Score=0.75
 
 --------------------------------
 
@@ -242,15 +242,15 @@ Rule Name: BTC 24h + 1H Momentum
 Status: PASS
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 1.13
+Actual: 1.5
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: Change24h 0.744
+Reason: BTC 24h 0.74%, 1h 0.48% — cùng chiều tăng
 Recommendation: UNAVAILABLE
 Source: Layer 8
 Evidence:
-- Score=1.13
+- Score=1.5
 
 --------------------------------
 
@@ -260,18 +260,18 @@ Check ID: L9
 Check Name: Phiên giao dịch
 Rule ID: L9
 Rule Name: Phiên giao dịch
-Status: WARNING
+Status: PASS
 Weight: UNAVAILABLE
 Priority: UNAVAILABLE
-Actual: 0.75
+Actual: 1.5
 Expected: 1.5
 Threshold: UNAVAILABLE
 Difference: UNAVAILABLE
-Reason: Session
+Reason: London Open: 08-12h VN: London mở, thanh khoản cao nhất
 Recommendation: UNAVAILABLE
 Source: Layer 9
 Evidence:
-- Score=0.75
+- Score=1.5
 
 --------------------------------
 
@@ -299,6 +299,7 @@ Evidence:
 # BLOCKERS
 
 Hard Block: 0
+Group Block: 0
 Soft Block: 0
 Unlock: 0
 
@@ -312,16 +313,16 @@ One evidence set per check — emitted once in CHECKLIST, cross-referenced here.
 
 | Check | Rule ID | Actual | Expected | Threshold | Difference | Priority | Unit | Reason | Recommendation | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Giá & EMA (Slope) | L1 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | LONG alignment | UNAVAILABLE | Layer 1 |
-| RSI 14 + Divergence | L2 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | RSI optimal | UNAVAILABLE | Layer 2 |
-| MACD + Histogram Momentum | L3 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Histogram dương | UNAVAILABLE | Layer 3 |
-| Bollinger %B + Bandwidth | L4 | 1.13 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | BB mid | UNAVAILABLE | Layer 4 |
-| L5a — CVD Strength | L5 | 1.13 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | CVD 6742 UP | UNAVAILABLE | Layer 5 |
-| L5b — Volume / OI | L52 | 0.98 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Vol confirm | UNAVAILABLE | Layer 52 |
-| Funding Rate + Trend | L6 | 0.75 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Funding 0.0054 | UNAVAILABLE | Layer 6 |
-| L/S Ratio + Whale Wall | L7 | 1.13 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | LS 1.33 | UNAVAILABLE | Layer 7 |
-| BTC 24h + 1H Momentum | L8 | 1.13 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Change24h 0.744 | UNAVAILABLE | Layer 8 |
-| Phiên giao dịch | L9 | 0.75 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Session | UNAVAILABLE | Layer 9 |
+| Giá & EMA (Slope) | L1 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Giá trên EMA20/50 cả 2 khung, EMA dốc lên | UNAVAILABLE | Layer 1 |
+| RSI 14 + Divergence | L2 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | RSI 1H 61.1 & 4H 58.8 — vùng tối ưu 45-65 | UNAVAILABLE | Layer 2 |
+| MACD + Histogram Momentum | L3 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Histogram dương cả 1H & 4H | UNAVAILABLE | Layer 3 |
+| Bollinger %B + Bandwidth | L4 | 0 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | %B=81 Không thuận Long Ranging | UNAVAILABLE | Layer 4 |
+| L5a — CVD Strength | L5 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | CVD +7K dương & slope tăng rõ trên 1H | UNAVAILABLE | Layer 5 |
+| L5b — Volume / OI | L52 | 0.75 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | OI tăng+giá tăng | UNAVAILABLE | Layer 52 |
+| Funding Rate + Trend | L6 | 0.38 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | Funding 0.0054% · 📊 Funding dương vừa phải | UNAVAILABLE | Layer 6 |
+| L/S Ratio + Whale Wall | L7 | 0.75 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | L/S ratio đi ngang — trung tính (whale không kích hoạt entry) | UNAVAILABLE | Layer 7 |
+| BTC 24h + 1H Momentum | L8 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | BTC 24h 0.74%, 1h 0.48% — cùng chiều tăng | UNAVAILABLE | Layer 8 |
+| Phiên giao dịch | L9 | 1.5 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | London Open: 08-12h VN: London mở, thanh khoản cao nhất | UNAVAILABLE | Layer 9 |
 | Tâm lý & Kỷ luật | L10 | 1.13 | 1.5 | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | UNAVAILABLE | 4/5 mục — đạt | UNAVAILABLE | Layer 10 |
 
 --------------------------------
@@ -333,13 +334,13 @@ Contributions are copied from the engine — never summed here.
 Giá & EMA (Slope): 1.5
 RSI 14 + Divergence: 1.5
 MACD + Histogram Momentum: 1.5
-Bollinger %B + Bandwidth: 1.13
-L5a — CVD Strength: 1.13
-L5b — Volume / OI: 0.98
-Funding Rate + Trend: 0.75
-L/S Ratio + Whale Wall: 1.13
-BTC 24h + 1H Momentum: 1.13
-Phiên giao dịch: 0.75
+Bollinger %B + Bandwidth: 0
+L5a — CVD Strength: 1.5
+L5b — Volume / OI: 0.75
+Funding Rate + Trend: 0.38
+L/S Ratio + Whale Wall: 0.75
+BTC 24h + 1H Momentum: 1.5
+Phiên giao dịch: 1.5
 Tâm lý & Kỷ luật: 1.13
 
 --------------------------------
@@ -403,6 +404,7 @@ Passed Checks: 10
 Warnings: 1
 Failed Checks: 0
 Hard Blocks: 0
+Group Blocks: 0
 Soft Blocks: 0
 Unlock Rules: 0
 Decision: ENTER
@@ -488,6 +490,8 @@ Rule 5: A BUG requires exported evidence proving that the implementation violate
 
 Rule 6: Do NOT report a bug using assumptions.
 
+Rule 7: Block Type MUST be derived only via BLOCK TYPE RESOLUTION table above (Hard list / Score list membership). Any Block Type not traceable to list membership is a candidate BUG, regardless of Mandatory or Status.
+
 Reviewer AI MUST:
 
 - Evaluate only exported values.
@@ -541,6 +545,47 @@ Hard Blocks may originate from:
 Hard Blocks are NOT Score penalties.
 
 Gate ≠ RuleBook Rule.
+
+--------------------------------
+
+## BLOCK TYPE RESOLUTION (DETERMINISTIC — DO NOT INFER)
+
+Block Type of a rule/layer is determined ONLY by list membership below.
+It is NEVER inferred from Status, Mandatory, or Actual vs Expected.
+
+| Rule/Layer name appears in... | Block Type |
+|---|---|
+| "Hard Blocks (Engine / All Sources)" list in BLOCKING EVENTS ORIGIN | HARD |
+| "Score Blocks (block reasons)" list in BLOCKING EVENTS ORIGIN, AND not in Hard list above | SOFT |
+| Neither list | NONE |
+
+FORBIDDEN INFERENCE (explicitly disallowed — this caused a real bug, fixed 2026-07-22):
+- Mandatory = YES does NOT imply Block Type = HARD.
+- Status = FAIL does NOT imply Block Type = HARD.
+- Actual < Expected does NOT imply Block Type = HARD.
+Mandatory, Status, and Block Type are THREE INDEPENDENT fields. A rule can be
+Mandatory=YES + Status=FAIL + Block Type=SOFT simultaneously — this is valid
+and expected, not a contradiction.
+
+## Worked examples (canonical reference — use these to self-check before reporting a bug)
+
+| Trade | Rule | Status | Mandatory | Actual vs Expected | In Hard list? | In Score list? | Correct Block Type |
+|---|---|---|---|---|---|---|---|
+| BTCUSDT-SHORT | L5a | FAIL | YES | 0 < 1.5 | NO | YES | SOFT |
+| SOLUSDT-SHORT | L5a | PASS | YES | 0.38 < 1.5 | NO | YES | SOFT |
+| NEARUSDT-SHORT | L5a | PASS | YES | 1.5 = 1.5 | NO | NO | NONE |
+| (hypothetical) any-SHORT | L5a | FAIL | YES | CVD extreme | YES | — | HARD |
+| NEARUSDT-SHORT | L3 | PASS | NO | L3 raw 1.0 (≥1 shared, <1.5 NEAR gate) | YES (NEAR SHORT — L3 MACD < 1.5…) | NO | HARD |
+
+NEAR-only S1 note: hard reason string starts with "NEAR SHORT — L3 MACD…"
+(not "^L3"). Rule Trace still maps it to L3 Block Type=HARD via list membership
++ layer matcher. S1 does NOT flip L3 passed→false; Warning Count stays soft-fail-only
+(same pattern as other hard gates — not the old warningLayerCountFromSnap bug class).
+
+Reviewer AI MUST cross-check the two lists in BLOCKING EVENTS ORIGIN before
+assigning any Block Type verdict. If a rule's Block Type in the export does
+NOT match this table's derivation from the two lists, classify as BUG with
+exact list membership as evidence — not as INSUFFICIENT EVIDENCE or ENHANCEMENT.
 
 --------------------------------
 
@@ -604,13 +649,13 @@ display = round((raw / 2) x 1.5, 2)
 | Giá & EMA (Slope) | UNAVAILABLE | 1.5 | 1.5 | PASS |
 | RSI 14 + Divergence | UNAVAILABLE | 1.5 | 1.5 | PASS |
 | MACD + Histogram Momentum | UNAVAILABLE | 1.5 | 1.5 | PASS |
-| Bollinger %B + Bandwidth | UNAVAILABLE | 1.13 | 1.5 | PASS |
-| L5a — CVD Strength | UNAVAILABLE | 1.13 | 1.5 | PASS |
-| L5b — Volume / OI | UNAVAILABLE | 0.98 | 1.5 | PASS |
-| Funding Rate + Trend | UNAVAILABLE | 0.75 | 1.5 | PASS |
-| L/S Ratio + Whale Wall | UNAVAILABLE | 1.13 | 1.5 | PASS |
-| BTC 24h + 1H Momentum | UNAVAILABLE | 1.13 | 1.5 | PASS |
-| Phiên giao dịch | UNAVAILABLE | 0.75 | 1.5 | WARNING |
+| Bollinger %B + Bandwidth | UNAVAILABLE | 0 | 1.5 | WARNING |
+| L5a — CVD Strength | UNAVAILABLE | 1.5 | 1.5 | PASS |
+| L5b — Volume / OI | UNAVAILABLE | 0.75 | 1.5 | PASS |
+| Funding Rate + Trend | UNAVAILABLE | 0.38 | 1.5 | PASS |
+| L/S Ratio + Whale Wall | UNAVAILABLE | 0.75 | 1.5 | PASS |
+| BTC 24h + 1H Momentum | UNAVAILABLE | 1.5 | 1.5 | PASS |
+| Phiên giao dịch | UNAVAILABLE | 1.5 | 1.5 | PASS |
 | Tâm lý & Kỷ luật | UNAVAILABLE | 1.13 | 1.5 | PASS |
 
 VWAP Bonus Trace (copied from frozen snapshot, active direction):

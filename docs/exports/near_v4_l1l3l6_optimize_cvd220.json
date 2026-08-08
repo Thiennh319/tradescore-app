@@ -1,0 +1,1726 @@
+{
+  "meta": {
+    "csv": "docs/exports/near_backtest_180d_cvd220.csv",
+    "nAll": 238,
+    "nShort": 209,
+    "nLong": 29,
+    "isCutIso": "2026-06-02T12:00:00.000Z",
+    "MARKET_NOTE": "CVD rolling 220 baseline"
+  },
+  "shortBase": {
+    "n": 209,
+    "wins": 153,
+    "losses": 56,
+    "wr": 73.21,
+    "ev": 0.3748,
+    "sumR": 78.34
+  },
+  "shortIS": {
+    "n": 121,
+    "wins": 89,
+    "losses": 32,
+    "wr": 73.55,
+    "ev": 0.3413,
+    "sumR": 41.29
+  },
+  "shortOOS": {
+    "n": 88,
+    "wins": 64,
+    "losses": 24,
+    "wr": 72.73,
+    "ev": 0.4209,
+    "sumR": 37.04
+  },
+  "longBase": {
+    "n": 29,
+    "wins": 20,
+    "losses": 9,
+    "wr": 68.97,
+    "ev": 0.3805,
+    "sumR": 11.04,
+    "wilson": {
+      "lo": 50.8,
+      "hi": 82.7
+    }
+  },
+  "uniqShort": {
+    "l1": {
+      "0": 13,
+      "1": 16,
+      "2": 128,
+      "1.3333333333333333": 48,
+      "1.5": 4
+    },
+    "l3": {
+      "1": 81,
+      "2": 85,
+      "1.5": 43
+    },
+    "l6": {
+      "0": 15,
+      "1": 85,
+      "1.5": 109
+    }
+  },
+  "uniqLong": {
+    "l1": {
+      "0": 2,
+      "1": 3,
+      "2": 24
+    },
+    "l3": {
+      "1": 7,
+      "2": 18,
+      "1.5": 4
+    },
+    "l6": {
+      "1": 5,
+      "2": 9,
+      "1.5": 2,
+      "0.5": 13
+    }
+  },
+  "shortSweeps": {
+    "l1": [
+      {
+        "thr": 0,
+        "n": 209,
+        "wins": 153,
+        "losses": 56,
+        "wr": 73.21,
+        "ev": 0.3748,
+        "sumR": 78.34,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 66.8,
+          "hi": 78.8
+        }
+      },
+      {
+        "thr": 0.5,
+        "n": 196,
+        "wins": 144,
+        "losses": 52,
+        "wr": 73.47,
+        "ev": 0.3883,
+        "sumR": 76.11,
+        "nDropPct": 6.2,
+        "wilson": {
+          "lo": 66.9,
+          "hi": 79.2
+        }
+      },
+      {
+        "thr": 1,
+        "n": 196,
+        "wins": 144,
+        "losses": 52,
+        "wr": 73.47,
+        "ev": 0.3883,
+        "sumR": 76.11,
+        "nDropPct": 6.2,
+        "wilson": {
+          "lo": 66.9,
+          "hi": 79.2
+        }
+      },
+      {
+        "thr": 1.33,
+        "n": 180,
+        "wins": 129,
+        "losses": 51,
+        "wr": 71.67,
+        "ev": 0.3914,
+        "sumR": 70.45,
+        "nDropPct": 13.9,
+        "wilson": {
+          "lo": 64.7,
+          "hi": 77.7
+        }
+      },
+      {
+        "thr": 1.5,
+        "n": 132,
+        "wins": 97,
+        "losses": 35,
+        "wr": 73.48,
+        "ev": 0.4448,
+        "sumR": 58.71,
+        "nDropPct": 36.8,
+        "wilson": {
+          "lo": 65.4,
+          "hi": 80.3
+        }
+      },
+      {
+        "thr": 2,
+        "n": 128,
+        "wins": 95,
+        "losses": 33,
+        "wr": 74.22,
+        "ev": 0.4561,
+        "sumR": 58.38,
+        "nDropPct": 38.8,
+        "wilson": {
+          "lo": 66,
+          "hi": 81
+        }
+      }
+    ],
+    "l3": [
+      {
+        "thr": 0,
+        "n": 209,
+        "wins": 153,
+        "losses": 56,
+        "wr": 73.21,
+        "ev": 0.3748,
+        "sumR": 78.34,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 66.8,
+          "hi": 78.8
+        }
+      },
+      {
+        "thr": 1,
+        "n": 209,
+        "wins": 153,
+        "losses": 56,
+        "wr": 73.21,
+        "ev": 0.3748,
+        "sumR": 78.34,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 66.8,
+          "hi": 78.8
+        }
+      },
+      {
+        "thr": 1.5,
+        "n": 128,
+        "wins": 96,
+        "losses": 32,
+        "wr": 75,
+        "ev": 0.4422,
+        "sumR": 56.6,
+        "nDropPct": 38.8,
+        "wilson": {
+          "lo": 66.8,
+          "hi": 81.7
+        }
+      },
+      {
+        "thr": 2,
+        "n": 85,
+        "wins": 69,
+        "losses": 16,
+        "wr": 81.18,
+        "ev": 0.6115,
+        "sumR": 51.98,
+        "nDropPct": 59.3,
+        "wilson": {
+          "lo": 71.6,
+          "hi": 88.1
+        }
+      }
+    ],
+    "l6": [
+      {
+        "thr": 0,
+        "n": 209,
+        "wins": 153,
+        "losses": 56,
+        "wr": 73.21,
+        "ev": 0.3748,
+        "sumR": 78.34,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 66.8,
+          "hi": 78.8
+        }
+      },
+      {
+        "thr": 0.5,
+        "n": 194,
+        "wins": 143,
+        "losses": 51,
+        "wr": 73.71,
+        "ev": 0.3793,
+        "sumR": 73.59,
+        "nDropPct": 7.2,
+        "wilson": {
+          "lo": 67.1,
+          "hi": 79.4
+        }
+      },
+      {
+        "thr": 1,
+        "n": 194,
+        "wins": 143,
+        "losses": 51,
+        "wr": 73.71,
+        "ev": 0.3793,
+        "sumR": 73.59,
+        "nDropPct": 7.2,
+        "wilson": {
+          "lo": 67.1,
+          "hi": 79.4
+        }
+      },
+      {
+        "thr": 1.5,
+        "n": 109,
+        "wins": 82,
+        "losses": 27,
+        "wr": 75.23,
+        "ev": 0.4221,
+        "sumR": 46.01,
+        "nDropPct": 47.8,
+        "wilson": {
+          "lo": 66.4,
+          "hi": 82.4
+        }
+      },
+      {
+        "thr": 2,
+        "n": 0,
+        "wr": null,
+        "ev": null,
+        "wins": 0,
+        "losses": 0,
+        "sumR": 0,
+        "nDropPct": 100,
+        "wilson": null
+      }
+    ]
+  },
+  "shortComboFull": [
+    {
+      "name": "L1>=1.5",
+      "full": {
+        "n": 132,
+        "wins": 97,
+        "losses": 35,
+        "wr": 73.48,
+        "ev": 0.4448,
+        "sumR": 58.71,
+        "nDropPct": 36.8,
+        "wilson": {
+          "lo": 65.4,
+          "hi": 80.3
+        }
+      },
+      "is": {
+        "n": 75,
+        "wins": 55,
+        "losses": 20,
+        "wr": 73.33,
+        "ev": 0.3951,
+        "sumR": 29.63,
+        "nDropPct": 38,
+        "wilson": {
+          "lo": 62.4,
+          "hi": 82
+        }
+      },
+      "oos": {
+        "n": 57,
+        "wins": 42,
+        "losses": 15,
+        "wr": 73.68,
+        "ev": 0.5101,
+        "sumR": 29.08,
+        "nDropPct": 35.2,
+        "wilson": {
+          "lo": 61,
+          "hi": 83.4
+        }
+      },
+      "wrDrop": -0.35,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=2",
+      "full": {
+        "n": 128,
+        "wins": 95,
+        "losses": 33,
+        "wr": 74.22,
+        "ev": 0.4561,
+        "sumR": 58.38,
+        "nDropPct": 38.8,
+        "wilson": {
+          "lo": 66,
+          "hi": 81
+        }
+      },
+      "is": {
+        "n": 74,
+        "wins": 55,
+        "losses": 19,
+        "wr": 74.32,
+        "ev": 0.4097,
+        "sumR": 30.32,
+        "nDropPct": 38.8,
+        "wilson": {
+          "lo": 63.3,
+          "hi": 82.9
+        }
+      },
+      "oos": {
+        "n": 54,
+        "wins": 40,
+        "losses": 14,
+        "wr": 74.07,
+        "ev": 0.5197,
+        "sumR": 28.06,
+        "nDropPct": 38.6,
+        "wilson": {
+          "lo": 61.1,
+          "hi": 83.9
+        }
+      },
+      "wrDrop": 0.25,
+      "stable": "OK"
+    },
+    {
+      "name": "L3>=1.5",
+      "full": {
+        "n": 128,
+        "wins": 96,
+        "losses": 32,
+        "wr": 75,
+        "ev": 0.4422,
+        "sumR": 56.6,
+        "nDropPct": 38.8,
+        "wilson": {
+          "lo": 66.8,
+          "hi": 81.7
+        }
+      },
+      "is": {
+        "n": 77,
+        "wins": 57,
+        "losses": 20,
+        "wr": 74.03,
+        "ev": 0.3852,
+        "sumR": 29.66,
+        "nDropPct": 36.4,
+        "wilson": {
+          "lo": 63.3,
+          "hi": 82.5
+        }
+      },
+      "oos": {
+        "n": 51,
+        "wins": 39,
+        "losses": 12,
+        "wr": 76.47,
+        "ev": 0.5282,
+        "sumR": 26.94,
+        "nDropPct": 42,
+        "wilson": {
+          "lo": 63.2,
+          "hi": 86
+        }
+      },
+      "wrDrop": -2.44,
+      "stable": "OK"
+    },
+    {
+      "name": "L3>=2",
+      "full": {
+        "n": 85,
+        "wins": 69,
+        "losses": 16,
+        "wr": 81.18,
+        "ev": 0.6115,
+        "sumR": 51.98,
+        "nDropPct": 59.3,
+        "wilson": {
+          "lo": 71.6,
+          "hi": 88.1
+        }
+      },
+      "is": {
+        "n": 51,
+        "wins": 41,
+        "losses": 10,
+        "wr": 80.39,
+        "ev": 0.552,
+        "sumR": 28.15,
+        "nDropPct": 57.9,
+        "wilson": {
+          "lo": 67.5,
+          "hi": 89
+        }
+      },
+      "oos": {
+        "n": 34,
+        "wins": 28,
+        "losses": 6,
+        "wr": 82.35,
+        "ev": 0.7006,
+        "sumR": 23.82,
+        "nDropPct": 61.4,
+        "wilson": {
+          "lo": 66.5,
+          "hi": 91.7
+        }
+      },
+      "wrDrop": -1.96,
+      "stable": "OK"
+    },
+    {
+      "name": "L6>=1.5",
+      "full": {
+        "n": 109,
+        "wins": 82,
+        "losses": 27,
+        "wr": 75.23,
+        "ev": 0.4221,
+        "sumR": 46.01,
+        "nDropPct": 47.8,
+        "wilson": {
+          "lo": 66.4,
+          "hi": 82.4
+        }
+      },
+      "is": {
+        "n": 63,
+        "wins": 47,
+        "losses": 16,
+        "wr": 74.6,
+        "ev": 0.3594,
+        "sumR": 22.64,
+        "nDropPct": 47.9,
+        "wilson": {
+          "lo": 62.7,
+          "hi": 83.7
+        }
+      },
+      "oos": {
+        "n": 46,
+        "wins": 35,
+        "losses": 11,
+        "wr": 76.09,
+        "ev": 0.508,
+        "sumR": 23.37,
+        "nDropPct": 47.7,
+        "wilson": {
+          "lo": 62.1,
+          "hi": 86.1
+        }
+      },
+      "wrDrop": -1.49,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=1.5 & L3>=1.5",
+      "full": {
+        "n": 85,
+        "wins": 63,
+        "losses": 22,
+        "wr": 74.12,
+        "ev": 0.5159,
+        "sumR": 43.85,
+        "nDropPct": 59.3,
+        "wilson": {
+          "lo": 63.9,
+          "hi": 82.2
+        }
+      },
+      "is": {
+        "n": 50,
+        "wins": 36,
+        "losses": 14,
+        "wr": 72,
+        "ev": 0.4312,
+        "sumR": 21.56,
+        "nDropPct": 58.7,
+        "wilson": {
+          "lo": 58.3,
+          "hi": 82.5
+        }
+      },
+      "oos": {
+        "n": 35,
+        "wins": 27,
+        "losses": 8,
+        "wr": 77.14,
+        "ev": 0.6368,
+        "sumR": 22.29,
+        "nDropPct": 60.2,
+        "wilson": {
+          "lo": 61,
+          "hi": 87.9
+        }
+      },
+      "wrDrop": -5.14,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=1.5 & L3>=2",
+      "full": {
+        "n": 62,
+        "wins": 51,
+        "losses": 11,
+        "wr": 82.26,
+        "ev": 0.6853,
+        "sumR": 42.49,
+        "nDropPct": 70.3,
+        "wilson": {
+          "lo": 71,
+          "hi": 89.8
+        }
+      },
+      "is": {
+        "n": 37,
+        "wins": 29,
+        "losses": 8,
+        "wr": 78.38,
+        "ev": 0.5512,
+        "sumR": 20.39,
+        "nDropPct": 69.4,
+        "wilson": {
+          "lo": 62.8,
+          "hi": 88.6
+        }
+      },
+      "oos": {
+        "n": 25,
+        "wins": 22,
+        "losses": 3,
+        "wr": 88,
+        "ev": 0.8837,
+        "sumR": 22.09,
+        "nDropPct": 71.6,
+        "wilson": {
+          "lo": 70,
+          "hi": 95.8
+        }
+      },
+      "wrDrop": -9.62,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=1.5 & L6>=1.5",
+      "full": {
+        "n": 68,
+        "wins": 53,
+        "losses": 15,
+        "wr": 77.94,
+        "ev": 0.5092,
+        "sumR": 34.63,
+        "nDropPct": 67.5,
+        "wilson": {
+          "lo": 66.7,
+          "hi": 86.2
+        }
+      },
+      "is": {
+        "n": 34,
+        "wins": 26,
+        "losses": 8,
+        "wr": 76.47,
+        "ev": 0.4372,
+        "sumR": 14.86,
+        "nDropPct": 71.9,
+        "wilson": {
+          "lo": 60,
+          "hi": 87.6
+        }
+      },
+      "oos": {
+        "n": 34,
+        "wins": 27,
+        "losses": 7,
+        "wr": 79.41,
+        "ev": 0.5812,
+        "sumR": 19.76,
+        "nDropPct": 61.4,
+        "wilson": {
+          "lo": 63.2,
+          "hi": 89.7
+        }
+      },
+      "wrDrop": -2.94,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=2 & L3>=2",
+      "full": {
+        "n": 62,
+        "wins": 51,
+        "losses": 11,
+        "wr": 82.26,
+        "ev": 0.6853,
+        "sumR": 42.49,
+        "nDropPct": 70.3,
+        "wilson": {
+          "lo": 71,
+          "hi": 89.8
+        }
+      },
+      "is": {
+        "n": 37,
+        "wins": 29,
+        "losses": 8,
+        "wr": 78.38,
+        "ev": 0.5512,
+        "sumR": 20.39,
+        "nDropPct": 69.4,
+        "wilson": {
+          "lo": 62.8,
+          "hi": 88.6
+        }
+      },
+      "oos": {
+        "n": 25,
+        "wins": 22,
+        "losses": 3,
+        "wr": 88,
+        "ev": 0.8837,
+        "sumR": 22.09,
+        "nDropPct": 71.6,
+        "wilson": {
+          "lo": 70,
+          "hi": 95.8
+        }
+      },
+      "wrDrop": -9.62,
+      "stable": "OK"
+    },
+    {
+      "name": "L3>=2 & L6>=1.5",
+      "full": {
+        "n": 45,
+        "wins": 38,
+        "losses": 7,
+        "wr": 84.44,
+        "ev": 0.6927,
+        "sumR": 31.17,
+        "nDropPct": 78.5,
+        "wilson": {
+          "lo": 71.2,
+          "hi": 92.3
+        }
+      },
+      "is": {
+        "n": 27,
+        "wins": 22,
+        "losses": 5,
+        "wr": 81.48,
+        "ev": 0.59,
+        "sumR": 15.93,
+        "nDropPct": 77.7,
+        "wilson": {
+          "lo": 63.3,
+          "hi": 91.8
+        }
+      },
+      "oos": {
+        "n": 18,
+        "wins": 16,
+        "losses": 2,
+        "wr": 88.89,
+        "ev": 0.8469,
+        "sumR": 15.24,
+        "nDropPct": 79.5,
+        "wilson": {
+          "lo": 67.2,
+          "hi": 96.9
+        }
+      },
+      "wrDrop": -7.41,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=1.5 & L3>=1.5 & L6>=1.5",
+      "full": {
+        "n": 47,
+        "wins": 36,
+        "losses": 11,
+        "wr": 76.6,
+        "ev": 0.5761,
+        "sumR": 27.07,
+        "nDropPct": 77.5,
+        "wilson": {
+          "lo": 62.8,
+          "hi": 86.4
+        }
+      },
+      "is": {
+        "n": 22,
+        "wins": 17,
+        "losses": 5,
+        "wr": 77.27,
+        "ev": 0.5087,
+        "sumR": 11.19,
+        "nDropPct": 81.8,
+        "wilson": {
+          "lo": 56.6,
+          "hi": 89.9
+        }
+      },
+      "oos": {
+        "n": 25,
+        "wins": 19,
+        "losses": 6,
+        "wr": 76,
+        "ev": 0.6353,
+        "sumR": 15.88,
+        "nDropPct": 71.6,
+        "wilson": {
+          "lo": 56.6,
+          "hi": 88.5
+        }
+      },
+      "wrDrop": 1.27,
+      "stable": "OK"
+    },
+    {
+      "name": "L1>=1.5 & L3>=2 & L6>=1.5",
+      "full": {
+        "n": 35,
+        "wins": 30,
+        "losses": 5,
+        "wr": 85.71,
+        "ev": 0.7358,
+        "sumR": 25.75,
+        "nDropPct": 83.3,
+        "wilson": {
+          "lo": 70.6,
+          "hi": 93.7
+        }
+      },
+      "is": {
+        "n": 18,
+        "wins": 15,
+        "losses": 3,
+        "wr": 83.33,
+        "ev": 0.614,
+        "sumR": 11.05,
+        "nDropPct": 85.1,
+        "wilson": {
+          "lo": 60.8,
+          "hi": 94.2
+        }
+      },
+      "oos": {
+        "n": 17,
+        "wins": 15,
+        "losses": 2,
+        "wr": 88.24,
+        "ev": 0.8647,
+        "sumR": 14.7,
+        "nDropPct": 80.7,
+        "wilson": {
+          "lo": 65.7,
+          "hi": 96.7
+        }
+      },
+      "wrDrop": -4.91,
+      "stable": "OK"
+    }
+  ],
+  "longSweeps": {
+    "l1": [
+      {
+        "thr": 0,
+        "n": 29,
+        "wins": 20,
+        "losses": 9,
+        "wr": 68.97,
+        "ev": 0.3805,
+        "sumR": 11.04,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 82.7
+        }
+      },
+      {
+        "thr": 1,
+        "n": 27,
+        "wins": 18,
+        "losses": 9,
+        "wr": 66.67,
+        "ev": 0.4037,
+        "sumR": 10.9,
+        "nDropPct": 6.9,
+        "wilson": {
+          "lo": 47.8,
+          "hi": 81.4
+        }
+      },
+      {
+        "thr": 1.5,
+        "n": 24,
+        "wins": 17,
+        "losses": 7,
+        "wr": 70.83,
+        "ev": 0.4591,
+        "sumR": 11.02,
+        "nDropPct": 17.2,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 85.1
+        }
+      },
+      {
+        "thr": 2,
+        "n": 24,
+        "wins": 17,
+        "losses": 7,
+        "wr": 70.83,
+        "ev": 0.4591,
+        "sumR": 11.02,
+        "nDropPct": 17.2,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 85.1
+        }
+      }
+    ],
+    "l3": [
+      {
+        "thr": 0,
+        "n": 29,
+        "wins": 20,
+        "losses": 9,
+        "wr": 68.97,
+        "ev": 0.3805,
+        "sumR": 11.04,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 82.7
+        }
+      },
+      {
+        "thr": 1,
+        "n": 29,
+        "wins": 20,
+        "losses": 9,
+        "wr": 68.97,
+        "ev": 0.3805,
+        "sumR": 11.04,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 82.7
+        }
+      },
+      {
+        "thr": 1.5,
+        "n": 22,
+        "wins": 16,
+        "losses": 6,
+        "wr": 72.73,
+        "ev": 0.5015,
+        "sumR": 11.03,
+        "nDropPct": 24.1,
+        "wilson": {
+          "lo": 51.8,
+          "hi": 86.8
+        }
+      },
+      {
+        "thr": 2,
+        "n": 18,
+        "wins": 14,
+        "losses": 4,
+        "wr": 77.78,
+        "ev": 0.6304,
+        "sumR": 11.35,
+        "nDropPct": 37.9,
+        "wilson": {
+          "lo": 54.8,
+          "hi": 91
+        }
+      }
+    ],
+    "l6": [
+      {
+        "thr": 0,
+        "n": 29,
+        "wins": 20,
+        "losses": 9,
+        "wr": 68.97,
+        "ev": 0.3805,
+        "sumR": 11.04,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 82.7
+        }
+      },
+      {
+        "thr": 0.5,
+        "n": 29,
+        "wins": 20,
+        "losses": 9,
+        "wr": 68.97,
+        "ev": 0.3805,
+        "sumR": 11.04,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 82.7
+        }
+      },
+      {
+        "thr": 1,
+        "n": 16,
+        "wins": 10,
+        "losses": 6,
+        "wr": 62.5,
+        "ev": 0.384,
+        "sumR": 6.14,
+        "nDropPct": 44.8,
+        "wilson": {
+          "lo": 38.6,
+          "hi": 81.5
+        }
+      },
+      {
+        "thr": 1.5,
+        "n": 11,
+        "wins": 7,
+        "losses": 4,
+        "wr": 63.64,
+        "ev": 0.3881,
+        "sumR": 4.27,
+        "nDropPct": 62.1,
+        "wilson": {
+          "lo": 35.4,
+          "hi": 84.8
+        }
+      },
+      {
+        "thr": 2,
+        "n": 9,
+        "wins": 6,
+        "losses": 3,
+        "wr": 66.67,
+        "ev": 0.2572,
+        "sumR": 2.31,
+        "nDropPct": 69,
+        "wilson": {
+          "lo": 35.4,
+          "hi": 87.9
+        }
+      }
+    ]
+  },
+  "longComboEval": [
+    {
+      "name": "base",
+      "full": {
+        "n": 29,
+        "wins": 20,
+        "losses": 9,
+        "wr": 68.97,
+        "ev": 0.3805,
+        "sumR": 11.04,
+        "nDropPct": 0,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 82.7
+        }
+      },
+      "wilson": {
+        "lo": 50.8,
+        "hi": 82.7
+      },
+      "folds": null
+    },
+    {
+      "name": "L1>=1.5",
+      "full": {
+        "n": 24,
+        "wins": 17,
+        "losses": 7,
+        "wr": 70.83,
+        "ev": 0.4591,
+        "sumR": 11.02,
+        "nDropPct": 17.2,
+        "wilson": {
+          "lo": 50.8,
+          "hi": 85.1
+        }
+      },
+      "wilson": {
+        "lo": 50.8,
+        "hi": 85.1
+      },
+      "folds": null
+    },
+    {
+      "name": "L3>=2",
+      "full": {
+        "n": 18,
+        "wins": 14,
+        "losses": 4,
+        "wr": 77.78,
+        "ev": 0.6304,
+        "sumR": 11.35,
+        "nDropPct": 37.9,
+        "wilson": {
+          "lo": 54.8,
+          "hi": 91
+        }
+      },
+      "wilson": {
+        "lo": 54.8,
+        "hi": 91
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "train": {
+            "n": 15,
+            "wins": 12,
+            "losses": 3,
+            "wr": 80,
+            "ev": 0.6822,
+            "sumR": 10.23,
+            "nDropPct": 34.8,
+            "wilson": {
+              "lo": 54.8,
+              "hi": 93
+            }
+          },
+          "test": {
+            "n": 3,
+            "wins": 2,
+            "losses": 1,
+            "wr": 66.67,
+            "ev": 0.3712,
+            "sumR": 1.11,
+            "nDropPct": 50,
+            "wilson": {
+              "lo": 20.8,
+              "hi": 93.9
+            }
+          }
+        },
+        {
+          "fold": 1,
+          "train": {
+            "n": 15,
+            "wins": 11,
+            "losses": 4,
+            "wr": 73.33,
+            "ev": 0.5689,
+            "sumR": 8.53,
+            "nDropPct": 34.8,
+            "wilson": {
+              "lo": 48,
+              "hi": 89.1
+            }
+          },
+          "test": {
+            "n": 3,
+            "wins": 3,
+            "losses": 0,
+            "wr": 100,
+            "ev": 0.938,
+            "sumR": 2.81,
+            "nDropPct": 50,
+            "wilson": {
+              "lo": 43.8,
+              "hi": 100
+            }
+          }
+        },
+        {
+          "fold": 2,
+          "train": {
+            "n": 14,
+            "wins": 11,
+            "losses": 3,
+            "wr": 78.57,
+            "ev": 0.6099,
+            "sumR": 8.54,
+            "nDropPct": 39.1,
+            "wilson": {
+              "lo": 52.4,
+              "hi": 92.4
+            }
+          },
+          "test": {
+            "n": 4,
+            "wins": 3,
+            "losses": 1,
+            "wr": 75,
+            "ev": 0.7022,
+            "sumR": 2.81,
+            "nDropPct": 33.3,
+            "wilson": {
+              "lo": 30.1,
+              "hi": 95.4
+            }
+          }
+        },
+        {
+          "fold": 3,
+          "train": {
+            "n": 14,
+            "wins": 10,
+            "losses": 4,
+            "wr": 71.43,
+            "ev": 0.5534,
+            "sumR": 7.75,
+            "nDropPct": 39.1,
+            "wilson": {
+              "lo": 45.4,
+              "hi": 88.3
+            }
+          },
+          "test": {
+            "n": 4,
+            "wins": 4,
+            "losses": 0,
+            "wr": 100,
+            "ev": 0.9,
+            "sumR": 3.6,
+            "nDropPct": 33.3,
+            "wilson": {
+              "lo": 51,
+              "hi": 100
+            }
+          }
+        },
+        {
+          "fold": 4,
+          "train": {
+            "n": 14,
+            "wins": 12,
+            "losses": 2,
+            "wr": 85.71,
+            "ev": 0.7383,
+            "sumR": 10.34,
+            "nDropPct": 41.7,
+            "wilson": {
+              "lo": 60.1,
+              "hi": 96
+            }
+          },
+          "test": {
+            "n": 4,
+            "wins": 2,
+            "losses": 2,
+            "wr": 50,
+            "ev": 0.2527,
+            "sumR": 1.01,
+            "nDropPct": 20,
+            "wilson": {
+              "lo": 15,
+              "hi": 85
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "L6>=1.5",
+      "full": {
+        "n": 11,
+        "wins": 7,
+        "losses": 4,
+        "wr": 63.64,
+        "ev": 0.3881,
+        "sumR": 4.27,
+        "nDropPct": 62.1,
+        "wilson": {
+          "lo": 35.4,
+          "hi": 84.8
+        }
+      },
+      "wilson": {
+        "lo": 35.4,
+        "hi": 84.8
+      },
+      "folds": null
+    },
+    {
+      "name": "L6<1.5 (inverse)",
+      "full": {
+        "n": 18,
+        "wins": 13,
+        "losses": 5,
+        "wr": 72.22,
+        "ev": 0.3759,
+        "sumR": 6.77,
+        "nDropPct": 37.9,
+        "wilson": {
+          "lo": 49.1,
+          "hi": 87.5
+        }
+      },
+      "wilson": {
+        "lo": 49.1,
+        "hi": 87.5
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "train": {
+            "n": 13,
+            "wins": 10,
+            "losses": 3,
+            "wr": 76.92,
+            "ev": 0.3978,
+            "sumR": 5.17,
+            "nDropPct": 43.5,
+            "wilson": {
+              "lo": 49.7,
+              "hi": 91.8
+            }
+          },
+          "test": {
+            "n": 5,
+            "wins": 3,
+            "losses": 2,
+            "wr": 60,
+            "ev": 0.319,
+            "sumR": 1.6,
+            "nDropPct": 16.7,
+            "wilson": {
+              "lo": 23.1,
+              "hi": 88.2
+            }
+          }
+        },
+        {
+          "fold": 1,
+          "train": {
+            "n": 13,
+            "wins": 10,
+            "losses": 3,
+            "wr": 76.92,
+            "ev": 0.4359,
+            "sumR": 5.67,
+            "nDropPct": 43.5,
+            "wilson": {
+              "lo": 49.7,
+              "hi": 91.8
+            }
+          },
+          "test": {
+            "n": 5,
+            "wins": 3,
+            "losses": 2,
+            "wr": 60,
+            "ev": 0.2201,
+            "sumR": 1.1,
+            "nDropPct": 16.7,
+            "wilson": {
+              "lo": 23.1,
+              "hi": 88.2
+            }
+          }
+        },
+        {
+          "fold": 2,
+          "train": {
+            "n": 14,
+            "wins": 10,
+            "losses": 4,
+            "wr": 71.43,
+            "ev": 0.2499,
+            "sumR": 3.5,
+            "nDropPct": 39.1,
+            "wilson": {
+              "lo": 45.4,
+              "hi": 88.3
+            }
+          },
+          "test": {
+            "n": 4,
+            "wins": 3,
+            "losses": 1,
+            "wr": 75,
+            "ev": 0.8169,
+            "sumR": 3.27,
+            "nDropPct": 33.3,
+            "wilson": {
+              "lo": 30.1,
+              "hi": 95.4
+            }
+          }
+        },
+        {
+          "fold": 3,
+          "train": {
+            "n": 15,
+            "wins": 10,
+            "losses": 5,
+            "wr": 66.67,
+            "ev": 0.4054,
+            "sumR": 6.08,
+            "nDropPct": 34.8,
+            "wilson": {
+              "lo": 41.7,
+              "hi": 84.8
+            }
+          },
+          "test": {
+            "n": 3,
+            "wins": 3,
+            "losses": 0,
+            "wr": 100,
+            "ev": 0.2285,
+            "sumR": 0.69,
+            "nDropPct": 50,
+            "wilson": {
+              "lo": 43.8,
+              "hi": 100
+            }
+          }
+        },
+        {
+          "fold": 4,
+          "train": {
+            "n": 17,
+            "wins": 12,
+            "losses": 5,
+            "wr": 70.59,
+            "ev": 0.3911,
+            "sumR": 6.65,
+            "nDropPct": 29.2,
+            "wilson": {
+              "lo": 46.9,
+              "hi": 86.7
+            }
+          },
+          "test": {
+            "n": 1,
+            "wins": 1,
+            "losses": 0,
+            "wr": 100,
+            "ev": 0.1179,
+            "sumR": 0.12,
+            "nDropPct": 80,
+            "wilson": {
+              "lo": 20.7,
+              "hi": 100
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "L1>=1.5 & L3>=2",
+      "full": {
+        "n": 18,
+        "wins": 14,
+        "losses": 4,
+        "wr": 77.78,
+        "ev": 0.6304,
+        "sumR": 11.35,
+        "nDropPct": 37.9,
+        "wilson": {
+          "lo": 54.8,
+          "hi": 91
+        }
+      },
+      "wilson": {
+        "lo": 54.8,
+        "hi": 91
+      },
+      "folds": null
+    }
+  ],
+  "longL6Detail": [
+    {
+      "l6": 0.5,
+      "n": 13,
+      "wins": 10,
+      "losses": [
+        {
+          "iso": "2026-03-11T02:00:00.000Z",
+          "l1": 2,
+          "l3": 1,
+          "l6": 0.5,
+          "score": 9.27,
+          "resultR": -0.066,
+          "exit": "TIMEOUT",
+          "mm": "RANGING"
+        },
+        {
+          "iso": "2026-04-24T15:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 0.5,
+          "score": 10.42,
+          "resultR": -0.0043,
+          "exit": "TIMEOUT",
+          "mm": "RANGING"
+        },
+        {
+          "iso": "2026-05-10T18:00:00.000Z",
+          "l1": 2,
+          "l3": 1.5,
+          "l6": 0.5,
+          "score": 9.38,
+          "resultR": -1,
+          "exit": "SL",
+          "mm": "RANGING"
+        }
+      ],
+      "wr": 76.92,
+      "ev": 0.3762,
+      "sumR": 4.89,
+      "wilson": {
+        "lo": 49.7,
+        "hi": 91.8
+      },
+      "winsSample": [
+        {
+          "iso": "2026-03-11T13:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 0.5,
+          "score": 11.15,
+          "resultR": 0.29,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-03-12T07:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 0.5,
+          "score": 10.1,
+          "resultR": 0.67,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-03-16T10:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 0.5,
+          "score": 11.15,
+          "resultR": 2,
+          "exit": "TP"
+        },
+        {
+          "iso": "2026-03-16T17:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 0.5,
+          "score": 9.48,
+          "resultR": 1.48,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-03-17T01:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 0.5,
+          "score": 11.56,
+          "resultR": 0.25,
+          "exit": "TIMEOUT"
+        }
+      ]
+    },
+    {
+      "l6": 1,
+      "n": 5,
+      "wins": 3,
+      "losses": [
+        {
+          "iso": "2026-03-08T13:00:00.000Z",
+          "l1": 1,
+          "l3": 1,
+          "l6": 1,
+          "score": 9.17,
+          "resultR": -0.1054,
+          "exit": "TIMEOUT",
+          "mm": "TRENDING"
+        },
+        {
+          "iso": "2026-05-13T10:00:00.000Z",
+          "l1": 1,
+          "l3": 1.5,
+          "l6": 1,
+          "score": 10.31,
+          "resultR": -0.2406,
+          "exit": "TIMEOUT",
+          "mm": "RANGING"
+        }
+      ],
+      "wr": 60,
+      "ev": 0.3752,
+      "sumR": 1.88,
+      "wilson": {
+        "lo": 23.1,
+        "hi": 88.2
+      },
+      "winsSample": [
+        {
+          "iso": "2026-04-22T01:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 1,
+          "score": 10.83,
+          "resultR": 1.08,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-05-08T14:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 1,
+          "score": 10.1,
+          "resultR": 0.92,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-05-10T03:00:00.000Z",
+          "l1": 1,
+          "l3": 1,
+          "l6": 1,
+          "score": 10.21,
+          "resultR": 0.23,
+          "exit": "TIMEOUT"
+        }
+      ]
+    },
+    {
+      "l6": 1.5,
+      "n": 2,
+      "wins": 1,
+      "losses": [
+        {
+          "iso": "2026-03-10T15:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 1.5,
+          "score": 12.71,
+          "resultR": -0.0458,
+          "exit": "TIMEOUT",
+          "mm": "TRENDING"
+        }
+      ],
+      "wr": 50,
+      "ev": 0.9771,
+      "sumR": 1.95,
+      "wilson": {
+        "lo": 9.5,
+        "hi": 90.5
+      },
+      "winsSample": [
+        {
+          "iso": "2026-03-10T07:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 1.5,
+          "score": 11.04,
+          "resultR": 2,
+          "exit": "TP"
+        }
+      ]
+    },
+    {
+      "l6": 2,
+      "n": 9,
+      "wins": 6,
+      "losses": [
+        {
+          "iso": "2026-03-09T14:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 2,
+          "score": 11.88,
+          "resultR": -0.5643,
+          "exit": "TIMEOUT",
+          "mm": "TRENDING"
+        },
+        {
+          "iso": "2026-03-13T03:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 2,
+          "score": 12.5,
+          "resultR": -1,
+          "exit": "SL",
+          "mm": "TRENDING"
+        },
+        {
+          "iso": "2026-05-12T12:00:00.000Z",
+          "l1": 2,
+          "l3": 1,
+          "l6": 2,
+          "score": 11.56,
+          "resultR": -1,
+          "exit": "SL",
+          "mm": "TRENDING"
+        }
+      ],
+      "wr": 66.67,
+      "ev": 0.2572,
+      "sumR": 2.31,
+      "wilson": {
+        "lo": 35.4,
+        "hi": 87.9
+      },
+      "winsSample": [
+        {
+          "iso": "2026-03-09T05:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 2,
+          "score": 11.04,
+          "resultR": 0.67,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-03-12T12:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 2,
+          "score": 12.29,
+          "resultR": 0.99,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-03-13T01:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 2,
+          "score": 11.56,
+          "resultR": 2,
+          "exit": "TP"
+        },
+        {
+          "iso": "2026-05-09T01:00:00.000Z",
+          "l1": 2,
+          "l3": 2,
+          "l6": 2,
+          "score": 11.25,
+          "resultR": 0.06,
+          "exit": "TIMEOUT"
+        },
+        {
+          "iso": "2026-05-12T15:00:00.000Z",
+          "l1": 2,
+          "l3": 1,
+          "l6": 2,
+          "score": 11.15,
+          "resultR": 0.81,
+          "exit": "TIMEOUT"
+        }
+      ]
+    }
+  ],
+  "longRate": {
+    "per180d": 29,
+    "perMonth": 4.83,
+    "monthsTo40": 2.3,
+    "monthsTo30": 0.2
+  }
+}

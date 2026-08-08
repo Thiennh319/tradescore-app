@@ -1,4 +1,6 @@
 import type { TradeDecisionLabel, TradePlanV3 } from './scoring';
+import { isFixHardReasonLabelingEnabled } from '../config/featureFlags';
+import { resolveSnapEntryBlocked } from './entryBlockedLabeling';
 
 /** Quyết định cuối cùng cho UI Trade Plan (FOMO guard). */
 export type FinalEntryDecision = TradeDecisionLabel | 'HARD_BLOCK';
@@ -79,7 +81,11 @@ export interface HardBlockSnapInput {
   groupBlocks?: string[];
   longHardBlocks?: string[];
   shortHardBlocks?: string[];
+  longBlockReasons?: string[];
+  shortBlockReasons?: string[];
+  /** @deprecated Prefer entryBlocked when FIX_HARD_REASON_LABELING ON */
   hardBlocked?: boolean;
+  entryBlocked?: boolean;
   lockedPlanHealthStatus?: 'STRONG' | 'NORMAL' | 'WEAK' | 'CRITICAL';
   isNearEntryZone?: boolean;
 }
@@ -104,20 +110,39 @@ function shouldSuppressMacdBlock(
   return lockedPlanHealthStatus !== 'CRITICAL';
 }
 
-export function collectHardBlockReasons(snap: HardBlockSnapInput): string[] {
-  const sideBlocks =
-    snap.direction === 'LONG'
-      ? (snap.longHardBlocks ?? [])
-      : (snap.shortHardBlocks ?? []);
+function sideHardBlocksOf(snap: HardBlockSnapInput): string[] {
+  return snap.direction === 'LONG'
+    ? (snap.longHardBlocks ?? [])
+    : (snap.shortHardBlocks ?? []);
+}
 
-  const rawReasons =
-    sideBlocks.length > 0
-      ? sideBlocks
-      : !snap.hardBlocked
-        ? []
-        : snap.mandatoryViolations.filter(
-            (v) => !new Set(snap.groupBlocks ?? []).has(v),
-          );
+function sideSoftBlockReasonsOf(snap: HardBlockSnapInput): string[] {
+  return snap.direction === 'LONG'
+    ? (snap.longBlockReasons ?? [])
+    : (snap.shortBlockReasons ?? []);
+}
+
+/**
+ * Lý do hard block để hiển thị.
+ * Flag OFF (default): legacy — fallback mandatoryViolations trừ group (có thể lẫn soft).
+ * Flag ON: chỉ reason thuộc hardBlocks[] thật (bỏ soft blockReasons).
+ */
+export function collectHardBlockReasons(snap: HardBlockSnapInput): string[] {
+  const sideBlocks = sideHardBlocksOf(snap);
+
+  let rawReasons: string[];
+  if (isFixHardReasonLabelingEnabled()) {
+    rawReasons = sideBlocks;
+  } else {
+    rawReasons =
+      sideBlocks.length > 0
+        ? sideBlocks
+        : !resolveSnapEntryBlocked(snap)
+          ? []
+          : snap.mandatoryViolations.filter(
+              (v) => !new Set(snap.groupBlocks ?? []).has(v),
+            );
+  }
 
   if (rawReasons.length === 0) return [];
 
@@ -129,4 +154,14 @@ export function collectHardBlockReasons(snap: HardBlockSnapInput): string[] {
   if (!suppressMacd) return rawReasons;
 
   return rawReasons.filter((reason) => !isMacdHardBlockReason(reason));
+}
+
+/** Lý do chặn nhóm — hiển thị riêng (flag ON path). */
+export function collectGroupBlockReasons(snap: HardBlockSnapInput): string[] {
+  return [...(snap.groupBlocks ?? [])];
+}
+
+/** Lý do điểm chưa đạt (soft/score blockReasons) — hiển thị riêng (flag ON path). */
+export function collectScoreSoftBlockReasons(snap: HardBlockSnapInput): string[] {
+  return [...sideSoftBlockReasonsOf(snap)];
 }

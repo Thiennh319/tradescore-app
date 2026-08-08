@@ -113,6 +113,7 @@ export const V41_RC3_SYMBOLS = [
   'SOLUSDT',
   'BNBUSDT',
   'NEARUSDT',
+  'XRPUSDT',
 ] as const;
 
 export function symbolDisplayName(symbol: string): string {

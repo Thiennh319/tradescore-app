@@ -158,15 +158,16 @@ async function fetchKlines(
   startMs: number,
   endMs: number,
 ): Promise<KlineV41[]> {
+  // Paginate forward from startMs — Binance returns ≤1500 bars starting at startTime.
   const out: KlineV41[] = [];
-  let cursorEnd = endMs;
-  while (cursorEnd > startMs) {
+  let cursor = startMs;
+  while (cursor < endMs) {
     const url = new URL(`${BINANCE_BASE_URL}/fapi/v1/klines`);
     url.searchParams.set('symbol', symbol);
     url.searchParams.set('interval', interval);
     url.searchParams.set('limit', String(BINANCE_MAX_LIMIT));
-    url.searchParams.set('endTime', String(cursorEnd));
-    url.searchParams.set('startTime', String(startMs));
+    url.searchParams.set('startTime', String(cursor));
+    url.searchParams.set('endTime', String(endMs));
     await sleep(FETCH_GAP_MS);
     const res = await fetch(url.toString(), {
       headers: { Accept: 'application/json' },
@@ -179,10 +180,10 @@ async function fetchKlines(
     );
     if (batch.length === 0) break;
     out.push(...batch);
-    const earliest = Math.min(...batch.map((k) => k.openTime));
-    if (earliest <= startMs) break;
-    cursorEnd = earliest - 1;
-    if (batch.length < 2) break;
+    const latest = Math.max(...batch.map((k) => k.openTime));
+    if (latest <= cursor) break;
+    cursor = latest + 1;
+    if (batch.length < BINANCE_MAX_LIMIT) break;
   }
   const byOpen = new Map<number, KlineV41>();
   for (const k of out) byOpen.set(k.openTime, k);

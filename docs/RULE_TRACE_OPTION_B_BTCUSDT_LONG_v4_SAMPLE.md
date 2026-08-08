@@ -4,7 +4,7 @@ Version: 1
 Generated Time: 2026-07-20T00:00:00.000Z
 Trade ID: BTCUSDT-LONG-v4
 Rule Version: v4
-Engine Version: 1.0.7
+Engine Version: 1.0.8
 Coin: BTCUSDT
 Side: LONG
 
@@ -468,6 +468,8 @@ Rule 5: A BUG requires exported evidence proving that the implementation violate
 
 Rule 6: Do NOT report a bug using assumptions.
 
+Rule 7: Block Type MUST be derived only via BLOCK TYPE RESOLUTION table above (Hard list / Score list membership). Any Block Type not traceable to list membership is a candidate BUG, regardless of Mandatory or Status.
+
 Reviewer AI MUST:
 
 - Evaluate only exported values.
@@ -490,6 +492,18 @@ Reviewer AI MUST NOT:
 
 Displayed Scores are normalized values.
 
+Display Layer Score (Score Trace / Rule Trace): per-layer display scale (max 1.5 each).
+Do NOT hand-sum Display Layer Scores and compare to Decision Total — they use different scales.
+
+Decision Total (snap.score): Group-scale total (max 15). Copied from the frozen snapshot.
+This is the authoritative score for decision bands.
+
+GROUP BREAKDOWN: Group A + Group B + Group C = Decision Total.
+Group Scores are copied from engine groupScores — not reverse-fitted from the total.
+
+Hand-sum of Display Layer Scores ≠ Decision Total is expected (two scales) — NOT a bug
+unless GROUP BREAKDOWN contradicts Decision Total.
+
 Bonus values are applied to Internal Raw Scores.
 
 Displayed Scores MUST NOT be compared directly against Raw Bonus values.
@@ -509,6 +523,47 @@ Hard Blocks may originate from:
 Hard Blocks are NOT Score penalties.
 
 Gate ≠ RuleBook Rule.
+
+--------------------------------
+
+## BLOCK TYPE RESOLUTION (DETERMINISTIC — DO NOT INFER)
+
+Block Type of a rule/layer is determined ONLY by list membership below.
+It is NEVER inferred from Status, Mandatory, or Actual vs Expected.
+
+| Rule/Layer name appears in... | Block Type |
+|---|---|
+| "Hard Blocks (Engine / All Sources)" list in BLOCKING EVENTS ORIGIN | HARD |
+| "Score Blocks (block reasons)" list in BLOCKING EVENTS ORIGIN, AND not in Hard list above | SOFT |
+| Neither list | NONE |
+
+FORBIDDEN INFERENCE (explicitly disallowed — this caused a real bug, fixed 2026-07-22):
+- Mandatory = YES does NOT imply Block Type = HARD.
+- Status = FAIL does NOT imply Block Type = HARD.
+- Actual < Expected does NOT imply Block Type = HARD.
+Mandatory, Status, and Block Type are THREE INDEPENDENT fields. A rule can be
+Mandatory=YES + Status=FAIL + Block Type=SOFT simultaneously — this is valid
+and expected, not a contradiction.
+
+## Worked examples (canonical reference — use these to self-check before reporting a bug)
+
+| Trade | Rule | Status | Mandatory | Actual vs Expected | In Hard list? | In Score list? | Correct Block Type |
+|---|---|---|---|---|---|---|---|
+| BTCUSDT-SHORT | L5a | FAIL | YES | 0 < 1.5 | NO | YES | SOFT |
+| SOLUSDT-SHORT | L5a | PASS | YES | 0.38 < 1.5 | NO | YES | SOFT |
+| NEARUSDT-SHORT | L5a | PASS | YES | 1.5 = 1.5 | NO | NO | NONE |
+| (hypothetical) any-SHORT | L5a | FAIL | YES | CVD extreme | YES | — | HARD |
+| NEARUSDT-SHORT | L3 | PASS | NO | L3 raw 1.0 (≥1 shared, <1.5 NEAR gate) | YES (NEAR SHORT — L3 MACD < 1.5…) | NO | HARD |
+
+NEAR-only S1 note: hard reason string starts with "NEAR SHORT — L3 MACD…"
+(not "^L3"). Rule Trace still maps it to L3 Block Type=HARD via list membership
++ layer matcher. S1 does NOT flip L3 passed→false; Warning Count stays soft-fail-only
+(same pattern as other hard gates — not the old warningLayerCountFromSnap bug class).
+
+Reviewer AI MUST cross-check the two lists in BLOCKING EVENTS ORIGIN before
+assigning any Block Type verdict. If a rule's Block Type in the export does
+NOT match this table's derivation from the two lists, classify as BUG with
+exact list membership as evidence — not as INSUFFICIENT EVIDENCE or ENHANCEMENT.
 
 --------------------------------
 

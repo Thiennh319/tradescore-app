@@ -123,7 +123,7 @@ describe('Task 10 — RC3 ViewModel wire', () => {
       baseRow({ symbol: 'NEARUSDT' }),
       baseRow({ symbol: 'BTCUSDT' }),
     ]);
-    expect(cards.map((c) => c.displayName)).toEqual(['BTC', 'SOL', 'BNB', 'NEAR']);
+    expect(cards.map((c) => c.displayName)).toEqual(['BTC', 'SOL', 'BNB', 'NEAR', 'XRP']);
   });
 
   it('wire module calls engines but UI types stay ViewModel-shaped', () => {

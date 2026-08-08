@@ -8,7 +8,14 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
+// Product/UI build version SSOT: app.json expo.version (keep package.json in sync).
+// Independent from Engine Version labels inside trade export snapshots.
+const appVersion = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')).expo.version;
 const pkgVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+if (pkgVersion !== appVersion) {
+  console.error(`Version mismatch: package.json=${pkgVersion} app.json=${appVersion}`);
+  process.exit(1);
+}
 const platform = process.argv[2];
 const outPath = process.argv[3];
 
@@ -18,20 +25,25 @@ if (!platform || !outPath || !['exe', 'apk'].includes(platform)) {
 }
 
 const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
-const BUILD_DATE = '2026-07-05';
-const VERSION_LABEL = `v${pkgVersion}`;
-const TEST_COUNT = 997;
+const BUILD_DATE = '2026-08-02';
+const VERSION_LABEL = `v${appVersion}`;
+const TEST_COUNT = 2374;
 
 const FEATURES = [
-  'Momentum 1H Engine (Volume + CVD)',
-  'Exhaustion Detection (Capitulation + Volume Fade + Funding Extreme)',
-  'Rule V4.1: 3 điều kiện bắt buộc',
-  'RESCUE strength cho exhaustion',
-  'Counter-trend 3 điều kiện đầy đủ',
-  'Early Warning mirror BEAR',
-  'Funding Rate trong V4.1',
-  'Fix klines1H reversal modal',
-  'Fix Unified v41 data từ store',
+  'NEAR SHORT V4: S1 L3≥1.5 hard (NEAR-only) + S3 L3≥2 nhãn tín hiệu mạnh',
+  'Ambiguity threshold 2.5 (V3+V4, 4 coin) + Signal Board U1 (1 nút active / mờ khi ambiguous)',
+  'NEARUSDT rulebook: Source Module Task 6b + Reason Task 6 + Evidence/split Task 7/7b',
+  'NEARUSDT: RC3 Breakout Confirm B (Donchian N20/X5, ATR SL×1.0, TP 1.5R); BTC/SOL/BNB giữ Trend Reversal',
+  'UI breakout: ghi chú TP1 only · 1.5R; rulebook/export branch breakout cho NEAR',
+  'UL Analytics Engine + Performance HT dashboard (Phase 15)',
+  'Trading Coach + Portfolio Advisor (tiếng Việt)',
+  'Entry Quality Engine + Explainability',
+  'Trace Export: RuleBook / Score / Entry / Position / TradePlan (Phase 16)',
+  'AI Review Export: 5 báo cáo tự chứa (Phase 17)',
+  'Menu Xuất dữ liệu: Trace Export + AI Review Export, copy + download Markdown',
+  'Journal Intelligence + Statistics / Performance / Dashboard Intelligence',
+  'Fix VWAP entry direction validation (limit khớp ngay → NEUTRAL)',
+  'Fix TradePlan CONFLICT DETECTION: positionState from openTrades (OPEN|NONE), rule WAIT/AVOID+OPEN',
 ];
 
 const featuresBlock = FEATURES.map((f) => `  - ${f}`).join('\n');

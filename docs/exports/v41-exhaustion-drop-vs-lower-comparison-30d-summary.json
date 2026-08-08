@@ -1,0 +1,68 @@
+{
+  "n_joined": 179,
+  "n_nonNeutral": 131,
+  "missing_checklist": 0,
+  "missing_confidence": 0,
+  "sources": {
+    "exh": "docs/exports/v41-tr-exhaustion-1h-vs-4h-30d.csv",
+    "checklist": "docs/exports/v41-reversal-checklist-scoring-30d-4h.csv",
+    "confidence": "docs/exports/v41-market-confidence-30d-4h.csv"
+  },
+  "note": "confidence proxy = marketConfidence from v41-market-confidence-30d-4h.csv (per task). Production TR uses computeTrendReversalConfidence(signals), not marketConfidence.",
+  "confidence_overview": {
+    "n179_conf_ge70": 30,
+    "nonNeutral_conf_ge70": 30,
+    "conf_min": 0,
+    "conf_max": 90
+  },
+  "comparison": [
+    {
+      "plan": "A",
+      "signal_condition": "≥2/3 (bỏ Exhaustion)",
+      "pass_signal_n179": 29,
+      "pass_signal_nonNeutral": 29,
+      "pass_signal_and_conf70_n179": 6,
+      "pass_signal_and_conf70_nonNeutral": 6
+    },
+    {
+      "plan": "A",
+      "signal_condition": "≥3/3 (bỏ Exhaustion)",
+      "pass_signal_n179": 3,
+      "pass_signal_nonNeutral": 3,
+      "pass_signal_and_conf70_n179": 0,
+      "pass_signal_and_conf70_nonNeutral": 0
+    },
+    {
+      "plan": "B",
+      "signal_condition": "≥3/4, exhaustion≥10",
+      "pass_signal_n179": 16,
+      "pass_signal_nonNeutral": 16,
+      "pass_signal_and_conf70_n179": 2,
+      "pass_signal_and_conf70_nonNeutral": 2
+    },
+    {
+      "plan": "B",
+      "signal_condition": "≥3/4, exhaustion≥15",
+      "pass_signal_n179": 5,
+      "pass_signal_nonNeutral": 5,
+      "pass_signal_and_conf70_n179": 0,
+      "pass_signal_and_conf70_nonNeutral": 0
+    },
+    {
+      "plan": "B",
+      "signal_condition": "≥3/4, exhaustion≥20",
+      "pass_signal_n179": 5,
+      "pass_signal_nonNeutral": 5,
+      "pass_signal_and_conf70_n179": 0,
+      "pass_signal_and_conf70_nonNeutral": 0
+    },
+    {
+      "plan": "Baseline",
+      "signal_condition": "≥3/4, exhaustion≥55 (hiện tại)",
+      "pass_signal_n179": 3,
+      "pass_signal_nonNeutral": 3,
+      "pass_signal_and_conf70_n179": 0,
+      "pass_signal_and_conf70_nonNeutral": 0
+    }
+  ]
+}

@@ -66,7 +66,7 @@ export interface EntryQualityScore {
 export type TradeSymbol = string;
 
 /** Supported perpetual pairs in the dashboard */
-export const TRADE_SYMBOLS = ['BTCUSDT', 'NEARUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
+export const TRADE_SYMBOLS = ['BTCUSDT', 'NEARUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'] as const;
 
 export type AppTradeSymbol = (typeof TRADE_SYMBOLS)[number];
 

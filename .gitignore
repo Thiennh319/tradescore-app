@@ -6,19 +6,42 @@ dist/
 build/
 coverage/
 .vite/
+.expo/
+web-build/
+*.apk
+*.aab
+*.ipa
+
+# Expo web static export (local / CI artifacts)
+TradeScore-web-v1/
+TradeScore-web-v1.*/
+
+# WebLauncher publish/build artifacts (heavy EXE/DLL)
+scripts/WebLauncher/bin/
+scripts/WebLauncher/obj/
+TradeScore-Web.exe
+
+# Android / Gradle
+android/app/build/
+android/build/
+android/.gradle/
+*.hprof
 
 # Environment
 .env
 .env.local
 .env.*
 
-# Logs
+# Logs (includes auto-hourly backup log)
 *.log
 
 # IDE
 .vscode/
 
-# Expo / React Native
-.expo/
-android/app/build/
+# OS
+.DS_Store
+Thumbs.db
+
+# Expo / React Native (legacy + iOS)
 ios/build/
+*.jsbundle

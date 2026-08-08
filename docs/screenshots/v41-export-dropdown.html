@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>V4.1 Export Trace dropdown</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0B0E11;
+      font-family: Inter, Segoe UI, system-ui, sans-serif;
+      color: #EAECEF;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 48px 64px;
+    }
+    .frame {
+      position: relative;
+      width: 420px;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1E2329;
+      border: 1px solid #363A45;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #848E9C;
+    }
+    .pill.open { border-color: #F0B90B; color: #F0B90B; }
+    .export {
+      background: #F0B90B;
+      color: #0B0E11;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .menu {
+      width: 260px;
+      margin-left: auto;
+      background: #1E2329;
+      border: 1px solid #363A45;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    }
+    .menu-header {
+      padding: 10px 12px 4px;
+      background: #0B0E11;
+      border-bottom: 1px solid #363A45;
+      font-size: 11px;
+      font-weight: 700;
+      color: #5E6673;
+      letter-spacing: 0.3px;
+    }
+    .opt {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #363A45;
+      cursor: pointer;
+      text-align: left;
+    }
+    .opt.active { background: rgba(240, 185, 11, 0.06); }
+    .opt.disabled { opacity: 0.45; cursor: not-allowed; }
+    .opt-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: #848E9C;
+    }
+    .opt-text.active-text { color: #F0B90B; font-weight: 800; }
+    .opt-text.muted { color: #5E6673; }
+    .right { display: inline-flex; align-items: center; gap: 8px; }
+    .check { color: #F0B90B; font-weight: 700; font-size: 12px; }
+    .caption {
+      margin-top: 16px;
+      font-size: 11px;
+      color: #5E6673;
+      text-align: right;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame" id="capture-root">
+    <div class="header-bar">
+      <div class="pill">BTCUSDT ▾</div>
+      <div class="pill open">Market Intelligence ▾</div>
+      <button class="export" type="button">📄 Export</button>
+    </div>
+    <div class="menu" id="kind-menu" aria-label="Trace V4.1">
+      <div class="menu-header">Trace (V4.1)</div>
+      <button type="button" class="opt active" data-id="marketIntelligence" data-enabled="true"  data-index="0">
+  <span class="opt-text active-text">Market Intelligence</span>
+  <span class="check">✓</span>
+</button>
+<button type="button" class="opt" data-id="rulebook" data-enabled="true"  data-index="1">
+  <span class="opt-text">Rulebook</span>
+  
+</button>
+<button type="button" class="opt disabled" data-id="visibilityEntry" data-enabled="false" disabled data-index="2">
+  <span class="opt-text muted">Visibility + Entry (P1)</span>
+  
+</button>
+<button type="button" class="opt disabled" data-id="decisionConfidence" data-enabled="false" disabled data-index="3">
+  <span class="opt-text muted">Decision + Confidence (P2)</span>
+  
+</button>
+<button type="button" class="opt disabled" data-id="rc3" data-enabled="false" disabled data-index="4">
+  <span class="opt-text muted">RC3 Trace (P3)</span>
+  
+</button>
+<button type="button" class="opt disabled" data-id="position" data-enabled="false" disabled data-index="5">
+  <span class="opt-text muted">Position Trace (P4)</span>
+  
+</button>
+    </div>
+    <p class="caption">Source: V41_PANEL_EXPORT_OPTIONS<br/>Rulebook enabled=true</p>
+  </div>
+</body>
+</html>

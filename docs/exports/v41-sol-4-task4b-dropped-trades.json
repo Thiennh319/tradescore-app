@@ -1,0 +1,142 @@
+{
+  "is_window": {
+    "start": "2025-08-08T04:32:23.655Z",
+    "end": "2026-08-08T04:32:23.655Z"
+  },
+  "winner_is": {
+    "n": 36,
+    "n_decided": 36,
+    "wr": 58.333333333333336,
+    "e_r_before": 0.28333333333333327,
+    "e_r_after": 0.1764190097553256
+  },
+  "winner_clusters": {
+    "cluster_n": 0,
+    "cluster_trade_n": 0
+  },
+  "dropped_count": 5,
+  "added_count": 1,
+  "dropped": [
+    {
+      "active_iso": "2025-09-08T10:00:00.000Z",
+      "active_open_time": 1757325600000,
+      "breakout_iso": "2025-09-08T09:00:00.000Z",
+      "side": "LONG",
+      "entry": 215.15,
+      "outcome": "TP",
+      "net_r": 1.4466,
+      "quarter": 1,
+      "range_high": 209.49,
+      "range_low": 201.36,
+      "level": 209.49,
+      "min_dist_pct": 0.004105207885817868,
+      "min_dist_bar_iso": "2025-09-08T10:00:00.000Z",
+      "retest_idx_005": 9629,
+      "retest_idx_003": null,
+      "reason": "retest_outside_band_0.003: closest_approach=0.411% of level (needs ≤0.3%; old band ≤0.5%)"
+    },
+    {
+      "active_iso": "2025-09-15T08:00:00.000Z",
+      "active_open_time": 1757923200000,
+      "breakout_iso": "2025-09-15T07:00:00.000Z",
+      "side": "SHORT",
+      "entry": 232.01,
+      "outcome": "SL",
+      "net_r": -1.0426,
+      "quarter": 1,
+      "range_high": 248.36,
+      "range_low": 239,
+      "level": 239,
+      "min_dist_pct": 0.003974895397489492,
+      "min_dist_bar_iso": "2025-09-15T12:00:00.000Z",
+      "retest_idx_005": 9795,
+      "retest_idx_003": null,
+      "reason": "retest_outside_band_0.003: closest_approach=0.397% of level (needs ≤0.3%; old band ≤0.5%)"
+    },
+    {
+      "active_iso": "2026-01-20T07:00:00.000Z",
+      "active_open_time": 1768892400000,
+      "breakout_iso": "2026-01-20T06:00:00.000Z",
+      "side": "SHORT",
+      "entry": 130.56,
+      "outcome": "TP",
+      "net_r": 1.4156,
+      "quarter": 2,
+      "range_high": 135.1,
+      "range_low": 132.33,
+      "level": 132.33,
+      "min_dist_pct": 0.0047608252097031956,
+      "min_dist_bar_iso": "2026-01-20T07:00:00.000Z",
+      "retest_idx_005": 12842,
+      "retest_idx_003": null,
+      "reason": "retest_outside_band_0.003: closest_approach=0.476% of level (needs ≤0.3%; old band ≤0.5%)"
+    },
+    {
+      "active_iso": "2026-05-10T09:00:00.000Z",
+      "active_open_time": 1778403600000,
+      "breakout_iso": "2026-05-10T08:00:00.000Z",
+      "side": "LONG",
+      "entry": 94.25,
+      "outcome": "SL",
+      "net_r": -1.1647,
+      "quarter": 4,
+      "range_high": 93.7,
+      "range_low": 92.32,
+      "level": 93.7,
+      "min_dist_pct": 0,
+      "min_dist_bar_iso": "2026-05-10T10:00:00.000Z",
+      "retest_idx_005": 15484,
+      "retest_idx_003": 15485,
+      "reason": "retest_bar_shifted_under_tighter_band (005→bar 15484, 003→bar 15485) — may change entry/dedupe"
+    },
+    {
+      "active_iso": "2026-06-24T17:00:00.000Z",
+      "active_open_time": 1782320400000,
+      "breakout_iso": "2026-06-24T16:00:00.000Z",
+      "side": "SHORT",
+      "entry": 64.93,
+      "outcome": "SL",
+      "net_r": -1.0376,
+      "quarter": 4,
+      "range_high": 70.45,
+      "range_low": 67.21,
+      "level": 67.21,
+      "min_dist_pct": 0,
+      "min_dist_bar_iso": "2026-06-24T20:00:00.000Z",
+      "retest_idx_005": 16572,
+      "retest_idx_003": 16575,
+      "reason": "retest_bar_shifted_under_tighter_band (005→bar 16572, 003→bar 16575) — may change entry/dedupe"
+    }
+  ],
+  "added": [
+    {
+      "active_iso": "2026-01-20T08:00:00.000Z",
+      "side": "SHORT",
+      "outcome": "TP",
+      "net_r": 1.1224833283577986,
+      "quarter": 2
+    }
+  ],
+  "oos": {
+    "window": {
+      "start": "2024-08-08T04:32:23.655Z",
+      "end": "2025-08-08T04:32:23.655Z"
+    },
+    "winner_003_rr12": {
+      "n": 27,
+      "n_decided": 27,
+      "wr": 44.44444444444444,
+      "e_r_before": -0.022222222222222202,
+      "e_r_after": -0.11142684919349975,
+      "cluster_n": 2,
+      "cluster_trade_n": 4
+    },
+    "baseline_005_rr15": {
+      "n": 29,
+      "n_decided": 28,
+      "wr": 35.714285714285715,
+      "e_r_before": -0.10714285714285714,
+      "e_r_after": -0.19484628288400532
+    }
+  }
+}

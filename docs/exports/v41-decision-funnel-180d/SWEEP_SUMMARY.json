@@ -1,0 +1,450 @@
+[
+  {
+    "sym": "BNBUSDT",
+    "bars": 4319,
+    "daysEff": 179.95833333333331,
+    "conf": {
+      "min": 7.875,
+      "max": 71.08208333333333,
+      "mean": 11.201893521611254
+    },
+    "bands": {
+      "lt45_pct": 98.65709655012735,
+      "b45_75_pct": 1.3429034498726558,
+      "ge75_pct": 0,
+      "nLt45": 4261,
+      "n45": 58,
+      "nGe75": 0
+    },
+    "eligible": 17,
+    "ctxSkip": {
+      "fundingNA": 4245,
+      "oiNA": 4319,
+      "whaleNA": 4319
+    },
+    "sweeps": [
+      {
+        "thr": 50,
+        "pctBarsGeThr": 1.3429034498726558,
+        "barHitsEligibleGeThr": 17,
+        "nTrades": 11,
+        "nLong": 3,
+        "nShort": 8,
+        "nPerMonth": 1.833757814308868,
+        "nEval": 11,
+        "wr": 27.272727272727273,
+        "ev": -0.3412453501368193
+      },
+      {
+        "thr": 55,
+        "pctBarsGeThr": 0.43991664737207686,
+        "barHitsEligibleGeThr": 17,
+        "nTrades": 11,
+        "nLong": 3,
+        "nShort": 8,
+        "nPerMonth": 1.833757814308868,
+        "nEval": 11,
+        "wr": 27.272727272727273,
+        "ev": -0.3412453501368193
+      },
+      {
+        "thr": 60,
+        "pctBarsGeThr": 0.43991664737207686,
+        "barHitsEligibleGeThr": 17,
+        "nTrades": 11,
+        "nLong": 3,
+        "nShort": 8,
+        "nPerMonth": 1.833757814308868,
+        "nEval": 11,
+        "wr": 27.272727272727273,
+        "ev": -0.3412453501368193
+      },
+      {
+        "thr": 65,
+        "pctBarsGeThr": 0.0231535077564251,
+        "barHitsEligibleGeThr": 1,
+        "nTrades": 1,
+        "nLong": 0,
+        "nShort": 1,
+        "nPerMonth": 0.16670525584626072,
+        "nEval": 1,
+        "wr": 0,
+        "ev": -1
+      },
+      {
+        "thr": 70,
+        "pctBarsGeThr": 0.0231535077564251,
+        "barHitsEligibleGeThr": 1,
+        "nTrades": 1,
+        "nLong": 0,
+        "nShort": 1,
+        "nPerMonth": 0.16670525584626072,
+        "nEval": 1,
+        "wr": 0,
+        "ev": -1
+      },
+      {
+        "thr": 75,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      }
+    ],
+    "bestThr": 50,
+    "is": {
+      "n": 9,
+      "nEval": 9,
+      "wr": 22.22222222222222,
+      "ev": -0.36942282834066403
+    },
+    "oos": {
+      "n": 2,
+      "nEval": 2,
+      "wr": 50,
+      "ev": -0.21444669821951773
+    },
+    "splitIso": "2026-06-04T22:40:00.000Z"
+  },
+  {
+    "sym": "BTCUSDT",
+    "bars": 4319,
+    "daysEff": 179.95833333333331,
+    "conf": {
+      "min": 7.875,
+      "max": 69.28933028073081,
+      "mean": 11.456860684978222
+    },
+    "bands": {
+      "lt45_pct": 98.49502199583237,
+      "b45_75_pct": 1.5049780041676315,
+      "ge75_pct": 0,
+      "nLt45": 4254,
+      "n45": 65,
+      "nGe75": 0
+    },
+    "eligible": 23,
+    "ctxSkip": {
+      "fundingNA": 4231,
+      "oiNA": 4319,
+      "whaleNA": 4319
+    },
+    "sweeps": [
+      {
+        "thr": 50,
+        "pctBarsGeThr": 1.5049780041676315,
+        "barHitsEligibleGeThr": 23,
+        "nTrades": 15,
+        "nLong": 8,
+        "nShort": 7,
+        "nPerMonth": 2.5005788376939106,
+        "nEval": 15,
+        "wr": 40,
+        "ev": -0.020969406040819916
+      },
+      {
+        "thr": 55,
+        "pctBarsGeThr": 0.5788376939106274,
+        "barHitsEligibleGeThr": 23,
+        "nTrades": 15,
+        "nLong": 8,
+        "nShort": 7,
+        "nPerMonth": 2.5005788376939106,
+        "nEval": 15,
+        "wr": 40,
+        "ev": -0.020969406040819916
+      },
+      {
+        "thr": 60,
+        "pctBarsGeThr": 0.5556841861542023,
+        "barHitsEligibleGeThr": 22,
+        "nTrades": 14,
+        "nLong": 7,
+        "nShort": 7,
+        "nPerMonth": 2.33387358184765,
+        "nEval": 14,
+        "wr": 35.714285714285715,
+        "ev": -0.06218134751798216
+      },
+      {
+        "thr": 65,
+        "pctBarsGeThr": 0.0231535077564251,
+        "barHitsEligibleGeThr": 1,
+        "nTrades": 1,
+        "nLong": 0,
+        "nShort": 1,
+        "nPerMonth": 0.16670525584626072,
+        "nEval": 1,
+        "wr": 0,
+        "ev": -1
+      },
+      {
+        "thr": 70,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      },
+      {
+        "thr": 75,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      }
+    ],
+    "bestThr": 50,
+    "is": {
+      "n": 9,
+      "nEval": 9,
+      "wr": 22.22222222222222,
+      "ev": -0.2934629976673086
+    },
+    "oos": {
+      "n": 6,
+      "nEval": 6,
+      "wr": 66.66666666666667,
+      "ev": 0.38777098139891314
+    },
+    "splitIso": "2026-06-04T22:40:00.000Z"
+  },
+  {
+    "sym": "NEARUSDT",
+    "bars": 4319,
+    "daysEff": 179.95833333333331,
+    "conf": {
+      "min": 7.875,
+      "max": 62.317499999999995,
+      "mean": 11.507447935943029
+    },
+    "bands": {
+      "lt45_pct": 98.30979393378097,
+      "b45_75_pct": 1.6902060662190321,
+      "ge75_pct": 0,
+      "nLt45": 4246,
+      "n45": 73,
+      "nGe75": 0
+    },
+    "eligible": 17,
+    "ctxSkip": {
+      "fundingNA": 4226,
+      "oiNA": 4319,
+      "whaleNA": 4319
+    },
+    "sweeps": [
+      {
+        "thr": 50,
+        "pctBarsGeThr": 1.6902060662190321,
+        "barHitsEligibleGeThr": 17,
+        "nTrades": 12,
+        "nLong": 3,
+        "nShort": 9,
+        "nPerMonth": 2.0004630701551287,
+        "nEval": 12,
+        "wr": 33.333333333333336,
+        "ev": -0.1070734444718184
+      },
+      {
+        "thr": 55,
+        "pctBarsGeThr": 0.5093771706413521,
+        "barHitsEligibleGeThr": 17,
+        "nTrades": 12,
+        "nLong": 3,
+        "nShort": 9,
+        "nPerMonth": 2.0004630701551287,
+        "nEval": 12,
+        "wr": 33.333333333333336,
+        "ev": -0.1070734444718184
+      },
+      {
+        "thr": 60,
+        "pctBarsGeThr": 0.5093771706413521,
+        "barHitsEligibleGeThr": 17,
+        "nTrades": 12,
+        "nLong": 3,
+        "nShort": 9,
+        "nPerMonth": 2.0004630701551287,
+        "nEval": 12,
+        "wr": 33.333333333333336,
+        "ev": -0.1070734444718184
+      },
+      {
+        "thr": 65,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      },
+      {
+        "thr": 70,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      },
+      {
+        "thr": 75,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      }
+    ],
+    "bestThr": 50,
+    "is": {
+      "n": 10,
+      "nEval": 10,
+      "wr": 30,
+      "ev": -0.12276422764227646
+    },
+    "oos": {
+      "n": 2,
+      "nEval": 2,
+      "wr": 50,
+      "ev": -0.0286195286195281
+    },
+    "splitIso": "2026-06-04T22:40:00.000Z"
+  },
+  {
+    "sym": "SOLUSDT",
+    "bars": 4319,
+    "daysEff": 179.95833333333331,
+    "conf": {
+      "min": 7.875,
+      "max": 70.49105135619436,
+      "mean": 11.581022724603132
+    },
+    "bands": {
+      "lt45_pct": 97.89303079416531,
+      "b45_75_pct": 2.106969205834684,
+      "ge75_pct": 0,
+      "nLt45": 4228,
+      "n45": 91,
+      "nGe75": 0
+    },
+    "eligible": 31,
+    "ctxSkip": {
+      "fundingNA": 4211,
+      "oiNA": 4319,
+      "whaleNA": 4319
+    },
+    "sweeps": [
+      {
+        "thr": 50,
+        "pctBarsGeThr": 2.106969205834684,
+        "barHitsEligibleGeThr": 31,
+        "nTrades": 14,
+        "nLong": 7,
+        "nShort": 7,
+        "nPerMonth": 2.33387358184765,
+        "nEval": 14,
+        "wr": 64.28571428571429,
+        "ev": 0.13691349651769466
+      },
+      {
+        "thr": 55,
+        "pctBarsGeThr": 0.7872192637184533,
+        "barHitsEligibleGeThr": 31,
+        "nTrades": 14,
+        "nLong": 7,
+        "nShort": 7,
+        "nPerMonth": 2.33387358184765,
+        "nEval": 14,
+        "wr": 64.28571428571429,
+        "ev": 0.13691349651769466
+      },
+      {
+        "thr": 60,
+        "pctBarsGeThr": 0.7640657559620282,
+        "barHitsEligibleGeThr": 30,
+        "nTrades": 14,
+        "nLong": 7,
+        "nShort": 7,
+        "nPerMonth": 2.33387358184765,
+        "nEval": 14,
+        "wr": 64.28571428571429,
+        "ev": 0.13691349651769466
+      },
+      {
+        "thr": 65,
+        "pctBarsGeThr": 0.0231535077564251,
+        "barHitsEligibleGeThr": 1,
+        "nTrades": 1,
+        "nLong": 0,
+        "nShort": 1,
+        "nPerMonth": 0.16670525584626072,
+        "nEval": 1,
+        "wr": 0,
+        "ev": -1
+      },
+      {
+        "thr": 70,
+        "pctBarsGeThr": 0.0231535077564251,
+        "barHitsEligibleGeThr": 1,
+        "nTrades": 1,
+        "nLong": 0,
+        "nShort": 1,
+        "nPerMonth": 0.16670525584626072,
+        "nEval": 1,
+        "wr": 0,
+        "ev": -1
+      },
+      {
+        "thr": 75,
+        "pctBarsGeThr": 0,
+        "barHitsEligibleGeThr": 0,
+        "nTrades": 0,
+        "nLong": 0,
+        "nShort": 0,
+        "nPerMonth": 0,
+        "nEval": 0,
+        "wr": null,
+        "ev": null
+      }
+    ],
+    "bestThr": 50,
+    "is": {
+      "n": 10,
+      "nEval": 10,
+      "wr": 60,
+      "ev": 0.1553350273156811
+    },
+    "oos": {
+      "n": 4,
+      "nEval": 4,
+      "wr": 75,
+      "ev": 0.0908596695227286
+    },
+    "splitIso": "2026-06-04T22:40:00.000Z"
+  }
+]

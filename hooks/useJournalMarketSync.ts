@@ -24,8 +24,8 @@ import {
   resolveJournalMarkPriceSource,
 } from '../utils/journalLiveDebug';
 import {
+  resolveJournalActiveTradeRecommendation,
   resolveJournalUlReviewRecommendation,
-  resolveJournalUlReviewSource,
 } from '../utils/journalRecommendationDisplay';
 import { getEsmSnapshotForSymbol } from '../store/esmBridgeTypes';
 import { useTradeStore } from '../store/useTradeStore';
@@ -261,9 +261,13 @@ export function useJournalMarketSync(input: {
     logJournalLiveSync(
       openRows.map((entry) => {
         const mergedMark = resolveJournalMarketPrice(entry, markBySymbol);
-        const advisorLabel = advisorLabelById[entry.id];
         const esmSnapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
         const ulReview = resolveJournalUlReviewRecommendation(entry, esmSnapshot);
+        const displayRec = resolveJournalActiveTradeRecommendation(
+          entry,
+          esmSnapshot,
+          advisorLabelById,
+        );
         return {
           entry,
           mergedMark,
@@ -275,8 +279,8 @@ export function useJournalMarketSync(input: {
           ),
           unrealizedPnl: unrealizedById[entry.id] ?? null,
           ulReviewLabel: ulReview.label,
-          recommendationUi: ulReview.label,
-          recommendationSource: resolveJournalUlReviewSource(entry, esmSnapshot),
+          recommendationUi: displayRec.label,
+          recommendationSource: displayRec.source,
           pnlBreakdown: pnlBreakdownById[entry.id],
         };
       }),

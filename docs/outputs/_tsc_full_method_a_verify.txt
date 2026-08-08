@@ -1,0 +1,398 @@
+﻿App.tsx(49,44): error TS2307: Cannot find module './services/foregroundScanService' or its corresponding type declarations.
+App.tsx(50,44): error TS2307: Cannot find module './services/localNotification' or its corresponding type declarations.
+App.tsx(52,49): error TS2307: Cannot find module './tasks/backgroundPositionTask' or its corresponding type declarations.
+App.tsx(55,44): error TS2307: Cannot find module './services/nativePersistGuard' or its corresponding type declarations.
+App.tsx(115,45): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+App.tsx(345,52): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+App.tsx(365,47): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+App.tsx(426,52): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+App.tsx(457,47): error TS2345: Argument of type '"v3" | "v4" | "v2" | undefined' is not assignable to parameter of type 'ScorerVersion | undefined'.
+  Type '"v2"' is not assignable to type 'ScorerVersion | undefined'.
+components/dashboard/ScoreSpectrum.tsx(58,40): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '{ left: string; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+      Types of property 'left' are incompatible.
+        Type 'string' is not assignable to type 'DimensionValue | undefined'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '{ left: string; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+      Types of property 'left' are incompatible.
+        Type 'string' is not assignable to type 'DimensionValue | undefined'.
+components/dashboard/SignalBoard.tsx(1526,17): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+components/dashboard/SignalBoard.tsx(1555,24): error TS18048: 'adxGate' is possibly 'undefined'.
+components/dashboard/SignalBoard.tsx(1571,24): error TS18047: 'displayScore' is possibly 'null'.
+components/dashboard/SignalBoard.tsx(1613,23): error TS2322: Type '{ A: number; B: number; C: number; } | undefined' is not assignable to type 'GroupScores'.
+  Type 'undefined' is not assignable to type 'GroupScores'.
+components/dashboard/SignalBoard.tsx(1614,23): error TS2322: Type 'string[] | undefined' is not assignable to type 'string[]'.
+  Type 'undefined' is not assignable to type 'string[]'.
+components/dashboard/SignalBoard.tsx(1619,21): error TS2322: Type '{ detail: L6DetailV4 | undefined; longScore: number; shortScore: number; activeDirection: TradeDirection; } | undefined' is not assignable to type 'L6LayerExpandV4Props | undefined'.
+  Type '{ detail: L6DetailV4 | undefined; longScore: number; shortScore: number; activeDirection: TradeDirection; }' is not assignable to type 'L6LayerExpandV4Props'.
+    Types of property 'detail' are incompatible.
+      Type 'L6DetailV4 | undefined' is not assignable to type 'L6DetailV4'.
+        Type 'undefined' is not assignable to type 'L6DetailV4'.
+components/dashboard/SignalBoard.tsx(1631,21): error TS2322: Type '{ squeezeRisk: SqueezeRiskResult | undefined; } | undefined' is not assignable to type 'L11LayerExpandV4Props | undefined'.
+  Type '{ squeezeRisk: SqueezeRiskResult | undefined; }' is not assignable to type 'L11LayerExpandV4Props'.
+    Types of property 'squeezeRisk' are incompatible.
+      Type 'SqueezeRiskResult | undefined' is not assignable to type 'SqueezeRiskResult'.
+        Type 'undefined' is not assignable to type 'SqueezeRiskResult'.
+components/dashboard/SignalBoard.tsx(1643,37): error TS2322: Type 'ADXAnalysis | undefined' is not assignable to type 'ADXAnalysis'.
+  Type 'undefined' is not assignable to type 'ADXAnalysis'.
+components/dashboard/SignalBoard.tsx(1647,33): error TS2322: Type 'StructureSLResult | undefined' is not assignable to type 'StructureSLResult'.
+  Type 'undefined' is not assignable to type 'StructureSLResult'.
+components/dashboard/SignalBoard.tsx(1652,15): error TS2322: Type 'VWAPResult | undefined' is not assignable to type 'VWAPResult'.
+  Type 'undefined' is not assignable to type 'VWAPResult'.
+components/dashboard/SignalBoard.tsx(1653,15): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+components/dashboard/SignalBoard.tsx(1845,34): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+components/dashboard/SignalBoard.tsx(1868,27): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+components/dashboard/SignalBoardUnified.tsx(85,3): error TS2322: Type '{ symbol: string; snapshot: MarketIntelligenceSnapshot; earlyWarning: EarlyWarningSnapshot | undefined; reversalState: ReversalState | undefined; ... 12 more ...; error?: string; }' is not assignable to type 'SignalRowV41'.
+  Types of property 'visibilityMode' are incompatible.
+    Type 'VisibilityMode | undefined' is not assignable to type 'VisibilityMode'.
+      Type 'undefined' is not assignable to type 'VisibilityMode'.
+components/dashboard/SignalBoardV41.tsx(294,7): error TS2322: Type '"v41"' is not assignable to type 'ScorerVersion | undefined'.
+components/dashboard/TradeHistoryPanel.tsx(158,13): error TS2322: Type '{ readonly cursor: "pointer"; } | { readonly cursor?: undefined; }' is not assignable to type 'Record<string, never> | { cursor: "pointer"; }'.
+  Type '{ readonly cursor?: undefined; }' is not assignable to type 'Record<string, never> | { cursor: "pointer"; }'.
+    Type '{ readonly cursor?: undefined; }' is not assignable to type '{ cursor: "pointer"; }'.
+      Types of property 'cursor' are incompatible.
+        Type 'undefined' is not assignable to type '"pointer"'.
+components/intelligence/DashboardIntelligencePanel.tsx(130,40): error TS2339: Property 'primary' does not exist on type '{ readonly background: "#0B0E11"; readonly surface: "#1E2329"; readonly surfaceElevated: "#2B3139"; readonly border: "#363A45"; readonly textPrimary: "#EAECEF"; readonly textSecondary: "#848E9C"; ... 12 more ...; readonly overlay: "rgba(11, 14, 17, 0.85)"; }'.
+components/journal/EsmRecommendationCell.tsx(2,30): error TS7016: Could not find a declaration file for module 'react-dom'. 'D:/Thiennh3/APP/Trading/TradeScore/node_modules/react-dom/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/react-dom` if it exists or add a new declaration (.d.ts) file containing `declare module 'react-dom';`
+components/journal/EsmRecommendationCell.tsx(220,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '{ children: Element[]; style: (ViewStyle | ImageStyle)[]; onMouseEnter: () => void; onMouseLeave: () => void; }' is not assignable to type 'IntrinsicAttributes & IntrinsicClassAttributes<View> & Readonly<ViewProps>'.
+      Property 'onMouseEnter' does not exist on type 'IntrinsicAttributes & IntrinsicClassAttributes<View> & Readonly<ViewProps>'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '{ children: Element[]; style: (ViewStyle | ImageStyle)[]; onMouseEnter: () => void; onMouseLeave: () => void; }' is not assignable to type 'IntrinsicAttributes & IntrinsicClassAttributes<View> & Readonly<ViewProps>'.
+      Property 'onMouseEnter' does not exist on type 'IntrinsicAttributes & IntrinsicClassAttributes<View> & Readonly<ViewProps>'.
+components/journal/EsmRecommendationCell.tsx(348,5): error TS2322: Type '"fixed"' is not assignable to type '"relative" | "absolute" | "static" | undefined'.
+components/journal/JournalEntryIntelligenceSection.tsx(135,19): error TS2339: Property 'primary' does not exist on type '{ readonly background: "#0B0E11"; readonly surface: "#1E2329"; readonly surfaceElevated: "#2B3139"; readonly border: "#363A45"; readonly textPrimary: "#EAECEF"; readonly textSecondary: "#848E9C"; ... 12 more ...; readonly overlay: "rgba(11, 14, 17, 0.85)"; }'.
+components/journal/JournalReplayTimeline.tsx(107,28): error TS2339: Property 'primary' does not exist on type '{ readonly background: "#0B0E11"; readonly surface: "#1E2329"; readonly surfaceElevated: "#2B3139"; readonly border: "#363A45"; readonly textPrimary: "#EAECEF"; readonly textSecondary: "#848E9C"; ... 12 more ...; readonly overlay: "rgba(11, 14, 17, 0.85)"; }'.
+components/PartialCloseConfirmModal.tsx(9,41): error TS2307: Cannot find module '../../constants/aiJournal' or its corresponding type declarations.
+components/PartialCloseConfirmModal.tsx(10,24): error TS2307: Cannot find module '../../constants/scoring' or its corresponding type declarations.
+components/PartialCloseConfirmModal.tsx(11,33): error TS2307: Cannot find module '../../constants/theme' or its corresponding type declarations.
+components/PartialCloseConfirmModal.tsx(12,20): error TS2307: Cannot find module '../../constants/vi' or its corresponding type declarations.
+components/PartialCloseConfirmModal.tsx(13,44): error TS2307: Cannot find module '../../services/partialClose' or its corresponding type declarations.
+components/PartialCloseConfirmModal.tsx(14,32): error TS2307: Cannot find module '../../utils/formatPrice' or its corresponding type declarations.
+components/PartialCloseConfirmModal.tsx(15,37): error TS2307: Cannot find module '../../constants/scoring' or its corresponding type declarations.
+components/PendingOrderCard.expiry.test.tsx(18,3): error TS2353: Object literal may only specify known properties, and 'timestamp' does not exist in type 'StoredTradeJournalEntry'.
+components/performance/PerformanceHtDashboard.tsx(433,17): error TS2339: Property 'hovered' does not exist on type 'PressableStateCallbackType'.
+components/performance/PerformanceHtDashboard.tsx(772,17): error TS2322: Type 'EquityCurveChartData | null' is not assignable to type 'EquityCurveChartData'.
+  Type 'null' is not assignable to type 'EquityCurveChartData'.
+components/performance/PerformanceHtDashboard.tsx(826,27): error TS2339: Property 'hovered' does not exist on type 'PressableStateCallbackType'.
+components/v41/V41ExecutionMonitor.tsx(133,21): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '{ fontSize: number; color: "#EAECEF"; fontWeight: "600"; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '{ fontSize: number; color: "#EAECEF"; fontWeight: "600"; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+components/v41/V41ExecutionMonitor.tsx(139,21): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '{ fontSize: number; color: "#EAECEF"; fontWeight: "600"; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '{ fontSize: number; color: "#EAECEF"; fontWeight: "600"; }' is not assignable to type 'ViewStyle | Falsy | RecursiveArray<ViewStyle | Falsy> | readonly (ViewStyle | Falsy)[]'.
+config/featureFlags.ts(41,7): error TS2367: This comparison appears to be unintentional because the types 'false' and 'true' have no overlap.
+config/featureFlags.ts(64,10): error TS2367: This comparison appears to be unintentional because the types 'false' and 'true' have no overlap.
+hooks/useJournalMarketSync.test.ts(42,10): error TS2352: Conversion of type '{ symbol: string; direction: "SHORT"; score: number; price: number; decision: string; atr1h: number; layers: never[]; groupScores: { A: number; B: number; C: number; }; marketMode: string; hardBlocks: never[]; warnings: never[]; long: { ...; }; short: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: string; direction: "SHORT"; score: number; price: number; decision: string; atr1h: number; layers: never[]; groupScores: { A: number; B: number; C: number; }; marketMode: string; hardBlocks: never[]; warnings: never[]; long: { ...; }; short: { ...; }; }' is missing the following properties from type 'SignalRow': change24h, trend, regimeConfidence, longScore, and 9 more.
+index.ts(4,8): error TS2882: Cannot find module or type declarations for side-effect import of './tasks/backgroundSessionTask'.
+index.ts(5,8): error TS2882: Cannot find module or type declarations for side-effect import of './tasks/backgroundPositionTask'.
+scripts/generate-multi-coin-trace-exports.ts(108,7): error TS2345: Argument of type '{ consecutiveLosses: number; consecutiveLossesIn24h: number; lossStreakLocked: boolean; lossStreakLockUntil: number | null; dailyLossUSDT: number; recentJournal: { outcome: unknown; }[]; }' is not assignable to parameter of type 'SignalScanContext'.
+  Types of property 'recentJournal' are incompatible.
+    Type '{ outcome: unknown; }[]' is not assignable to type '{ outcome: { status: string; }; }[]'.
+      Type '{ outcome: unknown; }' is not assignable to type '{ outcome: { status: string; }; }'.
+        Types of property 'outcome' are incompatible.
+          Type 'unknown' is not assignable to type '{ status: string; }'.
+scripts/generate-multi-coin-trace-exports.ts(129,24): error TS2339: Property 'planV4' does not exist on type 'SignalRow'.
+scripts/generate-multi-coin-trace-exports.ts(155,7): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+scripts/generate-multi-coin-trace-exports.ts(158,22): error TS2339: Property 'planV4' does not exist on type 'SignalRow'.
+services/__fixtures__/btcShortV4ProductionRow.ts(128,5): error TS2740: Type '{ adx1H: number; adx4H: number; }' is missing the following properties from type 'ADXAnalysis': adxAvg, regime, regimeStrength, isChoppy1H, and 2 more.
+services/__fixtures__/btcShortV4ProductionRow.ts(132,5): error TS2739: Type '{ allowed: true; regime: string; }' is missing the following properties from type 'ADXGateResult': block, tpMultiplier, slMultiplier, message, severity
+services/__tests__/driveSync.e2e.test.ts(130,29): error TS18048: 'options.journal' is possibly 'undefined'.
+services/__tests__/driveSync.e2e.test.ts(130,45): error TS2339: Property 'content' does not exist on type 'PullJournalMock'.
+  Property 'content' does not exist on type '{ kind: "invalid_json"; }'.
+services/__tests__/exportTraceReviewWire.consistency1752.test.ts(184,14): error TS2322: Type '{ layers: { layer: number; name: string; score: number; maxScore: number; passed: boolean; isMandatory: boolean; isMandatoryViolation: boolean; reason: string; }[]; symbol: AppTradeSymbol; ... 40 more ...; ruleAuditSnapshot?: RuleAuditSnapshot; }' is not assignable to type 'SignalRow'.
+  Types of property 'layers' are incompatible.
+    Type '{ layer: number; name: string; score: number; maxScore: number; passed: boolean; isMandatory: boolean; isMandatoryViolation: boolean; reason: string; }[]' is not assignable to type 'LayerResult[]'.
+      Type '{ layer: number; name: string; score: number; maxScore: number; passed: boolean; isMandatory: boolean; isMandatoryViolation: boolean; reason: string; }' is not assignable to type 'LayerResult'.
+        Types of property 'layer' are incompatible.
+          Type 'number' is not assignable to type 'ScorerLayerId'.
+services/__tests__/exportTraceReviewWire.consistency1752.test.ts(189,14): error TS2322: Type '{ layers: { layer: number; name: string; score: number; maxScore: number; passed: boolean; isMandatory: boolean; isMandatoryViolation: boolean; reason: string; }[]; symbol: AppTradeSymbol; ... 40 more ...; ruleAuditSnapshot?: RuleAuditSnapshot; }' is not assignable to type 'SignalRow'.
+  Types of property 'layers' are incompatible.
+    Type '{ layer: number; name: string; score: number; maxScore: number; passed: boolean; isMandatory: boolean; isMandatoryViolation: boolean; reason: string; }[]' is not assignable to type 'LayerResult[]'.
+      Type '{ layer: number; name: string; score: number; maxScore: number; passed: boolean; isMandatory: boolean; isMandatoryViolation: boolean; reason: string; }' is not assignable to type 'LayerResult'.
+        Types of property 'layer' are incompatible.
+          Type 'number' is not assignable to type 'ScorerLayerId'.
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts(71,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts(83,5): error TS2353: Object literal may only specify known properties, and 'groupScores' does not exist in type 'SignalRow'.
+services/__tests__/exportTraceReviewWire.rulebookStateSsot.test.ts(99,5): error TS2740: Type '{ adx1H: number; adx4H: number; }' is missing the following properties from type 'ADXAnalysis': adxAvg, regime, regimeStrength, isChoppy1H, and 2 more.
+services/__tests__/exportTraceReviewWire.rulebookStateSsot.test.ts(103,5): error TS2739: Type '{ allowed: true; regime: string; }' is missing the following properties from type 'ADXGateResult': block, tpMultiplier, slMultiplier, message, severity
+services/__tests__/exportTraceReviewWire.task186.optionB.test.ts(73,5): error TS2353: Object literal may only specify known properties, and 'groupScores' does not exist in type 'SignalRow'.
+services/__tests__/exportTraceReviewWire.task1863.groupBreakdownRounding.test.ts(80,5): error TS2353: Object literal may only specify known properties, and 'groupScores' does not exist in type 'SignalRow'.
+services/__tests__/exportTraceReviewWire.task1863.groupBreakdownRounding.test.ts(120,16): error TS2339: Property 'groupScores' does not exist on type 'SignalRow'.
+services/__tests__/exportTraceReviewWire.task187.scoreTraceLabels.test.ts(76,5): error TS2353: Object literal may only specify known properties, and 'groupScores' does not exist in type 'SignalRow'.
+services/__tests__/exportTraceReviewWire.task187.scoreTraceLabels.test.ts(165,5): error TS2740: Type '{ adx1H: number; adx4H: number; }' is missing the following properties from type 'ADXAnalysis': adxAvg, regime, regimeStrength, isChoppy1H, and 2 more.
+services/__tests__/exportTraceReviewWire.task187.scoreTraceLabels.test.ts(169,5): error TS2739: Type '{ allowed: true; regime: string; }' is missing the following properties from type 'ADXGateResult': block, tpMultiplier, slMultiplier, message, severity
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts(189,5): error TS2740: Type '{ adx1H: number; adx4H: number; }' is missing the following properties from type 'ADXAnalysis': adxAvg, regime, regimeStrength, isChoppy1H, and 2 more.
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts(193,5): error TS2739: Type '{ allowed: true; regime: string; }' is missing the following properties from type 'ADXGateResult': block, tpMultiplier, slMultiplier, message, severity
+services/__tests__/generateMultiCoinTraceExports.live.test.ts(77,28): error TS2339: Property 'planV4' does not exist on type 'SignalRow'.
+services/__tests__/generateMultiCoinTraceExports.live.test.ts(124,11): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+services/__tests__/generateMultiCoinTraceExports.live.test.ts(127,26): error TS2339: Property 'planV4' does not exist on type 'SignalRow'.
+services/__tests__/unifiedSignalEngine.test.ts(96,10): error TS2352: Conversion of type '{ symbol: "NEARUSDT"; price: number; change24h: number; trend: "UP"; regimeConfidence: number; score: number; longScore: number; shortScore: number; direction: "LONG"; decisionLabel: "VAO_TU_TIN"; ... 11 more ...; shortSnapshot: { ...; }; }' to type 'SignalRowWithDirSnapshots' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "NEARUSDT"; price: number; change24h: number; trend: "UP"; regimeConfidence: number; score: number; longScore: number; shortScore: number; direction: "LONG"; decisionLabel: "VAO_TU_TIN"; ... 11 more ...; shortSnapshot: { ...; }; }' is not comparable to type 'SignalRow'.
+    Types of property 'trend' are incompatible.
+      Type '"UP"' is not comparable to type 'MarketTrend'.
+services/adxJournal.test.ts(52,37): error TS2345: Argument of type '{ symbol: string; accountSizeAtEntry: number; market: MarketSnapshot; scoring: ScoringSnapshot; plan: { entryZoneOptimal: number; entryZoneType: string; ... 7 more ...; openReason: null; }; adxSnapshot: AdxJournalSnapshot | undefined; }' is not assignable to parameter of type '{ symbol: string; accountSizeAtEntry: number; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; tags?: string[] | undefined; ... 12 more ...; vwapSnapshot?: VWAPSnapshot | undefined; }'.
+  Types of property 'plan' are incompatible.
+    Type '{ entryZoneOptimal: number; entryZoneType: string; stopLoss: number; takeProfit1: number; takeProfit2: number; takeProfit3: number; sizeActual: number; sizeProposed: number; riskRewardRatio: number; openReason: null; }' is missing the following properties from type 'TradePlanSnapshot': entryZoneRangeLow, entryZoneRangeHigh, slProposed, slActual, and 6 more.
+services/derivativesDataService.test.ts(49,52): error TS2345: Argument of type '"SOLUSDT"' is not assignable to parameter of type 'TradeDirection'.
+services/entryStateManager/runtimeDispatcher.ts(57,11): error TS2739: Type '{ decisionResult: { conflictResult: { priorityResult: { aggregateResult: { triggerCount: number; halted: true; message: string; context: {}; }; priorityGroups: never[]; highestPriority: null; halted: true; message: string; context: { ...; }; }; ... 7 more ...; context: { ...; }; }; ... 4 more ...; context: { ...; };...' is missing the following properties from type 'FinalDecisionResult': finalDecision, decisionCount, halted, message, context
+services/entryStateManager/runtimeDispatcher.ts(195,9): error TS1117: An object literal cannot have multiple properties with the same name.
+services/entryStateManager/runtimeExecutor.ts(52,19): error TS2352: Conversion of type '{ actionRuntimeResult: { runtimeActions: never[]; actionCount: number; halted: true; message: string; context: { actionEngineResult: { halted: true; context: {}; }; }; actionEngineResult: { actions: never[]; ... 4 more ...; stateMachineResult: { ...; }; }; }; }' to type 'RuntimeDispatcherContext' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  The types of 'actionRuntimeResult.actionEngineResult.stateMachineResult.context' are incompatible between these types.
+    Property 'currentState' is missing in type '{ finalDecisionResult: { halted: true; context: {}; }; }' but required in type 'EntryStateMachineContext'.
+services/entryStateManager/stateValidator.ts(77,28): error TS2345: Argument of type '{ message: string; ruleReference: string; state: EntryState; stateDefinition: EntryStateDefinition; }' is not assignable to parameter of type 'Omit<EntryStateValidationResult, "valid" | "errorCode"> & { message: string; }'.
+  Type '{ message: string; ruleReference: string; state: EntryState; stateDefinition: EntryStateDefinition; }' is missing the following properties from type 'Omit<EntryStateValidationResult, "valid" | "errorCode">': transitionId, transitionCategory
+services/entryStateManager/triggerAggregator.test.ts(230,43): error TS2322: Type '{ triggerId: string; detected: boolean; reason: string; evidence: readonly HardBlockEvidence[]; sourceModule: TransitionSourceModule; ... 7 more ...; context: HardBlockDetectionContext; }' is not assignable to type 'HardBlockDetectionResult'.
+  Types of property 'triggerId' are incompatible.
+    Type 'string' is not assignable to type '"ESM-TRIG-HardBlock" | "ESM-TRIG-Unlock" | "ESM-TRIG-Recovery" | "ESM-TRIG-Confirmation" | "ESM-TRIG-Noise"'.
+services/entryStateManager/triggerAggregator.ts(43,5): error TS2322: Type '(result: HardBlockDetectionResult) => HardBlockDetectionValidationResult' is not assignable to type '(result: unknown) => { valid: boolean; errors: readonly string[]; }'.
+  Types of parameters 'result' and 'result' are incompatible.
+    Type 'unknown' is not assignable to type 'HardBlockDetectionResult'.
+services/entryStateManager/triggerAggregator.ts(48,5): error TS2322: Type '(result: RecoveryDetectionResult) => RecoveryDetectionValidationResult' is not assignable to type '(result: unknown) => { valid: boolean; errors: readonly string[]; }'.
+  Types of parameters 'result' and 'result' are incompatible.
+    Type 'unknown' is not assignable to type 'RecoveryDetectionResult'.
+services/entryStateManager/triggerAggregator.ts(53,5): error TS2322: Type '(result: UnlockDetectionResult) => UnlockDetectionValidationResult' is not assignable to type '(result: unknown) => { valid: boolean; errors: readonly string[]; }'.
+  Types of parameters 'result' and 'result' are incompatible.
+    Type 'unknown' is not assignable to type 'UnlockDetectionResult'.
+services/entryStateManager/triggerAggregator.ts(58,5): error TS2322: Type '(result: ConfirmationDetectionResult) => ConfirmationDetectionValidationResult' is not assignable to type '(result: unknown) => { valid: boolean; errors: readonly string[]; }'.
+  Types of parameters 'result' and 'result' are incompatible.
+    Type 'unknown' is not assignable to type 'ConfirmationDetectionResult'.
+services/entryStateManager/triggerAggregator.ts(63,5): error TS2322: Type '(result: NoiseDetectionResult) => NoiseDetectionValidationResult' is not assignable to type '(result: unknown) => { valid: boolean; errors: readonly string[]; }'.
+  Types of parameters 'result' and 'result' are incompatible.
+    Type 'unknown' is not assignable to type 'NoiseDetectionResult'.
+services/events/tradeEventValidator.ts(185,24): error TS2322: Type 'TradeEventBase<"TRADE_CREATED" | "ORDER_SUBMITTED" | "ORDER_FILLED" | "POSITION_RUNNING" | "STOP_MOVED" | "PARTIAL_EXIT" | "TP_REACHED" | "SL_REACHED" | "ADVISER_UPDATED" | "TRADE_CLOSED" | "TRADE_CANCELLED" | "SYNC_ACK" | "HEARTBEAT">' is not assignable to type 'TradeEvent | undefined'.
+  Type 'TradeEventBase<"TRADE_CREATED" | "ORDER_SUBMITTED" | "ORDER_FILLED" | "POSITION_RUNNING" | "STOP_MOVED" | "PARTIAL_EXIT" | "TP_REACHED" | "SL_REACHED" | "ADVISER_UPDATED" | "TRADE_CLOSED" | "TRADE_CANCELLED" | "SYNC_ACK" | "HEARTBEAT">' is not assignable to type 'TradeCreatedEvent | OrderSubmittedEvent | OrderFilledEvent | PositionRunningEvent | StopMovedEvent | ... 7 more ... | HeartbeatEvent'.
+    Type 'TradeEventBase<"TRADE_CREATED" | "ORDER_SUBMITTED" | "ORDER_FILLED" | "POSITION_RUNNING" | "STOP_MOVED" | "PARTIAL_EXIT" | "TP_REACHED" | "SL_REACHED" | "ADVISER_UPDATED" | "TRADE_CLOSED" | "TRADE_CANCELLED" | "SYNC_ACK" | "HEARTBEAT">' is not assignable to type 'HeartbeatEvent'.
+      Types of property 'eventType' are incompatible.
+        Type '"TRADE_CREATED" | "ORDER_SUBMITTED" | "ORDER_FILLED" | "POSITION_RUNNING" | "STOP_MOVED" | "PARTIAL_EXIT" | "TP_REACHED" | "SL_REACHED" | "ADVISER_UPDATED" | "TRADE_CLOSED" | "TRADE_CANCELLED" | "SYNC_ACK" | "HEARTBEAT"' is not assignable to type '"HEARTBEAT"'.
+          Type '"TRADE_CREATED"' is not assignable to type '"HEARTBEAT"'.
+services/eventStore/__tests__/eventStore.test.ts(246,43): error TS2339: Property 'eventId' does not exist on type '{ symbol?: string | undefined; }'.
+services/exportDecisionReplay.test.ts(64,5): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/exportDecisionReplay.test.ts(225,7): error TS2322: Type '"ETHUSDT"' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+services/exportDecisionTrace.test.ts(63,5): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/exportService.layerInputSnapshot.test.ts(84,5): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/exportService.ts(1436,66): error TS18048: 'layer' is possibly 'undefined'.
+services/exportService.ts(1837,5): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/exportService.ts(1864,18): error TS2352: Conversion of type '{ symbol: string; direction: "LONG"; recommendedEntry: number; entryZone: { quality: "GOOD"; }; stopLoss: { price: number; quality: "STRUCTURE"; atrDistance: number; }; tp1: { price: number; rrRatio: number; }; ... 4 more ...; decision: string; }' to type 'TradePlanV3' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: string; direction: "LONG"; recommendedEntry: number; entryZone: { quality: "GOOD"; }; stopLoss: { price: number; quality: "STRUCTURE"; atrDistance: number; }; tp1: { price: number; rrRatio: number; }; ... 4 more ...; decision: string; }' is missing the following properties from type 'TradePlanV3': generatedAt, totalScore, marketMode, groupScores, and 10 more.
+services/indicators.cache.test.ts(31,5): error TS2561: Object literal may only specify known properties, but 'takerBuyBaseVolume' does not exist in type 'Kline'. Did you mean to write 'takerBuyVolume'?
+services/indicators.cache.test.ts(68,57): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/indicators.cache.test.ts(75,7): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/indicators.cache.test.ts(90,57): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/indicators.cache.test.ts(97,7): error TS2345: Argument of type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is not assignable to parameter of type 'EMAAnalysisV3'.
+  Type '{ ema20: number; ema50: number; ema200: number; priceVsEma20: "above"; priceVsEma50: "above"; priceVsEma200: "above"; alignment: "BULLISH"; }' is missing the following properties from type 'EMAAnalysisV3': slope20, slope50, priceVsEma20Pct, priceVsEma50Pct, and 2 more.
+services/integration/__tests__/dualWrite.test.ts(30,27): error TS2345: Argument of type '{ eventType: T; aggregateId: string; source: "APK"; correlationId: string; eventId: string; idempotencyKey: string; createdAtUtc: string; metadata: { sequence: number | undefined; }; payload: (Extract<...> | ... 11 more ... | Extract<...>)["payload"]; }' is not assignable to parameter of type 'CreateTradeEventInput<T>'.
+  Types of property 'payload' are incompatible.
+    Type 'Extract<TradeCreatedEvent, { eventType: T; }>["payload"] | Extract<OrderSubmittedEvent, { eventType: T; }>["payload"] | ... 10 more ... | Extract<...>["payload"]' is not assignable to type 'TradeEventPayloadByType[T]'.
+      Type 'Extract<TradeCreatedEvent, { eventType: T; }>["payload"]' is not assignable to type 'TradeEventPayloadByType[T]'.
+        Type 'Extract<TradeCreatedEvent, { eventType: T; }>' is not assignable to type 'TradeEventPayloadByType'.
+          Type '{ eventType: T; } & TradeCreatedEvent' is missing the following properties from type 'TradeEventPayloadByType': TRADE_CREATED, ORDER_SUBMITTED, ORDER_FILLED, POSITION_RUNNING, and 9 more.
+services/integration/__tests__/flipSourceOfTruth.test.ts(25,27): error TS2345: Argument of type '{ eventType: T; aggregateId: string; source: "APK"; correlationId: string; eventId: string; idempotencyKey: string; createdAtUtc: string; metadata: { sequence: number | undefined; }; payload: (Extract<...> | ... 11 more ... | Extract<...>)["payload"]; }' is not assignable to parameter of type 'CreateTradeEventInput<T>'.
+  Types of property 'payload' are incompatible.
+    Type 'Extract<TradeCreatedEvent, { eventType: T; }>["payload"] | Extract<OrderSubmittedEvent, { eventType: T; }>["payload"] | ... 10 more ... | Extract<...>["payload"]' is not assignable to type 'TradeEventPayloadByType[T]'.
+      Type 'Extract<TradeCreatedEvent, { eventType: T; }>["payload"]' is not assignable to type 'TradeEventPayloadByType[T]'.
+        Type 'Extract<TradeCreatedEvent, { eventType: T; }>' is not assignable to type 'TradeEventPayloadByType'.
+          Type '{ eventType: T; } & TradeCreatedEvent' is missing the following properties from type 'TradeEventPayloadByType': TRADE_CREATED, ORDER_SUBMITTED, ORDER_FILLED, POSITION_RUNNING, and 9 more.
+services/intelligence/__tests__/dashboard.test.ts(43,7): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/__tests__/intelligence.test.ts(31,7): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/__tests__/journalIntelligence.test.ts(54,7): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/__tests__/performance.test.ts(44,7): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/__tests__/releaseStabilization.test.ts(43,7): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/__tests__/statistics.test.ts(38,7): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/__tests__/statistics.test.ts(117,9): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/intelligence/journalAiSummary.ts(39,22): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/journalAiSummary.ts(41,29): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/journalEvidence.ts(59,51): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/journalEvidence.ts(61,32): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/journalIntelligence.ts(130,27): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/shared/tradeTags.ts(29,20): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/shared/tradeTags.ts(29,58): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/intelligence/statistics/statisticsGrouping.ts(55,22): error TS2339: Property 'topTraderRatio' does not exist on type 'MarketSnapshot'.
+services/journalService.test.ts(134,12): error TS2352: Conversion of type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 4 more.
+services/journalService.test.ts(173,12): error TS2352: Conversion of type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; l6Detail: { ...; }; v4: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; l6Detail: { ...; }; v4: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 5 more.
+services/journalService.test.ts(235,12): error TS2352: Conversion of type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "CO_THE_VAO"; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { direction: "LONG"; ... 11 more ...; notes: string; }; v3: { ...; }; tradePlanV3: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "NEARUSDT"; direction: "LONG"; score: number; decisionLabel: "CO_THE_VAO"; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; tradePlan: { direction: "LONG"; ... 11 more ...; notes: string; }; v3: { ...; }; tradePlanV3: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 5 more.
+services/journalService.test.ts(621,12): error TS2352: Conversion of type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; squeezeRisk: { ...; }; v4: { ...; }; }' to type 'SignalRow' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; layers: never[]; mandatoryViolations: never[]; price: number; change24h: number; squeezeRisk: { ...; }; v4: { ...; }; }' is missing the following properties from type 'SignalRow': trend, regimeConfidence, longScore, shortScore, and 5 more.
+services/journalService.test.ts(669,33): error TS2739: Type '{ scorerVersion: "v4"; }' is missing the following properties from type 'ScoringSnapshot': totalScore, direction, layerScores, mandatoryViolations, decision
+services/journalService.test.ts(699,7): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/journalService.test.ts(751,9): error TS2322: Type '"ETHUSDT"' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+services/journalService.test.ts(754,9): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/journalService.test.ts(819,9): error TS2322: Type 'null' is not assignable to type 'string | undefined'.
+services/notificationService.ts(10,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/performanceHt/buildPerformanceHtDataBundle.ts(17,8): error TS2724: '"../intelligence/dashboard"' has no exported member named 'DashboardFilterPeriod'. Did you mean 'DashboardFilter'?
+services/periodicTradingWork.ts(8,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/persistence/fileEventPersistence.ts(34,9): error TS2416: Property 'read' in type 'FileEventPersistence' is not assignable to the same property in base type 'IEventPersistence'.
+  Type '(_eventId: string) => Promise<void>' is not assignable to type '(eventId: string) => Promise<StoredTradeEvent | null>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent | null>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent | null'.
+services/persistence/fileEventPersistence.ts(38,9): error TS2416: Property 'readAggregate' in type 'FileEventPersistence' is not assignable to the same property in base type 'IEventPersistence'.
+  Type '(_aggregateId: string) => Promise<void>' is not assignable to type '(aggregateId: string) => Promise<StoredTradeEvent[]>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent[]>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent[]'.
+services/persistence/fileEventPersistence.ts(42,9): error TS2416: Property 'readAll' in type 'FileEventPersistence' is not assignable to the same property in base type 'IEventPersistence'.
+  Type '() => Promise<void>' is not assignable to type '() => Promise<StoredTradeEvent[]>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent[]>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent[]'.
+services/persistence/fileEventPersistence.ts(65,3): error TS2322: Type 'FileEventPersistence' is not assignable to type 'IEventPersistence'.
+  The types returned by 'read(...)' are incompatible between these types.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent | null>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent | null'.
+services/persistence/sqliteEventPersistence.ts(34,9): error TS2416: Property 'read' in type 'SqliteEventPersistence' is not assignable to the same property in base type 'IEventPersistence'.
+  Type '(_eventId: string) => Promise<void>' is not assignable to type '(eventId: string) => Promise<StoredTradeEvent | null>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent | null>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent | null'.
+services/persistence/sqliteEventPersistence.ts(38,9): error TS2416: Property 'readAggregate' in type 'SqliteEventPersistence' is not assignable to the same property in base type 'IEventPersistence'.
+  Type '(_aggregateId: string) => Promise<void>' is not assignable to type '(aggregateId: string) => Promise<StoredTradeEvent[]>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent[]>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent[]'.
+services/persistence/sqliteEventPersistence.ts(42,9): error TS2416: Property 'readAll' in type 'SqliteEventPersistence' is not assignable to the same property in base type 'IEventPersistence'.
+  Type '() => Promise<void>' is not assignable to type '() => Promise<StoredTradeEvent[]>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent[]>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent[]'.
+services/persistence/sqliteEventPersistence.ts(65,3): error TS2322: Type 'SqliteEventPersistence' is not assignable to type 'IEventPersistence'.
+  The types returned by 'read(...)' are incompatible between these types.
+    Type 'Promise<void>' is not assignable to type 'Promise<StoredTradeEvent | null>'.
+      Type 'void' is not assignable to type 'StoredTradeEvent | null'.
+services/phase1Migration.ts(365,5): error TS2322: Type '"15m" | "1h" | "4h" | "1d"' is not assignable to type '"1h" | "4h" | "1d" | undefined'.
+  Type '"15m"' is not assignable to type '"1h" | "4h" | "1d" | undefined'.
+services/phase1Migration.ts(435,10): error TS2352: Conversion of type 'Record<string, unknown>' to type 'LockedTradePlan' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'Record<string, unknown>' is missing the following properties from type 'LockedTradePlan': id, pendingEntryId, lockedAt, expiresAt, and 14 more.
+services/planHealth.test.ts(179,7): error TS2345: Argument of type '{ squeezeRisk: SqueezeRiskResult; l6Detail: { fundingState: FundingState; }; layers: { layer: number; score: number; }[]; v4: { longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }; }' is not assignable to parameter of type 'Pick<SignalRow, "v4" | "l6Detail" | "squeezeRisk" | "layers">'.
+  Types of property 'v4' are incompatible.
+    Type '{ longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }' is missing the following properties from type 'SignalRowScorerSnapshot': score, longScore, shortScore, direction, and 7 more.
+services/planHealth.test.ts(195,7): error TS2345: Argument of type '{ squeezeRisk: SqueezeRiskResult; l6Detail: { fundingState: FundingState; }; layers: { layer: number; score: number; }[]; v4: { longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }; }' is not assignable to parameter of type 'Pick<SignalRow, "v4" | "l6Detail" | "squeezeRisk" | "layers">'.
+  Types of property 'v4' are incompatible.
+    Type '{ longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }' is missing the following properties from type 'SignalRowScorerSnapshot': score, longScore, shortScore, direction, and 7 more.
+services/planHealth.test.ts(211,7): error TS2345: Argument of type '{ squeezeRisk: SqueezeRiskResult; l6Detail: { fundingState: FundingState; }; layers: { layer: number; score: number; }[]; v4: { longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }; }' is not assignable to parameter of type 'Pick<SignalRow, "v4" | "l6Detail" | "squeezeRisk" | "layers">'.
+  Types of property 'v4' are incompatible.
+    Type '{ longLayers: { layer: number; score: number; }[]; shortLayers: { layer: number; score: number; }[]; }' is missing the following properties from type 'SignalRowScorerSnapshot': score, longScore, shortScore, direction, and 7 more.
+services/positionAdvisorV4.ts(23,8): error TS2459: Module '"./positionAdvisorV3"' declares 'PositionWithPrice' locally, but it is not exported.
+services/priceAlertNotification.ts(9,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/productionEsmBridge/productionEsmScanWiring.test.ts(18,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+services/productionEsmBridge/productionEsmScanWiring.test.ts(46,35): error TS2353: Object literal may only specify known properties, and 'markPrice' does not exist in type 'MarketSnapshot'.
+services/productionEsmBridge/productionEsmScanWiring.test.ts(50,7): error TS2740: Type '{}' is missing the following properties from type 'LayerScoreMap': l1, l2, l3, l4, and 6 more.
+services/productionEsmBridge/productionEsmSymbolFilter.test.ts(19,30): error TS2353: Object literal may only specify known properties, and 'markPrice' does not exist in type 'MarketSnapshot'.
+services/productionEsmBridge/productionEsmSymbolFilter.test.ts(23,7): error TS2740: Type '{}' is missing the following properties from type 'LayerScoreMap': l1, l2, l3, l4, and 6 more.
+services/productionEsmBridge/ul042StagingValidation.test.ts(38,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+services/productionEsmBridge/ul042StagingValidation.test.ts(70,32): error TS2353: Object literal may only specify known properties, and 'markPrice' does not exist in type 'MarketSnapshot'.
+services/productionEsmBridge/ul042StagingValidation.test.ts(74,7): error TS2740: Type '{}' is missing the following properties from type 'LayerScoreMap': l1, l2, l3, l4, and 6 more.
+services/projector/__tests__/tradeProjector.test.ts(31,27): error TS2345: Argument of type '{ eventType: T; aggregateId: string; source: "APK"; correlationId: string; causationId: string; eventId: string; idempotencyKey: string; createdAtUtc: string; metadata: { sequence: number | undefined; featureSetVersion: string; engineVersion: string; }; payload: (Extract<...> | ... 11 more ... | Extract<...>)["paylo...' is not assignable to parameter of type 'CreateTradeEventInput<T>'.
+  Types of property 'payload' are incompatible.
+    Type 'Extract<TradeCreatedEvent, { eventType: T; }>["payload"] | Extract<OrderSubmittedEvent, { eventType: T; }>["payload"] | ... 10 more ... | Extract<...>["payload"]' is not assignable to type 'TradeEventPayloadByType[T]'.
+      Type 'Extract<TradeCreatedEvent, { eventType: T; }>["payload"]' is not assignable to type 'TradeEventPayloadByType[T]'.
+        Type 'Extract<TradeCreatedEvent, { eventType: T; }>' is not assignable to type 'TradeEventPayloadByType'.
+          Type '{ eventType: T; } & TradeCreatedEvent' is missing the following properties from type 'TradeEventPayloadByType': TRADE_CREATED, ORDER_SUBMITTED, ORDER_FILLED, POSITION_RUNNING, and 9 more.
+services/projector/tradeProjector.ts(122,5): error TS2353: Object literal may only specify known properties, and 'topTraderRatio' does not exist in type 'MarketSnapshot'.
+services/scorer.ts(521,7): error TS2741: Property 'CHO_TAI_CHAM' is missing in type '{ KHONG_VAO: string; CHO_THEM: string; CO_THE_VAO: string; VAO_TU_TIN: string; SETUP_NGON: string; }' but required in type 'Record<TradeDecisionLabel, string>'.
+services/scorer.ts(1343,5): error TS2739: Type '{ consecutiveLosses: number; dailyLossPercent: number; maxDailyLossPercent: number; }' is missing the following properties from type 'IndicatorPsychology': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV3.test.ts(265,43): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(315,43): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(410,68): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(424,43): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(434,49): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(446,49): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(458,49): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(500,49): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(529,64): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/scorerV4.test.ts(544,49): error TS2345: Argument of type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is not assignable to parameter of type 'TodayStats'.
+  Type '{ consecutiveLosses: number; dailyLossUSDT: number; }' is missing the following properties from type 'TodayStats': consecutiveLossesIn24h, lossStreakLocked, lossStreakLockUntil
+services/sessionNotification.ts(10,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/sessionNotification.ts(14,8): error TS2307: Cannot find module '../tasks/backgroundSessionTask' or its corresponding type declarations.
+services/signalScanContext.test.ts(10,9): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: never; scoring: never; plan: never; outcome: { status: "LOSS"; pnlUSDT: number; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/skippedSetupService.ts(211,7): error TS2322: Type 'number' is not assignable to type 'undefined'.
+services/structureSLJournal.test.ts(95,37): error TS2345: Argument of type '{ symbol: string; accountSizeAtEntry: number; market: MarketSnapshot; scoring: ScoringSnapshot; plan: { entryZoneOptimal: number; entryZoneType: string; ... 7 more ...; openReason: null; }; structureSLSnapshot: StructureSLSnapshot | undefined; }' is not assignable to parameter of type '{ symbol: string; accountSizeAtEntry: number; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; tags?: string[] | undefined; ... 12 more ...; vwapSnapshot?: VWAPSnapshot | undefined; }'.
+  Types of property 'plan' are incompatible.
+    Type '{ entryZoneOptimal: number; entryZoneType: string; stopLoss: number; takeProfit1: number; takeProfit2: number; takeProfit3: number; sizeActual: number; sizeProposed: number; riskRewardRatio: number; openReason: null; }' is missing the following properties from type 'TradePlanSnapshot': entryZoneRangeLow, entryZoneRangeHigh, slProposed, slActual, and 6 more.
+services/tradeHistorySync.test.ts(9,7): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; outcome: { ...; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/tradeHistorySync.test.ts(56,7): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; outcome: { ...; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/tradeHistorySync.ts(23,10): error TS2678: Type '"OFFLINE_CLOSE"' is not comparable to type 'TradeExitReason | undefined'.
+services/tradePlanDisplay.ts(1,54): error TS2307: Cannot find module './scoring' or its corresponding type declarations.
+services/tradeSnapshot.test.ts(27,9): error TS2739: Type '{ id: string; timestamp: number; symbol: string; market: never; scoring: never; plan: never; outcome: { status: "WIN"; }; }' is missing the following properties from type 'AiTradeJournalEntry': accountSizeAtEntry, tags, version
+services/tradeSnapshot.ts(73,16): error TS2554: Expected 2 arguments, but got 1.
+services/ul/adapters/__tests__/PerformanceDashboardValidator.test.ts(286,40): error TS2352: Conversion of type '{ summary?: undefined; riskWidget?: undefined; equityChart?: undefined; recommendationPanel?: undefined; } | { summary: null; riskWidget: string; equityChart: number; recommendationPanel?: undefined; } | { ...; } | null | undefined' to type 'PerformanceDashboardViewModel' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ recommendationPanel: { items: string; }; summary?: undefined; riskWidget?: undefined; equityChart?: undefined; }' is missing the following properties from type 'PerformanceDashboardViewModel': version, generatedAt, tradeCount, fingerprint, and 5 more.
+services/ul/coach/TradingCoachBuilder.ts(49,14): error TS2339: Property 'id' does not exist on type 'T'.
+services/ul/coach/TradingCoachBuilder.ts(49,33): error TS2339: Property 'id' does not exist on type 'T'.
+services/unifiedSignalEngine.ts(457,29): error TS2367: This comparison appears to be unintentional because the types 'TradeDirection' and '"NONE"' have no overlap.
+services/v41/__tests__/confidenceEngine.test.ts(244,23): error TS2322: Type '0.9' is not assignable to type '0.5'.
+services/v41/__tests__/confidenceEngine.test.ts(244,43): error TS2322: Type '0.1' is not assignable to type '0.5'.
+services/v41/__tests__/entryQualityEngine.test.ts(168,7): error TS2739: Type '{ stopHuntDetected: true; volatilityRisk: "EXTREME"; protectionPenalty: number; }' is missing the following properties from type 'ProtectionSnapshot': stopHuntRisk, volatilityAtrPct, protectionWarnings
+services/v41/__tests__/exportServiceV41.entryGate.test.ts(114,9): error TS2561: Object literal may only specify known properties, but 'signals' does not exist in type 'EarlyWarningSnapshot'. Did you mean to write 'signals1H'?
+services/v41/__tests__/exportServiceV41.momentum.test.ts(6,10): error TS2352: Conversion of type '{ symbol: string; visibilityMode: "TRADE_MODE"; markPrice: number; snapshot: { marketState: "TRENDING"; trendStrength: number; trendDirection: "UP"; trendExhaustion: number; volumeDivergencePts: 0; ... 5 more ...; btcDirection: "UP"; }; momentum: MomentumResult | undefined; }' to type 'SignalRowV41' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'fetchedAt' is missing in type '{ symbol: string; visibilityMode: "TRADE_MODE"; markPrice: number; snapshot: { marketState: "TRENDING"; trendStrength: number; trendDirection: "UP"; trendExhaustion: number; volumeDivergencePts: 0; ... 5 more ...; btcDirection: "UP"; }; momentum: MomentumResult | undefined; }' but required in type 'SignalRowV41'.
+services/v41/__tests__/exportServiceV41.ruleExplanation.test.ts(6,10): error TS2352: Conversion of type '{ symbol: string; visibilityMode: "TRADE_MODE"; markPrice: number; snapshot: { trendStrength: number; trendDirection: "BULL"; trendExhaustion: number; volumeDivergencePts: 0; reversalProbability: number; ... 6 more ...; scanTimestamp: number; }; opportunity: { ...; }; protection: { ...; }; earlyWarning: { ...; }; mo...' to type 'SignalRowV41' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'fetchedAt' is missing in type '{ symbol: string; visibilityMode: "TRADE_MODE"; markPrice: number; snapshot: { trendStrength: number; trendDirection: "BULL"; trendExhaustion: number; volumeDivergencePts: 0; reversalProbability: number; ... 6 more ...; scanTimestamp: number; }; opportunity: { ...; }; protection: { ...; }; earlyWarning: { ...; }; mo...' but required in type 'SignalRowV41'.
+services/v41/__tests__/exportServiceV41.ruleExplanation.test.ts(112,7): error TS2561: Object literal may only specify known properties, but 'signals' does not exist in type 'EarlyWarningSnapshot'. Did you mean to write 'signals1H'?
+services/v41/__tests__/positionAdvisorV41.test.ts(355,9): error TS2322: Type '{ momentumLong: number; momentumShort: number; momentumConfirmedLong: boolean; momentumConfirmedShort: boolean; signalsLong: never[]; signalsShort: string[]; tpMultiplier: number; slMultiplier: number; }' is not assignable to type 'MomentumResult'.
+  Types of property 'momentumLong' are incompatible.
+    Type 'number' is not assignable to type '0 | 2 | 1'.
+services/v41/__tests__/positionAdvisorV41.test.ts(375,9): error TS2322: Type '{ momentumLong: number; momentumShort: number; momentumConfirmedLong: boolean; momentumConfirmedShort: boolean; signalsLong: never[]; signalsShort: string[]; tpMultiplier: number; slMultiplier: number; }' is not assignable to type 'MomentumResult'.
+  Types of property 'momentumLong' are incompatible.
+    Type 'number' is not assignable to type '0 | 2 | 1'.
+services/v41/__tests__/scanV41.test.ts(55,5): error TS2783: 'symbol' is specified more than once, so this usage will be overwritten.
+services/v41/__tests__/scanV41.test.ts(56,5): error TS2783: 'direction' is specified more than once, so this usage will be overwritten.
+services/v41/__tests__/scanV41.test.ts(57,5): error TS2783: 'status' is specified more than once, so this usage will be overwritten.
+services/v41/__tests__/scanV41.test.ts(208,5): error TS2322: Type '"WATCH_MODE"' is not assignable to type '"INACTIVE"'.
+services/v41/__tests__/tradeSessionAdviser.test.ts(154,34): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+services/v41/positionAdviserExplainV41.ts(7,41): error TS2307: Cannot find module '../decisionEngine' or its corresponding type declarations.
+services/v41/positionAdviserExplainV41.ts(173,20): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ LONG: string; SHORT: string; WATCH: string; IGNORE: string; }'.
+services/v41/positionAdviserExplainV41.ts(174,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ LONG: string; SHORT: string; WATCH: string; IGNORE: string; }'.
+services/v41/positionAdviserExplainV41.ts(193,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ LONG: string; SHORT: string; WATCH: string; IGNORE: string; }'.
+services/v41/positionAdviserExplainV41.ts(194,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ LONG: string; SHORT: string; WATCH: string; IGNORE: string; }'.
+services/v41/rawMarketFetcher.ts(70,46): error TS2345: Argument of type '"1h" | "30m"' is not assignable to parameter of type 'Timeframe'.
+  Type '"30m"' is not assignable to type 'Timeframe'.
+services/v41/rc3/buildTradeSessionAdviser.ts(62,5): error TS2322: Type 'number' is not assignable to type 'string'.
+services/v41/rc3/buildTradeSessionAdviser.ts(77,50): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+services/v41/rc3/buildTradeSessionAdviser.ts(131,7): error TS2322: Type 'number' is not assignable to type 'string'.
+services/v41/rc3/buildTradeSessionAdviser.ts(161,5): error TS2322: Type 'number' is not assignable to type 'string'.
+services/vwapJournal.test.ts(35,5): error TS2322: Type '"UP"' is not assignable to type 'MarketTrend'.
+services/vwapJournal.test.ts(125,37): error TS2345: Argument of type '{ symbol: string; accountSizeAtEntry: number; market: MarketSnapshot; scoring: ScoringSnapshot; plan: { entryZoneOptimal: number; entryZoneType: string; ... 7 more ...; openReason: null; }; vwapSnapshot: VWAPSnapshot | undefined; }' is not assignable to parameter of type '{ symbol: string; accountSizeAtEntry: number; market: MarketSnapshot; scoring: ScoringSnapshot; plan: TradePlanSnapshot; tags?: string[] | undefined; ... 12 more ...; vwapSnapshot?: VWAPSnapshot | undefined; }'.
+  Types of property 'plan' are incompatible.
+    Type '{ entryZoneOptimal: number; entryZoneType: string; stopLoss: number; takeProfit1: number; takeProfit2: number; takeProfit3: number; sizeActual: number; sizeProposed: number; riskRewardRatio: number; openReason: null; }' is missing the following properties from type 'TradePlanSnapshot': entryZoneRangeLow, entryZoneRangeHigh, slProposed, slActual, and 6 more.
+services/whaleRadarNotification.ts(6,8): error TS2307: Cannot find module './localNotification' or its corresponding type declarations.
+services/whaleRadarNotification.ts(12,58): error TS2307: Cannot find module './whaleRadarAlarm' or its corresponding type declarations.
+store/__tests__/esmBridgeStore.test.ts(31,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+store/__tests__/esmBridgeStore.test.ts(121,12): error TS2540: Cannot assign to 'message' because it is a read-only property.
+store/__tests__/esmBridgeStore.test.ts(161,16): error TS2540: Cannot assign to 'message' because it is a read-only property.
+store/useTradeStore.driveSync.test.ts(210,7): error TS2739: Type '{ symbol: "BTCUSDT"; direction: "LONG"; score: number; longScore: number; shortScore: number; decisionLabel: "VAO_TU_TIN"; decisionDisplay: string; winrate: string; canEnter: boolean; layers: never[]; ... 8 more ...; topLSRatio: number; }' is missing the following properties from type 'SignalRow': regimeConfidence, tradePlan, fromCache
+store/useTradeStore.ts(318,18): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(450,17): error TS2304: Cannot find name 'SkipReason'.
+store/useTradeStore.ts(827,11): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(855,11): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(856,4): error TS2304: Cannot find name 'SkippedSetupEntry'.
+store/useTradeStore.ts(994,18): error TS2304: Cannot find name 'SkippedSetupEntry'.
+utils/esmUiDisplay.test.ts(25,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+utils/esmUlReviewExplanation.test.ts(19,5): error TS2322: Type 'string' is not assignable to type 'ScorerLayerId'.
+utils/esmUlReviewExplanation.test.ts(35,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.
+utils/journalRecommendationDisplay.test.ts(43,5): error TS2322: Type 'string' is not assignable to type '"BTCUSDT" | "NEARUSDT" | "SOLUSDT" | "BNBUSDT"'.

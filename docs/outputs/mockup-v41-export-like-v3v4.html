@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>V41 Signal Panel — Export mockup (style V3/V4)</title>
+  <style>
+    :root {
+      --bg: #0b0e11;
+      --surface: #1e2329;
+      --border: #363a45;
+      --text: #eaecef;
+      --muted: #5e6673;
+      --secondary: #848e9c;
+      --accent: #f0b90b;
+      --bull: #0ecb81;
+      --bear: #f6465d;
+      --btc: #f7931a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    .panel { display: flex; flex-direction: column; gap: 12px; max-width: 1100px; position: relative; }
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .title {
+      font-size: 14px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; margin: 0;
+    }
+    .subtitle { font-size: 11px; color: var(--secondary); margin: 2px 0 0; }
+
+    /* === Mirror SignalBoard.tsx auditExportWrap / exportBtn === */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .audit-export-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+    }
+    .audit-mode-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-width: 180px;
+      cursor: default;
+      user-select: none;
+    }
+    .audit-mode-btn.open {
+      border-color: rgba(240, 185, 11, 0.45);
+    }
+    .audit-mode-btn-text {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .audit-mode-chevron {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .audit-coin-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 4px;
+      background: var(--btc);
+      flex-shrink: 0;
+    }
+    .export-btn {
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: default;
+      user-select: none;
+    }
+    .export-btn-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary);
+    }
+
+    /* Dropdown menu (mock — chừa chỗ P1–P4) */
+    .audit-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 88px;
+      width: 220px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      z-index: 10;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .audit-menu-header {
+      padding: 10px 12px 4px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.3px;
+    }
+    .audit-menu-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--secondary);
+    }
+    .audit-menu-option.active {
+      color: var(--accent);
+      font-weight: 800;
+    }
+    .audit-menu-option.disabled {
+      opacity: 0.45;
+    }
+    .audit-menu-check {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .coin { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+    .header-actions-card { display: flex; align-items: center; gap: 4px; }
+    .pill {
+      border: 1px solid; border-radius: 20px;
+      padding: 2px 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    }
+    .decision { border-color: var(--secondary); color: var(--secondary); }
+    .meta-label {
+      font-size: 10px; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.4px; text-transform: uppercase; margin-top: 4px;
+    }
+    .trigger { font-size: 13px; font-weight: 600; color: var(--secondary); }
+    .confidence { font-size: 16px; font-weight: 700; }
+    .section {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      letter-spacing: 0.5px; text-transform: uppercase; margin-top: 8px;
+    }
+    .check { font-size: 12px; font-weight: 600; line-height: 18px; }
+    .fail { color: var(--bear); }
+    .pass { color: var(--bull); }
+    .scan { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .scan b { color: var(--secondary); font-weight: 700; }
+    .note {
+      margin-top: 16px; font-size: 11px; color: var(--secondary);
+      border-top: 1px solid var(--border); padding-top: 12px;
+      line-height: 1.5;
+    }
+    code { font-size: 10px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <div>
+        <p class="title">Signal Panel</p>
+        <p class="subtitle">V4.1 · High-quality triggers only</p>
+      </div>
+
+      <!-- Mirror V3/V4 SignalBoard headerActions.auditExportWrap — KHÔNG đặt trên từng card -->
+      <div class="header-actions">
+        <div class="audit-export-wrap">
+          <div class="audit-mode-btn" title="Chọn coin (mock)">
+            <span class="audit-coin-dot"></span>
+            <span class="audit-mode-btn-text">BTC</span>
+            <span class="audit-mode-chevron">▾</span>
+          </div>
+          <div class="audit-mode-btn open" title="Chọn loại export (mock)">
+            <span class="audit-mode-btn-text">Market Intelligence</span>
+            <span class="audit-mode-chevron">▾</span>
+          </div>
+          <div class="export-btn" title="📄 Export (mock — chưa nối wire)">
+            <span class="export-btn-text">📄 Export</span>
+          </div>
+
+          <!-- Menu mở sẵn để show pattern giống V3/V4 (chừa P1–P4) -->
+          <div class="audit-menu" aria-label="V4.1 export kind menu mock">
+            <div class="audit-menu-header">Trace (V4.1)</div>
+            <div class="audit-menu-option active">
+              <span>Market Intelligence</span>
+              <span class="audit-menu-check">✓</span>
+            </div>
+            <div class="audit-menu-option disabled">
+              <span>Visibility + Entry <small>(P1)</small></span>
+            </div>
+            <div class="audit-menu-option disabled">
+              <span>Decision + Confidence <small>(P2)</small></span>
+            </div>
+            <div class="audit-menu-option disabled">
+              <span>RC3 Trace <small>(P3)</small></span>
+            </div>
+            <div class="audit-menu-option disabled">
+              <span>Position Trace <small>(P4)</small></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- BTC — không còn pill Xuất MI trên card -->
+      <div class="card">
+        <div class="header">
+          <span class="coin">BTC</span>
+          <div class="header-actions-card">
+            <span class="pill decision">IGNORE</span>
+          </div>
+        </div>
+        <div class="scan">Last Scan: <b>09:28:14</b></div>
+        <div class="scan">Age: <b>12s</b></div>
+        <div class="meta-label">Loại Trigger</div>
+        <div class="trigger">Trend Reversal</div>
+        <div class="meta-label">Confidence</div>
+        <div class="confidence">41%</div>
+        <div class="section">Thiếu gì</div>
+        <div class="check fail">✗ CVD Flip</div>
+        <div class="check fail">✗ Volume Confirm</div>
+        <div class="check pass">✓ BTC Confirm</div>
+        <div class="check fail">✗ Exhaustion</div>
+      </div>
+      <!-- SOL -->
+      <div class="card">
+        <div class="header">
+          <span class="coin">SOL</span>
+          <div class="header-actions-card">
+            <span class="pill decision">IGNORE</span>
+          </div>
+        </div>
+        <div class="scan">Last Scan: <b>09:28:14</b></div>
+        <div class="scan">Age: <b>12s</b></div>
+        <div class="meta-label">Loại Trigger</div>
+        <div class="trigger">—</div>
+        <div class="meta-label">Confidence</div>
+        <div class="confidence">28%</div>
+        <div class="section">Thiếu gì</div>
+        <div class="check fail">✗ CVD Flip</div>
+        <div class="check fail">✗ Volume Confirm</div>
+        <div class="check fail">✗ BTC Confirm</div>
+        <div class="check fail">✗ Exhaustion</div>
+      </div>
+      <!-- BNB -->
+      <div class="card">
+        <div class="header">
+          <span class="coin">BNB</span>
+          <div class="header-actions-card">
+            <span class="pill decision">IGNORE</span>
+          </div>
+        </div>
+        <div class="scan">Last Scan: <b>09:28:14</b></div>
+        <div class="scan">Age: <b>12s</b></div>
+        <div class="meta-label">Loại Trigger</div>
+        <div class="trigger">Volatility Explosion</div>
+        <div class="meta-label">Confidence</div>
+        <div class="confidence">55%</div>
+        <div class="section">Thiếu gì</div>
+        <div class="check pass">✓ CVD Flip</div>
+        <div class="check fail">✗ Volume Confirm</div>
+        <div class="check pass">✓ BTC Confirm</div>
+        <div class="check fail">✗ Exhaustion</div>
+      </div>
+      <!-- NEAR -->
+      <div class="card">
+        <div class="header">
+          <span class="coin">NEAR</span>
+          <div class="header-actions-card">
+            <span class="pill decision">WATCH</span>
+          </div>
+        </div>
+        <div class="scan">Last Scan: <b>09:28:14</b></div>
+        <div class="scan">Age: <b>12s</b></div>
+        <div class="meta-label">Loại Trigger</div>
+        <div class="trigger">Fake Breakout</div>
+        <div class="meta-label">Confidence</div>
+        <div class="confidence">62%</div>
+        <div class="section">Thiếu gì</div>
+        <div class="check pass">✓ CVD Flip</div>
+        <div class="check pass">✓ Volume Confirm</div>
+        <div class="check fail">✗ BTC Confirm</div>
+        <div class="check fail">✗ Exhaustion</div>
+      </div>
+    </div>
+
+    <p class="note">
+      <strong>Mockup Bước 2 (survey V3/V4):</strong> Export không nằm trên từng card —
+      nằm ở <em>header panel</em> giống <code>SignalBoard.tsx</code>
+      (<code>auditExportWrap</code>): chọn coin ▾ · chọn loại ▾ · nút
+      <code>📄 Export</code>. Menu Trace chừa slot P1–P4 (disabled).
+      Card data giữ nguyên; đã gỡ pill &quot;Xuất MI&quot; trên card.
+      Chưa nối wire/share thật.
+    </p>
+  </div>
+</body>
+</html>

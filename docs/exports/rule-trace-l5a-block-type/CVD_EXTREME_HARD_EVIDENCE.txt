@@ -1,0 +1,58 @@
+CVD EXTREME HARD — Rule Trace evidence
+engine.hardBlock: CVD +2.50M > +2M — chặn Short hoàn toàn
+engine.layerReason: CVD +2.50M — HARD BLOCK Short
+export file: docs\exports\rule-trace-l5a-block-type\01_RULEBOOK_CVD_EXTREME_SHORT_HARD.md
+
+--- L5a section (raw export) ---
+L5a — CVD Strength
+
+Status: FAIL
+Weight: 1.5
+Priority: 100
+Block Type: HARD
+Mandatory: YES
+Expected: 1.5
+Actual: 0
+Reason: CVD +2.50M — HARD BLOCK Short
+Recommendation: Review Layer
+Source Module: Layer 5
+Evidence:
+- Score=0
+
+--------------------------------
+
+Rule 006
+
+L5b — Volume / OI
+
+Status: PASS
+Weight: 1.5
+Priority: 50
+Block Type: NONE
+Mandatory: NO
+Expected: 1.5
+Actual: 0.75
+Reason: ok
+Recommendation: OK
+Source Module: Layer 52
+Evidence:
+- Score=0.75
+
+--------------------------------
+
+Rule 007
+
+Funding Rate + Trend
+
+Status: PASS
+Weight: 1.5
+Priority: 50
+Block Type: NONE
+Mandatory: NO
+Expected: 1.5
+Actual: 0.75
+Reason: ok
+Recommendation: OK
+Source Module: Layer 6
+Evidence:
+- Score=0.75

@@ -5,6 +5,13 @@ export const FEATURE_FLAGS = {
   TP_PROBABILITY_MIN_TRADES: 300,
   /** ESM production wiring — compile-time default OFF; DEV/staging auto-enable via isEntryStateManagerEnabled (UL-04.2). */
   ENTRY_STATE_MANAGER_ENABLED: false,
+  /**
+   * FIX_HARD_REASON_LABELING — default OFF.
+   * When ON: rename hardBlocked→entryBlocked (same OR formula) + hard-reason lists
+   * exclude soft blockReasons. Does NOT change entry pass/fail rules.
+   * Override: env FIX_HARD_REASON_LABELING=1|true or setFixHardReasonLabelingForTests.
+   */
+  FIX_HARD_REASON_LABELING: false,
 } as const;
 
 declare const __DEV__: boolean | undefined;
@@ -31,6 +38,29 @@ export function isEntryStateManagerEnabled(): boolean {
   if (FEATURE_FLAGS.ENTRY_STATE_MANAGER_ENABLED === true) return true;
   if (isDevRuntime() || isStagingRuntime()) return true;
   return false;
+}
+
+let fixHardReasonLabelingOverride: boolean | null = null;
+
+function envFixHardReasonLabeling(): boolean | null {
+  if (typeof process === 'undefined') return null;
+  const raw = process.env.FIX_HARD_REASON_LABELING;
+  if (raw === '1' || raw === 'true') return true;
+  if (raw === '0' || raw === 'false') return false;
+  return null;
+}
+
+/** Runtime switch for hardBlocked→entryBlocked rename + hard-reason list hygiene. Default OFF. */
+export function isFixHardReasonLabelingEnabled(): boolean {
+  if (fixHardReasonLabelingOverride != null) return fixHardReasonLabelingOverride;
+  const fromEnv = envFixHardReasonLabeling();
+  if (fromEnv != null) return fromEnv;
+  return FEATURE_FLAGS.FIX_HARD_REASON_LABELING === true;
+}
+
+/** Test / A/B backtest override — pass null to clear. */
+export function setFixHardReasonLabelingForTests(value: boolean | null): void {
+  fixHardReasonLabelingOverride = value;
 }
 
 let tpFilterEnableHintLogged = false;

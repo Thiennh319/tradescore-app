@@ -1,0 +1,158 @@
+WITH_BUGFIX text fails: 0
+BASELINE json fails: 73
+BOTH fails (exact name match): 0
+ONLY WITH BUGFIX: 0
+ONLY BASELINE: 73
+FILE both: 0
+FILE onlyWith: 0
+FILE onlyBase: 19
+=== ONLY WITH BUGFIX (regression) ===
+(none)
+=== ONLY BASELINE (fixed-by-patch?) ===
+config/featureFlags.test.ts :: USE_CONTINUOUS_SCORING_TR — V4.1 shadow CONTINUOUS_SCORING_TR_SYMBOLS scopes NEARUSDT (master flag still false)
+config/featureFlags.test.ts :: USE_CONTINUOUS_SCORING_TR — V4.1 shadow FEATURE_FLAGS defaults to false (shadow)
+config/featureFlags.test.ts :: USE_UL_ANALYTICS — Task 15.1 FEATURE_FLAGS defaults to false
+config/featureFlags.test.ts :: USE_UL_ANALYTICS — Task 15.1 isUlAnalyticsEnabled follows override
+services/__tests__/exportAuditCoin.test.ts :: exportTraceOrReviewMarkdown + context.coin ALL selection loop exports 4 distinct Coin lines
+services/__tests__/exportAuditCoin.test.ts :: exportTraceOrReviewMarkdown + context.coin forces Coin metadata to selected symbol (not BTC-first default)
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts :: Rule Trace wire — BTC/SOL SHORT L5a cases BTCUSDT-SHORT Score 7.69: L5a Actual=0 → Block Type SOFT, Mandatory YES
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts :: Rule Trace wire — BTC/SOL SHORT L5a cases SOLUSDT-SHORT Score 9.46: L5a Actual=0.38 PASS status path → still SOFT if in scoreBlocks
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts :: Rule Trace wire — BTC/SOL SHORT L5a cases invariant: every Score Block list entry for a matched rule → SOFT in Rule Trace
+services/__tests__/exportTraceReviewWire.nearShortL3GateEvidence.test.ts :: NEAR SHORT L3 gate — Trace export evidence S1 blocked: hard list + L3 Block Type HARD + Warning Count not inflated
+services/__tests__/exportTraceReviewWire.nearShortL3GateEvidence.test.ts :: NEAR SHORT L3 gate — Trace export evidence S3 STRONG_L3: Signal Tags + L3 Strong Signal on Input Snapshot
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 1 — OPEN match: RULES/CONTRIBUTION/ACTION/SL/TP/RISK filled; CHECKLIST UNAVAILABLE (engine has no checklist)
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 2 — match-ok Reason/Summary/Confidence differ from Entry decisionDisplay/winrate
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 3a — same symbol, wrong direction only → UNAVAILABLE (no cross-direction fallback)
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 4 — same symbol+direction → newest timestamp wins
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 5 — no OPEN trade → UNAVAILABLE and no Entry decisionDisplay/winrate reuse
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 5b — OPEN match but row lacks groupScores → scores_unavailable (no evaluate, no Entry reuse)
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 6 — V4.1 entry calls evaluatePositionV41 with lastSnapshot for symbol
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 6b — V4.1 without snapshot → UNAVAILABLE, no V4/V2 fallback
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 7 — not V4.1 + scorerVersion 'v4' → evaluatePositionV4
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 8 — not V4.1 + scorerVersion 'v3' → evaluatePositionV2
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics Warning Count reflects layer WARNING status (e.g. L4 Bollinger score=0)
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics entry review decision tree exposes Entry State / Hard/Group Blocked State / Entry Permission
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics renames ambiguous snapshot labels — one label, one concept
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics trace-entry: INPUT SNAPSHOT Warning Count matches ENTRY SUMMARY Warnings
+services/__tests__/exportTraceReviewWire.task187.scoreTraceLabels.test.ts :: TASK 18.7 — Score Trace Display Layer Score + GROUP BREAKDOWN PRODUCTION — regenerates real BTCUSDT-LONG-v4 @ 2026-07-20T05:05:54.363Z
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) FIXTURE — labels only (Trade ID marked -FIXTURE)
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) PRODUCTION — exports Score / Entry / Position / TradePlan samples (5-kind evidence)
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) PRODUCTION — real BTCUSDT-SHORT-v4 @ 2026-07-20T06:54:48.415Z (UI wire path)
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) UI handler equivalent — same context shape as SignalBoard handleExportAuditPackage
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) all 5 trace kinds use BLOCKING EVENTS ORIGIN — shared appendix
+services/__tests__/generateMultiCoinTraceExports.live.test.ts :: generate multi-coin 5-file Trace exports (live scan) scans live and writes 15 files for NEAR/SOL/BNB via context.coin
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification AI Limitations — spec forbids changing rule/threshold/weight/state
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Checklist — Analytics says review only, no recalculation
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Checklist — RuleBook items are complete
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Checklist — every review category has a section
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Example — follows the mandatory output format and ends with a valid verdict
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Human Approval — full approval pipeline is documented
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification No Engine dependency — specs never import engine/UI/store modules
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification No UI import — specs do not reference engine/UI source paths
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Output Format — all mandatory report sections defined in order
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Levels — all six levels are defined in the spec
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Order — index/README is read before rulebook
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Order — spec lists files in the exact mandatory order
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Pipeline — the five stages are defined
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Specification exists — all three docs are present and non-empty
+services/aiExport/__tests__/presentationArchitectureLock.test.ts :: TASK 17.5.3.7 — Presentation Architecture Lock formatters use section renderer, not layer/table renderers directly
+services/aiExport/tradePlanTrace/__tests__/TradePlanTraceExport.test.ts :: TASK 5/6 — positionState wire + detectConflict rule 3 wire — positionState from openTrades empty or undefined openTrades → Position State NONE
+services/aiExport/tradePlanTrace/__tests__/TradePlanTraceExport.test.ts :: TASK 5/6 — positionState wire + detectConflict rule 3 wire — positionState from openTrades no matching symbol+direction in openTrades → Position State NONE
+services/exportDecisionReplay.test.ts :: TASK 16.2 Decision Replay export appends SECTION 13 without renumbering SECTION 1–12
+... +23 more
+=== FILE ONLY WITH ===
+(none)
+=== FILE ONLY BASE ===
+config/featureFlags.test.ts
+services/__tests__/exportAuditCoin.test.ts
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts
+services/__tests__/exportTraceReviewWire.nearShortL3GateEvidence.test.ts
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts
+services/__tests__/exportTraceReviewWire.semantics.test.ts
+services/__tests__/exportTraceReviewWire.task187.scoreTraceLabels.test.ts
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts
+services/__tests__/generateMultiCoinTraceExports.live.test.ts
+services/aiExport/__tests__/aiReviewSpec.test.ts
+services/aiExport/__tests__/presentationArchitectureLock.test.ts
+services/aiExport/tradePlanTrace/__tests__/TradePlanTraceExport.test.ts
+services/exportDecisionReplay.test.ts
+services/exportDecisionTrace.test.ts
+services/exportService.layerInputSnapshot.test.ts
+services/performanceHt/__tests__/PerformanceHTBind.test.ts
+services/productionEsmBridge/productionEsmScanWiring.test.ts
+services/productionEsmBridge/ul042StagingValidation.test.ts
+services/tradePlanV3.vwap.test.ts
+=== ALL BASE FAILS ===
+config/featureFlags.test.ts :: USE_CONTINUOUS_SCORING_TR — V4.1 shadow CONTINUOUS_SCORING_TR_SYMBOLS scopes NEARUSDT (master flag still false)
+config/featureFlags.test.ts :: USE_CONTINUOUS_SCORING_TR — V4.1 shadow FEATURE_FLAGS defaults to false (shadow)
+config/featureFlags.test.ts :: USE_UL_ANALYTICS — Task 15.1 FEATURE_FLAGS defaults to false
+config/featureFlags.test.ts :: USE_UL_ANALYTICS — Task 15.1 isUlAnalyticsEnabled follows override
+services/__tests__/exportAuditCoin.test.ts :: exportTraceOrReviewMarkdown + context.coin ALL selection loop exports 4 distinct Coin lines
+services/__tests__/exportAuditCoin.test.ts :: exportTraceOrReviewMarkdown + context.coin forces Coin metadata to selected symbol (not BTC-first default)
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts :: Rule Trace wire — BTC/SOL SHORT L5a cases BTCUSDT-SHORT Score 7.69: L5a Actual=0 → Block Type SOFT, Mandatory YES
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts :: Rule Trace wire — BTC/SOL SHORT L5a cases SOLUSDT-SHORT Score 9.46: L5a Actual=0.38 PASS status path → still SOFT if in scoreBlocks
+services/__tests__/exportTraceReviewWire.l5aBlockTypeSoft.test.ts :: Rule Trace wire — BTC/SOL SHORT L5a cases invariant: every Score Block list entry for a matched rule → SOFT in Rule Trace
+services/__tests__/exportTraceReviewWire.nearShortL3GateEvidence.test.ts :: NEAR SHORT L3 gate — Trace export evidence S1 blocked: hard list + L3 Block Type HARD + Warning Count not inflated
+services/__tests__/exportTraceReviewWire.nearShortL3GateEvidence.test.ts :: NEAR SHORT L3 gate — Trace export evidence S3 STRONG_L3: Signal Tags + L3 Strong Signal on Input Snapshot
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 1 — OPEN match: RULES/CONTRIBUTION/ACTION/SL/TP/RISK filled; CHECKLIST UNAVAILABLE (engine has no checklist)
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 2 — match-ok Reason/Summary/Confidence differ from Entry decisionDisplay/winrate
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 3a — same symbol, wrong direction only → UNAVAILABLE (no cross-direction fallback)
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 4 — same symbol+direction → newest timestamp wins
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 5 — no OPEN trade → UNAVAILABLE and no Entry decisionDisplay/winrate reuse
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 5b — OPEN match but row lacks groupScores → scores_unavailable (no evaluate, no Entry reuse)
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 6 — V4.1 entry calls evaluatePositionV41 with lastSnapshot for symbol
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 6b — V4.1 without snapshot → UNAVAILABLE, no V4/V2 fallback
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 7 — not V4.1 + scorerVersion 'v4' → evaluatePositionV4
+services/__tests__/exportTraceReviewWire.positionAdviserWire.test.ts :: buildPositionTraceMarkdown / Position Trace wire (Task 2.3) 8 — not V4.1 + scorerVersion 'v3' → evaluatePositionV2
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics Warning Count reflects layer WARNING status (e.g. L4 Bollinger score=0)
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics entry review decision tree exposes Entry State / Hard/Group Blocked State / Entry Permission
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics renames ambiguous snapshot labels — one label, one concept
+services/__tests__/exportTraceReviewWire.semantics.test.ts :: TASK 17.6.1 wire semantics trace-entry: INPUT SNAPSHOT Warning Count matches ENTRY SUMMARY Warnings
+services/__tests__/exportTraceReviewWire.task187.scoreTraceLabels.test.ts :: TASK 18.7 — Score Trace Display Layer Score + GROUP BREAKDOWN PRODUCTION — regenerates real BTCUSDT-LONG-v4 @ 2026-07-20T05:05:54.363Z
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) FIXTURE — labels only (Trade ID marked -FIXTURE)
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) PRODUCTION — exports Score / Entry / Position / TradePlan samples (5-kind evidence)
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) PRODUCTION — real BTCUSDT-SHORT-v4 @ 2026-07-20T06:54:48.415Z (UI wire path)
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) UI handler equivalent — same context shape as SignalBoard handleExportAuditPackage
+services/__tests__/exportTraceReviewWire.task188.blockingEventsOrigin.test.ts :: TASK 18.8 — BLOCKING EVENTS ORIGIN (Option A) all 5 trace kinds use BLOCKING EVENTS ORIGIN — shared appendix
+services/__tests__/generateMultiCoinTraceExports.live.test.ts :: generate multi-coin 5-file Trace exports (live scan) scans live and writes 15 files for NEAR/SOL/BNB via context.coin
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification AI Limitations — spec forbids changing rule/threshold/weight/state
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Checklist — Analytics says review only, no recalculation
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Checklist — RuleBook items are complete
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Checklist — every review category has a section
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Example — follows the mandatory output format and ends with a valid verdict
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Human Approval — full approval pipeline is documented
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification No Engine dependency — specs never import engine/UI/store modules
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification No UI import — specs do not reference engine/UI source paths
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Output Format — all mandatory report sections defined in order
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Levels — all six levels are defined in the spec
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Order — index/README is read before rulebook
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Order — spec lists files in the exact mandatory order
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Review Pipeline — the five stages are defined
+services/aiExport/__tests__/aiReviewSpec.test.ts :: TASK 16.1 AI Review Specification Specification exists — all three docs are present and non-empty
+services/aiExport/__tests__/presentationArchitectureLock.test.ts :: TASK 17.5.3.7 — Presentation Architecture Lock formatters use section renderer, not layer/table renderers directly
+services/aiExport/tradePlanTrace/__tests__/TradePlanTraceExport.test.ts :: TASK 5/6 — positionState wire + detectConflict rule 3 wire — positionState from openTrades empty or undefined openTrades → Position State NONE
+services/aiExport/tradePlanTrace/__tests__/TradePlanTraceExport.test.ts :: TASK 5/6 — positionState wire + detectConflict rule 3 wire — positionState from openTrades no matching symbol+direction in openTrades → Position State NONE
+services/exportDecisionReplay.test.ts :: TASK 16.2 Decision Replay export appends SECTION 13 without renumbering SECTION 1–12
+services/exportDecisionTrace.test.ts :: TASK R1.3 Decision Trace export formats TXT and appends SECTION 14 without renumbering 1–13
+services/exportService.layerInputSnapshot.test.ts :: TASK 16.1 layer input snapshot export appends section 12 without renumbering existing package sections
+services/exportService.layerInputSnapshot.test.ts :: TASK 16.1 layer input snapshot export does not guess raw inputs absent from the frozen snapshot
+services/exportService.layerInputSnapshot.test.ts :: TASK 16.1 layer input snapshot export exports raw inputs, threshold, expected, actual and result per layer
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: Feature flag USE_UL_ANALYTICS defaults to false (Task14 pipeline)
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: Feature flag USE_UL_ANALYTICS switches via setUlAnalyticsEnabledForTests
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle Feature flag switching changes source
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle No React / services/ul imports in PerformanceHtDashboard
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle Old pipeline (Task14)
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle Same layout prop keys on dash / stats / perf
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle Same widget count (layout contract)
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle UL pipeline
+services/performanceHt/__tests__/PerformanceHTBind.test.ts :: buildPerformanceHtDataBundle Validator always executed on UL path
+services/productionEsmBridge/productionEsmScanWiring.test.ts :: wireProductionEsmAfterScan — UL-04.0 / UL-04.1 delta — identical snapshot does not update lastUpdated
+services/productionEsmBridge/productionEsmScanWiring.test.ts :: wireProductionEsmAfterScan — UL-04.0 / UL-04.1 flag ON — only eligible symbols run bridge
+services/productionEsmBridge/ul042StagingValidation.test.ts :: UL-04.2 — Staging Validation PART 2 — Scan stability (40 rounds) completes 40 scan rounds without crash or exception
+services/productionEsmBridge/ul042StagingValidation.test.ts :: UL-04.2 — Staging Validation PART 2 — Scan stability (40 rounds) does not grow snapshot keys beyond eligible symbols (no leak)
+services/productionEsmBridge/ul042StagingValidation.test.ts :: UL-04.2 — Staging Validation PART 3 — Journal / ESM display PA recommendation stays primary — ESM is hint badge only
+services/productionEsmBridge/ul042StagingValidation.test.ts :: UL-04.2 — Staging Validation PART 3 — Journal / ESM display no cross-symbol hint bleed
+services/productionEsmBridge/ul042StagingValidation.test.ts :: UL-04.2 — Staging Validation PART 4 — snapshotBySymbol BTC / ETH / SOL do not overwrite each other
+services/productionEsmBridge/ul042StagingValidation.test.ts :: UL-04.2 — Staging Validation PART 5 — Export validation AI Review Report — markdown, version matrix, flags, runtime snapshot
+services/tradePlanV3.vwap.test.ts :: applyVWAPEntryToPlan / recalculatePlanAfterEntryChange clamp Preferred Entry khi VWAP dưới rangeLow
+services/tradePlanV3.vwap.test.ts :: applyVWAPEntryToPlan / recalculatePlanAfterEntryChange clamp Preferred Entry khi VWAP vượt Maximum Entry (rangeHigh)

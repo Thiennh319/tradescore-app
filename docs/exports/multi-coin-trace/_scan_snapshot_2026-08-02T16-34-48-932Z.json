@@ -1,0 +1,29 @@
+{
+  "scannedAt": "2026-08-02T16:34:48.932Z",
+  "symbols": [
+    {
+      "symbol": "BTCUSDT",
+      "price": 63152.9,
+      "hasV4": true,
+      "hasPlanV4": false
+    },
+    {
+      "symbol": "NEARUSDT",
+      "price": 1.699,
+      "hasV4": true,
+      "hasPlanV4": false
+    },
+    {
+      "symbol": "SOLUSDT",
+      "price": 73.1,
+      "hasV4": true,
+      "hasPlanV4": false
+    },
+    {
+      "symbol": "BNBUSDT",
+      "price": 588.44,
+      "hasV4": true,
+      "hasPlanV4": false
+    }
+  ]
+}

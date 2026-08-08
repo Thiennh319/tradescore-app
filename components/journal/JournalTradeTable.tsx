@@ -17,8 +17,7 @@ import { formatUsdPrice } from '../../utils/formatPrice';
 import { formatSignedPercent, formatSignedUsdt } from '../../utils/positionPnl';
 import { resolveJournalLiveMark } from '../../hooks/useJournalMarketSync';
 import {
-  resolveJournalUlReviewExplanation,
-  resolveJournalUlReviewRecommendation,
+  resolveJournalActiveTradeRecommendation,
   resolveJournalUlReviewRecommendationColor,
 } from '../../utils/journalRecommendationDisplay';
 import { EsmRecommendationCell } from './EsmRecommendationCell';
@@ -172,7 +171,7 @@ function JournalTradeRow({
   markPrice,
   unrealizedPnl,
   pnlBreakdown,
-  esmUlReviewLabel,
+  advisorLabel,
   esmBridge,
   onDetail,
   onStopTrade,
@@ -183,7 +182,8 @@ function JournalTradeRow({
   markPrice?: number;
   unrealizedPnl?: number | null;
   pnlBreakdown?: JournalPnlBreakdown;
-  esmUlReviewLabel?: string;
+  /** Per-entry Position Advisor label (OPEN); omitted → ESM fallback. */
+  advisorLabel?: string;
   esmBridge: EsmBridgeState;
   onDetail?: (entry: AiTradeJournalEntry) => void;
   onStopTrade?: (entry: AiTradeJournalEntry) => void;
@@ -233,12 +233,20 @@ function JournalTradeRow({
         : COLORS.bearish;
 
   const esmSnapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
-  const ulReview = resolveJournalUlReviewRecommendation(entry, esmSnapshot);
-  const ulExplanation = resolveJournalUlReviewExplanation(entry, esmSnapshot);
+  const advisorById =
+    advisorLabel != null && advisorLabel.trim() !== ''
+      ? { [entry.id]: advisorLabel }
+      : undefined;
+  const displayRec = resolveJournalActiveTradeRecommendation(
+    entry,
+    esmSnapshot,
+    advisorById,
+  );
   const recommendation =
-    esmUlReviewLabel ??
-    (ulReview.label === 'Closed' ? vi.ulAnalytics.insightsScreen.closed : ulReview.label);
-  const toneKey = resolveJournalUlReviewRecommendationColor(ulReview.tone);
+    displayRec.label === 'Closed'
+      ? vi.ulAnalytics.insightsScreen.closed
+      : displayRec.label;
+  const toneKey = resolveJournalUlReviewRecommendationColor(displayRec.tone);
   const recommendationColor =
     toneKey === 'close'
       ? COLORS.bearish
@@ -268,8 +276,7 @@ function JournalTradeRow({
         recommendationColor={recommendationColor}
         hintBadge={null}
         width={COL.recommendation}
-        tooltipLines={ulReview.tooltipLines}
-        explanationPanel={ulExplanation}
+        tooltipLines={displayRec.tooltipLines}
       />
       <Text style={[styles.cell, { width: COL.entry }]} numberOfLines={1}>
         {formatUsdPrice(sym, entry.market.entryPrice)}
@@ -353,21 +360,21 @@ function journalRowPropsEqual(
     markPrice?: number;
     unrealizedPnl?: number | null;
     pnlBreakdown?: JournalPnlBreakdown;
-    esmUlReviewLabel?: string;
+    advisorLabel?: string;
   },
   next: {
     entry: AiTradeJournalEntry;
     markPrice?: number;
     unrealizedPnl?: number | null;
     pnlBreakdown?: JournalPnlBreakdown;
-    esmUlReviewLabel?: string;
+    advisorLabel?: string;
   },
 ): boolean {
   if (prev.entry.id !== next.entry.id) return false;
   if (prev.entry.outcome.status !== next.entry.outcome.status) return false;
   if (prev.markPrice !== next.markPrice) return false;
   if (prev.unrealizedPnl !== next.unrealizedPnl) return false;
-  if (prev.esmUlReviewLabel !== next.esmUlReviewLabel) return false;
+  if (prev.advisorLabel !== next.advisorLabel) return false;
   const p = prev.pnlBreakdown;
   const n = next.pnlBreakdown;
   if (p?.totalPnl !== n?.totalPnl) return false;
@@ -413,16 +420,6 @@ export function JournalTradeTable({
     return entries.slice(start, start + pageSize);
   }, [entries, paginated, safePage, pageSize]);
 
-  const esmUlReviewById = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const entry of entries) {
-      const snapshot = getEsmSnapshotForSymbol(esmBridge, entry.symbol);
-      const raw = resolveJournalUlReviewRecommendation(entry, snapshot).label;
-      map[entry.id] = raw === 'Closed' ? vi.ulAnalytics.insightsScreen.closed : raw;
-    }
-    return map;
-  }, [entries, esmBridge]);
-
   if (entries.length === 0) return null;
 
   return (
@@ -436,7 +433,7 @@ export function JournalTradeTable({
               markPrice={resolveJournalLiveMark(markBySymbol, entry.symbol)}
               unrealizedPnl={unrealizedById[entry.id] ?? null}
               pnlBreakdown={pnlBreakdownById?.[entry.id]}
-              esmUlReviewLabel={esmUlReviewById[entry.id]}
+              advisorLabel={advisorLabelById?.[entry.id]}
               esmBridge={esmBridge}
               onDetail={onDetail}
               onStopTrade={onStopTrade}
@@ -468,7 +465,7 @@ export function JournalTradeTable({
               markPrice={resolveJournalLiveMark(markBySymbol, entry.symbol)}
               unrealizedPnl={unrealizedById[entry.id] ?? null}
               pnlBreakdown={pnlBreakdownById?.[entry.id]}
-              esmUlReviewLabel={esmUlReviewById[entry.id]}
+              advisorLabel={advisorLabelById?.[entry.id]}
               esmBridge={esmBridge}
               onDetail={onDetail}
               onStopTrade={onStopTrade}
