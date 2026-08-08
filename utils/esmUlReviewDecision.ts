@@ -8,6 +8,7 @@
  */
 
 import { SCORER_MAX_TOTAL_V2, type TradeDirection } from '../constants/scoring';
+import { isFixHardReasonLabelingEnabled } from '../config/featureFlags';
 import { ACTION_POLICY } from '../services/entryStateManager/actionPolicy';
 import { EntryActionType } from '../services/entryStateManager/actionTypes';
 import type { ProductionEsmBridgeSnapshot } from '../services/productionEsmBridge/productionEsmBridgeTypes';
@@ -214,7 +215,12 @@ function collectScanWarningFactors(scan: ProductionEsmScanContext): string[] {
   pushFriendly(raw, scan.ambiguousMessage);
 
   if (scan.hardBlocked) {
-    pushFriendly(raw, 'Hard block active on scan');
+    pushFriendly(
+      raw,
+      isFixHardReasonLabelingEnabled()
+        ? 'Entry block active on scan'
+        : 'Hard block active on scan',
+    );
   }
 
   return dedupeLines(raw);

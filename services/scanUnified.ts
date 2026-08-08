@@ -9,6 +9,7 @@ import {
 import type { SignalRow } from './signalBoardScan';
 import { loadPersistedSignalBoard } from './signalBoardPersist';
 import { resolveSignalRow } from './signalRowView';
+import { resolveSnapEntryBlocked } from './entryBlockedLabeling';
 import { computeEntryQuality } from './v41/entryQualityEngine';
 import { NEUTRAL_PROTECTION } from './v41/protectionLayer';
 import type { SignalRowV41 } from './v41/scanV41';
@@ -32,9 +33,11 @@ function enrichV4RowForUnified(row: SignalRow): SignalRowWithDirSnapshots {
   const awaiting = snap.awaitingRescore === true;
 
   const longHardBlocked =
-    (snap.longHardBlocks?.length ?? 0) > 0 || (snap.direction === 'LONG' && snap.hardBlocked);
+    (snap.longHardBlocks?.length ?? 0) > 0 ||
+    (snap.direction === 'LONG' && resolveSnapEntryBlocked(snap));
   const shortHardBlocked =
-    (snap.shortHardBlocks?.length ?? 0) > 0 || (snap.direction === 'SHORT' && snap.hardBlocked);
+    (snap.shortHardBlocks?.length ?? 0) > 0 ||
+    (snap.direction === 'SHORT' && resolveSnapEntryBlocked(snap));
   const longGroupBlocked = (snap.longGroupBlocks?.length ?? 0) > 0;
   const shortGroupBlocked = (snap.shortGroupBlocks?.length ?? 0) > 0;
 

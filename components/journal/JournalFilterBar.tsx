@@ -7,7 +7,14 @@ const webPointer = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : {}
 
 export type JournalStatusFilter = 'ALL' | 'OPEN' | 'PENDING' | 'WIN' | 'LOSS' | 'CLOSED';
 
-const SYMBOLS: Array<AppTradeSymbol | 'ALL'> = ['ALL', 'NEARUSDT', 'SOLUSDT', 'BNBUSDT', 'BTCUSDT'];
+const SYMBOLS: Array<AppTradeSymbol | 'ALL'> = [
+  'ALL',
+  'NEARUSDT',
+  'SOLUSDT',
+  'BNBUSDT',
+  'BTCUSDT',
+  'XRPUSDT',
+];
 const STATUS_OPTIONS: Array<{ id: JournalStatusFilter; label: string }> = [
   { id: 'ALL', label: 'Tất cả' },
   { id: 'OPEN', label: 'Đang mở' },

@@ -19,5 +19,17 @@ export default defineConfig({
     alias: {
       'react-native': path.resolve(__dirname, 'node_modules/react-native-web'),
     },
+    // Expo platform files (*.web.ts / *.native.ts) — prefer web under jsdom vitest.
+    extensions: [
+      '.web.tsx',
+      '.web.ts',
+      '.tsx',
+      '.ts',
+      '.web.jsx',
+      '.web.js',
+      '.jsx',
+      '.js',
+      '.json',
+    ],
   },
 });

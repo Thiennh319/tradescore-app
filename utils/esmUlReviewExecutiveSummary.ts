@@ -9,6 +9,7 @@
 
 import type { LayerResult } from '../constants/scoring';
 import type { TradeDirection } from '../constants/scoring';
+import { isFixHardReasonLabelingEnabled } from '../config/featureFlags';
 import type { ProductionEsmBridgeSnapshot } from '../services/productionEsmBridge/productionEsmBridgeTypes';
 import type { ProductionEsmScanContext } from '../services/productionEsmBridge/signalRowScanContext';
 import { StateMachineEntryState } from '../services/entryStateManager';
@@ -49,7 +50,8 @@ function normalizeKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-function capitalizeSentence(value: string): string {
+function capitalizeSentence(value: string | null | undefined): string {
+  if (typeof value !== 'string') return '';
   const trimmed = value.trim();
   if (!trimmed) return trimmed;
   return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
@@ -545,7 +547,11 @@ function collectAdvancedDiagnostics(
     lines.push(`Can enter: ${scan.canEnter ? 'yes' : 'no'}`);
     if (scan.winrate) lines.push(`Winrate: ${scan.winrate}`);
     if (scan.finalEntryStatus) lines.push(`Entry status: ${scan.finalEntryStatus}`);
-    if (scan.hardBlocked) lines.push('Hard blocked: yes');
+    if (scan.hardBlocked) {
+      lines.push(
+        isFixHardReasonLabelingEnabled() ? 'Entry blocked: yes' : 'Hard blocked: yes',
+      );
+    }
 
     if (scan.layers.length > 0) {
       lines.push('— Layer diagnostics —');

@@ -32,6 +32,10 @@ import {
 } from './binanceApi';
 import { publishScanMarketSnapshot } from './scanMarketSnapshotStore';
 import {
+  applyEntryBlockedFields,
+  resolveSnapEntryBlocked,
+} from './entryBlockedLabeling';
+import {
   fetchBtcChange24hPct,
   MARKET_KLINE_LIMIT,
   MARKET_KLINE_LIMIT_MTF,
@@ -145,7 +149,16 @@ export interface SignalRowScorerSnapshot {
   /** Layers hướng V3 gợi ý lúc quét — UI chi tiết */
   layers: LayerResult[];
   mandatoryViolations: string[];
+  /**
+   * Legacy name. Same OR as entryBlocked when FIX_HARD_REASON_LABELING is ON
+   * (hardBlocks.length>0 || groupBlocks.length>0). Prefer resolveSnapEntryBlocked().
+   */
   hardBlocked: boolean;
+  /**
+   * Preferred when FIX_HARD_REASON_LABELING ON — same boolean as hardBlocked
+   * (rename only; entry gate formula unchanged).
+   */
+  entryBlocked?: boolean;
   marketMode?: 'TRENDING' | 'RANGING';
   groupScores?: { A: number; B: number; C: number };
   groupBlocks?: string[];
@@ -474,6 +487,8 @@ export interface SignalRow {
   layers: LayerResult[];
   mandatoryViolations: string[];
   hardBlocked: boolean;
+  /** Present when FIX_HARD_REASON_LABELING ON — mirrors hardBlocked (rename only). */
+  entryBlocked?: boolean;
   fromCache: boolean;
   /** Kế hoạch LONG/SHORT từ bundle — dùng tối ưu SL/TP lệnh đang mở */
   tradePlans?: Partial<Record<TradeDirection, TradePlan>>;
@@ -535,7 +550,7 @@ function errorRow(symbol: AppTradeSymbol, message: string): SignalRow {
     tradePlanV3: null,
     layers: [],
     mandatoryViolations: [],
-    hardBlocked: true,
+    ...applyEntryBlockedFields(true),
     fromCache: false,
     error: message,
   };
@@ -547,6 +562,8 @@ function snapshotFromV3(
 ): SignalRowScorerSnapshot {
   const active = direction === 'LONG' ? scoringV3.long : scoringV3.short;
   const violations = [...active.hardBlocks, ...active.groupBlocks];
+  const blocked =
+    active.hardBlocks.length > 0 || active.groupBlocks.length > 0;
   return {
     score: active.totalScore,
     longScore: scoringV3.long.totalScore,
@@ -558,7 +575,7 @@ function snapshotFromV3(
     canEnter: canEnterV3(active),
     layers: scoringLayersToDisplayV3(active.layers),
     mandatoryViolations: violations,
-    hardBlocked: active.hardBlocks.length > 0 || active.groupBlocks.length > 0,
+    ...applyEntryBlockedFields(blocked),
     marketMode: scoringV3.marketMode,
     groupScores: active.groupScores,
     groupBlocks: active.groupBlocks,
@@ -587,6 +604,8 @@ function snapshotFromV4(
     ...active.blockReasons,
     ...active.groupBlocks,
   ];
+  const blocked =
+    active.hardBlocks.length > 0 || active.groupBlocks.length > 0;
   return {
     score: displayScore,
     longScore: scoringV4.long.officialTotalScore ?? scoringV4.long.referenceTotalScore,
@@ -598,7 +617,7 @@ function snapshotFromV4(
     canEnter: canEnterV4(active),
     layers: scoringLayersToDisplayV4(active.layers),
     mandatoryViolations: violations,
-    hardBlocked: active.hardBlocks.length > 0 || active.groupBlocks.length > 0,
+    ...applyEntryBlockedFields(blocked),
     marketMode: scoringV4.marketMode,
     groupScores: active.groupScores,
     groupBlocks: active.groupBlocks,
@@ -666,7 +685,8 @@ function applySnapshotToRow(row: SignalRow, snap: SignalRowScorerSnapshot): Sign
     canEnter: snap.canEnter,
     layers: snap.layers,
     mandatoryViolations: snap.mandatoryViolations,
-    hardBlocked: snap.hardBlocked,
+    hardBlocked: resolveSnapEntryBlocked(snap),
+    entryBlocked: snap.entryBlocked,
     finalEntryStatus: snap.finalEntryStatus,
     squeezeWarning: snap.squeezeWarning,
     isAmbiguousDirection: snap.isAmbiguousDirection,
@@ -704,7 +724,7 @@ function applyAdxBlockToSnapshot(snap: SignalRowScorerSnapshot): SignalRowScorer
   return {
     ...snap,
     canEnter: false,
-    hardBlocked: true,
+    ...applyEntryBlockedFields(true),
     finalEntryStatus: FinalEntryStatus.HARD_BLOCKED,
     mandatoryViolations: violations,
   };
@@ -1314,7 +1334,8 @@ export async function scanSignalSymbol(
       tradePlansByScorer: { v3: planV3Final, v4: planV4Final },
       layers: v4Final.layers,
       mandatoryViolations: v4Final.mandatoryViolations,
-      hardBlocked: v4Final.hardBlocked,
+      hardBlocked: resolveSnapEntryBlocked(v4Final),
+      entryBlocked: v4Final.entryBlocked,
       fromCache: market.fromCache,
       tradePlans: {
         LONG: longTradePlan ?? undefined,

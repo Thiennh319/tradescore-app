@@ -23,6 +23,11 @@ Write-Host ''
 
 Push-Location $ProjectRoot
 try {
+    Write-Host '[0/3] Stamp buildDate (Asia/Ho_Chi_Minh)...' -ForegroundColor Cyan
+    # Must run BEFORE expo export so constants/buildDate.generated.ts is baked into the bundle.
+    & node (Join-Path $ProjectRoot 'scripts/stamp-build-date.mjs')
+    if ($LASTEXITCODE -ne 0) { throw 'stamp-build-date failed' }
+
     Write-Host '[1/3] Export web (Expo)...' -ForegroundColor Cyan
     # UL-04.2: enable ESM / UL Review in packaged web EXE (__DEV__ is false in release bundle).
     # Expo only inlines EXPO_PUBLIC_* from .env files — shell $env alone is not baked into the bundle.

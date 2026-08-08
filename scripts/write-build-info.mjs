@@ -1,10 +1,18 @@
 /**
  * BUILD_INFO dong bo EXE + APK — cung parity constants, cung test count.
  * Usage: node scripts/write-build-info.mjs exe|apk <output-path>
+ *
+ * buildDate + dòng Build: dùng Asia/Ho_Chi_Minh (cùng helper với stamp-build-date).
+ * Mỗi lần chạy cũng stamp lại constants/buildDate.generated.ts để khớp in-app.
  */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  getBuildDateYmd,
+  getBuildTimestampLocal,
+  writeBuildDateGenerated,
+} from './lib/buildDateStamp.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -24,8 +32,11 @@ if (!platform || !outPath || !['exe', 'apk'].includes(platform)) {
   process.exit(1);
 }
 
-const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
-const BUILD_DATE = '2026-08-02';
+const now = new Date();
+const ts = getBuildTimestampLocal(now);
+const BUILD_DATE = getBuildDateYmd(now);
+writeBuildDateGenerated(root, BUILD_DATE);
+
 const VERSION_LABEL = `v${appVersion}`;
 const TEST_COUNT = 2374;
 
@@ -95,3 +106,4 @@ ${parity}`,
 fs.mkdirSync(path.dirname(path.resolve(outPath)), { recursive: true });
 fs.writeFileSync(path.resolve(outPath), bodies[platform], 'utf8');
 console.log('BUILD_INFO:', path.resolve(outPath));
+console.log('buildDate:', BUILD_DATE, '| Build:', ts);

@@ -34,6 +34,12 @@ const MAX_HOLD_1H = 80;
 const QUARTER_DAYS = 91;
 const N_QUARTERS = 4;
 
+/**
+ * Pin eval end to SOL-3 window so Task 3 clean baseline is comparable
+ * (not rolling Date.now()).
+ */
+const EVAL_END_MS = Date.parse('2026-08-08T04:32:23.655Z');
+
 /** Production NEAR Confirm B (buildBreakoutRc3Card). */
 const LOOKBACK_N = 20;
 const MAX_WIDTH_PCT = 5;
@@ -43,21 +49,22 @@ const FEE_ROUND_TRIP_PCT = 0.08;
 const SLIP_ROUND_TRIP_PCT = 0.1;
 const COST_ROUND_TRIP_PCT = FEE_ROUND_TRIP_PCT + SLIP_ROUND_TRIP_PCT;
 
+/** Task 3 clean artefacts (do not overwrite buggy SOL-3 baselines). */
 const OUT_CSV = path.resolve(
   __dirname,
-  '../docs/exports/v41-sol-breakout-365d-quarterly.csv',
+  '../docs/exports/v41-sol-4-breakout-365d-quarterly-clean.csv',
 );
 const OUT_TRADES = path.resolve(
   __dirname,
-  '../docs/exports/v41-sol-breakout-365d-quarterly-trades.csv',
+  '../docs/exports/v41-sol-4-breakout-365d-quarterly-clean-trades.csv',
 );
 const OUT_JSON = path.resolve(
   __dirname,
-  '../docs/exports/v41-sol-breakout-365d-quarterly-summary.json',
+  '../docs/exports/v41-sol-4-breakout-365d-quarterly-clean-summary.json',
 );
 const OUT_MD = path.resolve(
   __dirname,
-  `../docs/exports/REPORT_V41_SOL_3_BASELINE_BREAKOUT_365D_QUARTERLY_${DATE}.md`,
+  `../docs/exports/REPORT_V41_SOL_4_TASK3_CLEAN_BASELINE_${DATE}.md`,
 );
 const TR_SUMMARY = path.resolve(
   __dirname,
@@ -307,14 +314,15 @@ function simulate(
 }
 
 async function main(): Promise<void> {
-  const endMs = Date.now();
+  const endMs = EVAL_END_MS;
   const evalStart = endMs - DAYS * 24 * MS_1H;
   const midMs = evalStart + (DAYS / 2) * 24 * MS_1H;
   const fetchStart1h = evalStart - WARMUP_1H * MS_1H;
 
-  console.log(`[sol3] fetching ${SYMBOL} 1H ${DAYS}d…`);
+  console.log(`[sol4-t3] fetching ${SYMBOL} 1H ${DAYS}d…`);
+  console.log(`[sol4-t3] window ${new Date(evalStart).toISOString()} → ${new Date(endMs).toISOString()}`);
   const klines1h = await fetchKlines(SYMBOL, fetchStart1h, endMs);
-  console.log(`[sol3] 1h=${klines1h.length}`);
+  console.log(`[sol4-t3] 1h=${klines1h.length}`);
 
   const setups = scanBreakoutSetups({
     klines1H: klines1h,
@@ -331,14 +339,14 @@ async function main(): Promise<void> {
     dedupeByBrokenLevel: true,
     maxHoldBarsForLevelDedupe: MAX_HOLD_1H,
   });
-  console.log(`[sol3] Confirm B setups=${setups.length}`);
+  console.log(`[sol4-t3] Confirm B setups (deduped)=${setups.length}`);
 
   const idxByOpen = new Map(klines1h.map((k, i) => [k.openTime, i]));
   const trades = setups.map((s) => simulate(s, idxByOpen, klines1h, evalStart, midMs));
 
   const slices: SliceStats[] = [sliceStats('FULL_365d', trades, evalStart, endMs)];
   console.log(
-    `[sol3] FULL n=${slices[0]!.n_active} WR=${fmt(slices[0]!.wr)}% E[R]=${fmt(slices[0]!.e_r_before, 3)}→${fmt(slices[0]!.e_r_after, 3)} (${slices[0]!.sign})`,
+    `[sol4-t3] FULL n=${slices[0]!.n_active} WR=${fmt(slices[0]!.wr)}% E[R]=${fmt(slices[0]!.e_r_before, 3)}→${fmt(slices[0]!.e_r_after, 3)} (${slices[0]!.sign})`,
   );
 
   for (let q = 0; q < N_QUARTERS; q++) {
@@ -353,7 +361,7 @@ async function main(): Promise<void> {
     const st = sliceStats(`Q${q + 1}`, sub, qStart, qEnd);
     slices.push(st);
     console.log(
-      `[sol3] Q${q + 1} n=${st.n_active} decided=${st.n_decided} WR=${fmt(st.wr)}% E[R]=${fmt(st.e_r_after, 3)} (${st.sign})`,
+      `[sol4-t3] Q${q + 1} n=${st.n_active} decided=${st.n_decided} WR=${fmt(st.wr)}% E[R]=${fmt(st.e_r_after, 3)} (${st.sign})`,
     );
   }
 
@@ -364,7 +372,7 @@ async function main(): Promise<void> {
     const st = sliceStats(half, sub, start, end);
     slices.push(st);
     console.log(
-      `[sol3] ${half} n=${st.n_active} WR=${fmt(st.wr)}% E[R]=${fmt(st.e_r_after, 3)} (${st.sign})`,
+      `[sol4-t3] ${half} n=${st.n_active} WR=${fmt(st.wr)}% E[R]=${fmt(st.e_r_after, 3)} (${st.sign})`,
     );
   }
 
@@ -375,11 +383,12 @@ async function main(): Promise<void> {
   }
 
   const summary = {
-    task: 'V41-SOL-3',
+    task: 'V41-SOL-4-Task3',
     date: DATE,
     symbol: SYMBOL,
     days: DAYS,
     strategy: 'breakout_confirm_b',
+    dedupe_by_broken_level: true,
     eval_start_iso: new Date(evalStart).toISOString(),
     eval_end_iso: new Date(endMs).toISOString(),
     config: {
@@ -396,7 +405,8 @@ async function main(): Promise<void> {
       max_hold_1h: MAX_HOLD_1H,
       quarter_days: QUARTER_DAYS,
       cost_round_trip_pct: COST_ROUND_TRIP_PCT,
-      note: 'Params match production NEAR buildBreakoutRc3Card; momentum ≥2 via detector',
+      dedupe_by_broken_level: true,
+      note: 'NEAR production params + Task1 level-occupancy dedupe (clean baseline for Task4)',
     },
     full,
     slices,
@@ -483,17 +493,17 @@ async function main(): Promise<void> {
   const trSlices = tr.slices ?? [];
 
   const md: string[] = [];
-  md.push('# Task V41-SOL-3 — Baseline Breakout — SOL 365d (NEAR Default Params)');
+  md.push('# Task V41-SOL-4 / Task3 — Clean Breakout Baseline — SOL 365d');
   md.push('');
   md.push(`**Date:** ${DATE}`);
   md.push(
-    `**Symbol:** ${SYMBOL} · Confirm B retest · NEAR production params · ${DAYS}d`,
+    `**Symbol:** ${SYMBOL} · Confirm B retest · NEAR params + level-occupancy dedupe · ${DAYS}d`,
   );
   md.push(
     `**Window:** ${new Date(evalStart).toISOString()} → ${new Date(endMs).toISOString()}`,
   );
   md.push(
-    `**Cost:** fee ${FEE_ROUND_TRIP_PCT}% + slip ${SLIP_ROUND_TRIP_PCT}% = **${COST_ROUND_TRIP_PCT}%** RT · **no BTC filter**`,
+    `**Cost:** fee ${FEE_ROUND_TRIP_PCT}% + slip ${SLIP_ROUND_TRIP_PCT}% = **${COST_ROUND_TRIP_PCT}%** RT · **no BTC filter** · **dedupeByBrokenLevel=true**`,
   );
   md.push('');
   md.push('## Config (NEAR production defaults)');
@@ -510,8 +520,9 @@ async function main(): Promise<void> {
   md.push('| slMode | atr_break_level |');
   md.push('| requireStrongBreakout | false |');
   md.push(`| MAX_HOLD_1H | ${MAX_HOLD_1H} |`);
+  md.push('| dedupeByBrokenLevel | true (occupancy-B) |');
   md.push('');
-  md.push('## FULL 365d — Breakout');
+  md.push('## FULL 365d — Breakout (clean)');
   md.push('');
   md.push('| Metric | Value |');
   md.push('|---|---|');
@@ -584,22 +595,25 @@ async function main(): Promise<void> {
   md.push('');
   md.push('## Artefacts');
   md.push('');
-  md.push('- `docs/exports/v41-sol-breakout-365d-quarterly.csv`');
-  md.push('- `docs/exports/v41-sol-breakout-365d-quarterly-trades.csv`');
-  md.push('- `docs/exports/v41-sol-breakout-365d-quarterly-summary.json`');
+  md.push('- `docs/exports/v41-sol-4-breakout-365d-quarterly-clean.csv`');
+  md.push('- `docs/exports/v41-sol-4-breakout-365d-quarterly-clean-trades.csv`');
+  md.push('- `docs/exports/v41-sol-4-breakout-365d-quarterly-clean-summary.json`');
   md.push('- `scripts/backtest-v41-sol-breakout-365d-quarterly.ts`');
   md.push('');
   md.push('## Việc còn lại');
   md.push('');
-  md.push('1. Nếu breakout mặc định chưa thắng rõ → sweep params riêng SOL (task sau).');
-  md.push('2. Nếu thắng ổn định OOS → xét allow-list SOL breakout (production wire).');
+  md.push('1. Task 4: sweep params — combo mới không được có E[R] sau phí thấp hơn baseline sạch này.');
+  md.push('2. Nếu sweep thắng ổn định OOS → xét allow-list SOL breakout (production wire).');
   md.push('');
   md.push('## Task ID');
   md.push('');
-  md.push('**V41-SOL-3**');
+  md.push('**V41-SOL-4-Task3**');
 
   fs.writeFileSync(OUT_MD, md.join('\n') + '\n', 'utf8');
-  console.log(`[sol3] wrote ${OUT_MD}`);
+  console.log(`[sol4-t3] wrote ${OUT_MD}`);
+  console.log(`[sol4-t3] wrote ${OUT_CSV}`);
+  console.log(`[sol4-t3] wrote ${OUT_TRADES}`);
+  console.log(`[sol4-t3] wrote ${OUT_JSON}`);
 }
 
 main().catch((e) => {

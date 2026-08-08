@@ -6,6 +6,7 @@ export const PRICE_DECIMALS: Record<AppTradeSymbol, number> = {
   NEARUSDT: 3,
   SOLUSDT: 2,
   BNBUSDT: 2,
+  XRPUSDT: 4,
 };
 
 /** Luôn dùng en-US khi hiển thị số — tránh "6,00" bị parse thành 600 trên máy VN. */

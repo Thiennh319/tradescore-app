@@ -850,6 +850,7 @@ export default function App() {
               />
             )}
             {signalBoardTab === 'v4' ? (
+              <ErrorBoundary scope="SignalBoard-V3V4" fallbackTitle="Lỗi bảng tín hiệu (sau scan)">
               <SignalBoard
                 rows={signalBoard.rows}
                 loading={signalBoard.loading}
@@ -875,6 +876,7 @@ export default function App() {
                 }
                 lockedPlanMonitor={lockedPlanMonitor}
               />
+              </ErrorBoundary>
             ) : signalBoardTab === 'v41' ? (
               <V41BoardRC3
                 cards={v41Cards}

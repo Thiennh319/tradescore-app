@@ -13,6 +13,8 @@ import {
   tryRetestBreakoutSetup,
   type BreakoutTradeLevels,
   brokenLevelsMatch,
+  resolveBreakoutExit,
+  BREAKOUT_EXIT_OPEN_SENTINEL,
 } from '../breakoutDetector';
 
 function k(
@@ -479,6 +481,55 @@ describe('dedupeBreakoutSetupsByBrokenLevel (V41-SOL-4 Task1)', () => {
     const kept = dedupeBreakoutSetupsByBrokenLevel(setups, {
       resolveExitOpenTime: (s) =>
         s.activeOpenTime === active1 ? exit1 : s.activeOpenTime + 10 * 3_600_000,
+    });
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.activeOpenTime).toBe(active1);
+  });
+
+  it('keeps level occupied when klines truncate before exit (live / no future data)', () => {
+    // Head active; series ends after only 3 forward bars with no TP/SL touch.
+    // (Bug before 1c: falsely TIMEOUT at last bar — ambiguous. Now OPEN + ∞.)
+    const t0 = Date.parse('2026-05-01T00:00:00.000Z');
+    const active1 = t0;
+    const later = active1 + 2 * 3_600_000;
+    const head = mockSetup({
+      side: 'LONG',
+      entry: 100,
+      rangeHigh: 100,
+      rangeLow: 95,
+      breakoutOpenTime: t0 - 3_600_000,
+      activeOpenTime: active1,
+      sl: 90, // far — will not hit on flat bars
+      tp1: 120,
+    });
+    const candidate = mockSetup({
+      side: 'LONG',
+      entry: 100.1,
+      rangeHigh: 100.1, // within ±0.5%
+      rangeLow: 95.2,
+      breakoutOpenTime: active1 + 3_600_000,
+      activeOpenTime: later,
+      sl: 90,
+      tp1: 120,
+    });
+
+    const shortSeries: KlineV41[] = [];
+    for (let i = 0; i <= 3; i++) {
+      const ot = active1 + i * 3_600_000;
+      shortSeries.push(k(ot, 100, 101, 99, 100.2)); // never reaches TP 120 / SL 90
+    }
+
+    const exit = resolveBreakoutExit({
+      setup: head,
+      klines1H: shortSeries,
+      maxHoldBars1H: 80,
+    });
+    expect(exit.outcome).toBe('OPEN');
+    expect(exit.exitOpenTime).toBe(BREAKOUT_EXIT_OPEN_SENTINEL);
+
+    const kept = dedupeBreakoutSetupsByBrokenLevel([head, candidate], {
+      klines1H: shortSeries,
+      maxHoldBars1H: 80,
     });
     expect(kept).toHaveLength(1);
     expect(kept[0]!.activeOpenTime).toBe(active1);

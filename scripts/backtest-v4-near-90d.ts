@@ -72,6 +72,8 @@ const SYMBOL_ALIASES: Record<string, AppTradeSymbol> = {
   BNBUSDT: 'BNBUSDT',
   NEAR: 'NEARUSDT',
   NEARUSDT: 'NEARUSDT',
+  XRP: 'XRPUSDT',
+  XRPUSDT: 'XRPUSDT',
 };
 
 function parseSymbol(raw: string): AppTradeSymbol {
@@ -79,7 +81,7 @@ function parseSymbol(raw: string): AppTradeSymbol {
   const sym = SYMBOL_ALIASES[key];
   if (!sym) {
     throw new Error(
-      `Unknown --symbol ${raw}. Use BTC|SOL|BNB|NEAR (or *USDT).`,
+      `Unknown --symbol ${raw}. Use BTC|SOL|BNB|NEAR|XRP (or *USDT).`,
     );
   }
   return sym;
@@ -91,7 +93,7 @@ function parseSymbol(raw: string): AppTradeSymbol {
  * threshold khác → cùng hysteresis 2-scan, chỉ đổi ngưỡng `|Δ| < thr`
  * (không sửa `directionAmbiguity.ts` khi sweep).
  */
-function resolveAmbiguityAtThreshold(
+export function resolveAmbiguityAtThreshold(
   longScore: number,
   shortScore: number,
   previousState: AmbiguityState | null,
@@ -431,11 +433,11 @@ async function fetchLsHist(symbol: string, limitPerPage = 500): Promise<LsPoint[
   return [...byTs.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
 
-function sliceUpTo(klines: Kline[], openTime: number): Kline[] {
+export function sliceUpTo(klines: Kline[], openTime: number): Kline[] {
   return klines.filter((k) => k.openTime <= openTime);
 }
 
-function hourVnFromMs(ms: number): number {
+export function hourVnFromMs(ms: number): number {
   const d = new Date(ms);
   const utc = d.getUTCHours() + d.getUTCMinutes() / 60;
   let vn = utc + 7;
@@ -465,7 +467,7 @@ function fundingUpTo(
 }
 
 /** Mock Date.now / new Date() theo simMs — để L9 + plan expiry dùng giờ lịch sử. */
-function withSimulatedNow<T>(simMs: number, fn: () => T): T {
+export function withSimulatedNow<T>(simMs: number, fn: () => T): T {
   const OriginalDate = globalThis.Date;
   function MockDate(this: Date, ...args: unknown[]) {
     if (args.length === 0) {
@@ -498,7 +500,7 @@ function withSimulatedNow<T>(simMs: number, fn: () => T): T {
   }
 }
 
-function buildInput(params: {
+export function buildInput(params: {
   symbol: AppTradeSymbol;
   near1h: Kline[];
   near4h: Kline[];
@@ -632,7 +634,7 @@ function layerScore(d: DirectionalScoreV4, n: number): number {
   return d.rawLayerScores[n] ?? 0;
 }
 
-function simulateExit(params: {
+export function simulateExit(params: {
   side: 'LONG' | 'SHORT';
   entryPrice: number;
   sl: number;
@@ -688,7 +690,7 @@ function simulateExit(params: {
   };
 }
 
-function pnlPct(
+export function pnlPct(
   side: 'LONG' | 'SHORT',
   entry: number,
   exit: number,
@@ -699,7 +701,7 @@ function pnlPct(
     : ((entry - exit) / entry) * 100;
 }
 
-function resultR(
+export function resultR(
   side: 'LONG' | 'SHORT',
   entry: number,
   exit: number,
@@ -1855,7 +1857,7 @@ export async function runNearV4Backtest(
   });
 }
 
-export { computeStats, fmt, main, writeCsv };
+export { computeStats, fmt, main, writeCsv, DEFAULT_AMBIGUITY_THRESHOLD, WARMUP_1H, MAX_HOLD_BARS_FALLBACK, OI_LS_MAX_STALE_MS, hasFreshPoint, lookupNearestBefore };
 export type { TradeRow, Stats };
 
 const isDirectRun =

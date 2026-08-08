@@ -28,7 +28,7 @@ import {
 import { PANEL, RADIUS, SPACING } from '../../constants/theme';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import type { StrategySource } from '../../constants/aiJournal';
-import { symbolLabelVi, vi } from '../../constants/vi';
+import { symbolIconChar, symbolLabelVi, vi } from '../../constants/vi';
 import type { SignalRow } from '../../hooks/useSignalBoard';
 import {
   resolveFinalEntryStatus,
@@ -36,12 +36,17 @@ import {
   resolveTradePlanV3,
 } from '../../services/signalRowView';
 import {
+  collectGroupBlockReasons,
   collectHardBlockReasons,
+  collectScoreSoftBlockReasons,
   resolveFinalEntryDecision,
   type HardBlockSnapInput,
 } from '../../services/tradePlanDisplay';
 import { FinalEntryStatus } from '../../types/scoring';
 import { calculateFinalEntryStatus, resolveFinalEntryDisplay } from '../../services/finalEntryStatus';
+import { isFixHardReasonLabelingEnabled } from '../../config/featureFlags';
+import { resolveSnapEntryBlocked } from '../../services/entryBlockedLabeling';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { FinalEntryBadge } from '../FinalEntryBadge';
 import { GroupScoreBar } from '../GroupScoreBar';
 import { AdxMarketRegimeSection } from './AdxMarketRegimeSection';
@@ -162,6 +167,7 @@ const SYMBOL_COLORS: Record<string, string> = {
   NEARUSDT: '#00C08B',
   SOLUSDT: '#9945FF',
   BNBUSDT: '#F0B90B',
+  XRPUSDT: '#23292F',
 };
 
 const DECISION_COLOR: Record<TradeDecisionLabel, string> = {
@@ -464,7 +470,7 @@ function hasAnyHardBlock(
 ): boolean {
   return (
     row.adxGate?.block === true ||
-    snap.hardBlocked === true ||
+    resolveSnapEntryBlocked(snap) ||
     blockReasons.length > 0
   );
 }
@@ -1040,25 +1046,30 @@ export function SignalBoard({
           {rows.length === 0 && loading
             ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
             : rows.map((row) => (
-                <SignalCard
+                <ErrorBoundary
                   key={row.symbol}
-                  row={row}
-                  btcChange24h={
-                    rows.find((r) => r.symbol === 'BTCUSDT')?.change24h ?? 0
-                  }
-                  scorerVersion={scorerVersion}
-                  boardStrategySource={boardStrategySource}
-                  lockedPlanOverlay={lockedPlanOverlay}
-                  showPlan={planSymbol === row.symbol}
-                  onShowPlan={() => setPlanSymbol(row.symbol)}
-                  onHidePlan={() => setPlanSymbol(null)}
-                  onOpenPosition={onOpenPosition}
-                  onRequestConfirmTrade={onRequestConfirmTrade}
-                  onRequestPendingOrder={onRequestPendingOrder}
-                  onPendingOrder={onPendingOrder}
-                  onRecordSkippedSetup={onRecordSkippedSetup}
-                  lockedPlanMonitor={lockedPlanMonitor}
-                />
+                  scope={`SignalCard:${row.symbol}`}
+                  fallbackTitle={`Lỗi hiển thị ${row.symbol}`}
+                >
+                  <SignalCard
+                    row={row}
+                    btcChange24h={
+                      rows.find((r) => r.symbol === 'BTCUSDT')?.change24h ?? 0
+                    }
+                    scorerVersion={scorerVersion}
+                    boardStrategySource={boardStrategySource}
+                    lockedPlanOverlay={lockedPlanOverlay}
+                    showPlan={planSymbol === row.symbol}
+                    onShowPlan={() => setPlanSymbol(row.symbol)}
+                    onHidePlan={() => setPlanSymbol(null)}
+                    onOpenPosition={onOpenPosition}
+                    onRequestConfirmTrade={onRequestConfirmTrade}
+                    onRequestPendingOrder={onRequestPendingOrder}
+                    onPendingOrder={onPendingOrder}
+                    onRecordSkippedSetup={onRecordSkippedSetup}
+                    lockedPlanMonitor={lockedPlanMonitor}
+                  />
+                </ErrorBoundary>
               ))}
         </View>
       </View>
@@ -1250,7 +1261,10 @@ function SignalCard({
     groupBlocks: snap.groupBlocks,
     longHardBlocks: snap.longHardBlocks,
     shortHardBlocks: snap.shortHardBlocks,
-    hardBlocked: snap.hardBlocked,
+    longBlockReasons: snap.longBlockReasons,
+    shortBlockReasons: snap.shortBlockReasons,
+    hardBlocked: resolveSnapEntryBlocked(snap),
+    entryBlocked: snap.entryBlocked,
     lockedPlanHealthStatus: lockedPlanForRow
       ? planForRow?.planHealth?.status
       : undefined,
@@ -1263,15 +1277,22 @@ function SignalCard({
     snap.direction === 'LONG'
       ? (snap.longHardBlocks ?? [])
       : (snap.shortHardBlocks ?? []);
-  const rawHardBlockReasons =
-    sideHardBlocks.length > 0
+  const rawHardBlockReasons = isFixHardReasonLabelingEnabled()
+    ? sideHardBlocks
+    : sideHardBlocks.length > 0
       ? sideHardBlocks
-      : !snap.hardBlocked
+      : !resolveSnapEntryBlocked(snap)
         ? []
         : snap.mandatoryViolations.filter(
             (v) => !(snap.groupBlocks ?? []).includes(v),
           );
   const hardBlockReasons = collectHardBlockReasons(hardBlockSnapInput);
+  const groupBlockReasonsForDisplay = isFixHardReasonLabelingEnabled()
+    ? collectGroupBlockReasons(hardBlockSnapInput)
+    : (snap.groupBlocks ?? []);
+  const softBlockReasonsForDisplay = isFixHardReasonLabelingEnabled()
+    ? collectScoreSoftBlockReasons(hardBlockSnapInput)
+    : [];
   const macdSuppressed =
     rawHardBlockReasons.some((reason) => reason.startsWith('L3 MACD vi phạm')) &&
     !hardBlockReasons.some((reason) => reason.startsWith('L3 MACD vi phạm'));
@@ -1303,7 +1324,7 @@ function SignalCard({
     hardBlockReasons: adxBlocked
       ? [row.adxGate?.message ?? row.adxBlockReason ?? 'ADX_CHOPPY', ...hardBlockReasons]
       : hardBlockReasons,
-    groupBlockReasons: snap.groupBlocks ?? [],
+    groupBlockReasons: groupBlockReasonsForDisplay,
   });
   const isAmbiguous = snap.isAmbiguousDirection === true;
   const cardBorderColor = isAmbiguous ? AMBIGUOUS_BORDER_COLOR : entryDisplay.borderColor;
@@ -1358,7 +1379,7 @@ function SignalCard({
       <View style={styles.cardTop}>
         <View style={styles.pairRow}>
           <View style={[styles.icon, { backgroundColor: iconColor }]}>
-            <Text style={styles.iconText}>{base.charAt(0)}</Text>
+            <Text style={styles.iconText}>{symbolIconChar(base)}</Text>
           </View>
           <View>
             <Text style={styles.pairText}>
@@ -1691,6 +1712,22 @@ function SignalCard({
                 <>
                   {activePlanV3 ? (
                     <>
+                      {isFixHardReasonLabelingEnabled() &&
+                      (groupBlockReasonsForDisplay.length > 0 ||
+                        softBlockReasonsForDisplay.length > 0) ? (
+                        <View style={{ gap: 4, marginBottom: 8 }}>
+                          {groupBlockReasonsForDisplay.map((r) => (
+                            <Text key={`g-${r}`} style={{ color: COLORS.warning, fontSize: 12 }}>
+                              Lý do chặn nhóm: {r}
+                            </Text>
+                          ))}
+                          {softBlockReasonsForDisplay.map((r) => (
+                            <Text key={`s-${r}`} style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                              Lý do điểm chưa đạt: {r}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
                       <TradePlanV3View
                         plan={activePlanV3}
                         finalDecision={finalDecision}

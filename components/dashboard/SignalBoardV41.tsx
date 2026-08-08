@@ -10,7 +10,7 @@ import {
 import { COLORS, type AppTradeSymbol, type SkipReason } from '../../constants/scoring';
 import { SCAN_INTERVAL_MS, SCAN_INTERVAL_SECONDS } from '../../constants/scanSchedule';
 import { PANEL, RADIUS, SPACING } from '../../constants/theme';
-import { symbolLabelVi } from '../../constants/vi';
+import { symbolIconChar, symbolLabelVi } from '../../constants/vi';
 import { fetch24hTickerChange, fetchTickerPrice } from '../../services/binanceApi';
 import {
   buildMarketSnapshot,
@@ -59,6 +59,7 @@ const SYMBOL_COLORS: Record<string, string> = {
   NEARUSDT: '#00C08B',
   SOLUSDT: '#9945FF',
   BNBUSDT: '#F0B90B',
+  XRPUSDT: '#23292F',
 };
 
 const CONFIDENCE_TIER_META: Record<ConfidenceTier, { label: string; color: string }> = {
@@ -597,7 +598,7 @@ function SignalCardV41({ row, quote }: SignalCardV41Props) {
       <View style={styles.cardTop}>
         <View style={styles.pairRow}>
           <View style={[styles.icon, { backgroundColor: iconColor }]}>
-            <Text style={styles.iconText}>{base.charAt(0)}</Text>
+            <Text style={styles.iconText}>{symbolIconChar(base)}</Text>
           </View>
           <Text style={styles.pairText}>
             <Text style={styles.pairBase}>{base}</Text>

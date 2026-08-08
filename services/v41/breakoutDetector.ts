@@ -416,6 +416,8 @@ export interface BreakoutSetupOptions {
   atrMult?: number;
   /** When true, reject unless breakout candle passes isStrongBreakoutCandle. */
   requireStrongBreakout?: boolean;
+  tp1Rr?: number;
+  retestBandPct?: number;
 }
 
 function atrForSl(
@@ -458,6 +460,7 @@ export function tryImmediateBreakoutSetup(
     slMode,
     atr: atrForSl(klines1H, event, slMode),
     atrMult: options.atrMult,
+    tp1Rr: options.tp1Rr,
   });
 }
 
@@ -477,7 +480,8 @@ export function tryRetestBreakoutSetup(
     return null;
   }
 
-  const retestIdx = findRetestBarIndex(klines1H, event, maxBars);
+  const bandPct = options.retestBandPct ?? BREAKOUT_RETEST_BAND_PCT;
+  const retestIdx = findRetestBarIndex(klines1H, event, maxBars, bandPct);
   if (retestIdx == null) return null;
 
   const win = klines1H.slice(0, retestIdx + 1);
@@ -497,6 +501,7 @@ export function tryRetestBreakoutSetup(
     slMode,
     atr: atrForSl(klines1H, event, slMode),
     atrMult: options.atrMult,
+    tp1Rr: options.tp1Rr,
   });
 }
 
@@ -528,18 +533,27 @@ export interface ScanBreakoutParams {
   maxHoldBarsForLevelDedupe?: number;
   /** Relative tolerance for matching broken levels. Default 0.5% (= retest band). */
   levelTolerancePct?: number;
+  /** Confirm-B retest window (1H bars). Default BREAKOUT_RETEST_MAX_BARS. */
+  retestMaxBars?: number;
+  /** Confirm-B touch band. Default BREAKOUT_RETEST_BAND_PCT. */
+  retestBandPct?: number;
+  /** TP1 multiple of SL distance. Default BREAKOUT_TP1_RR. */
+  tp1Rr?: number;
 }
 
 const MS_1H = 3_600_000;
 
-export type BreakoutExitOutcome = 'TP' | 'SL' | 'BOTH' | 'TIMEOUT';
+export type BreakoutExitOutcome = 'TP' | 'SL' | 'BOTH' | 'TIMEOUT' | 'OPEN';
+
+/** Occupancy end when exit is unknown (live: series ends before TP/SL/timeout). */
+export const BREAKOUT_EXIT_OPEN_SENTINEL = Number.POSITIVE_INFINITY;
 
 function hitBreakoutLevelsOnBar(
   side: BreakoutSide,
   bar: KlineV41,
   sl: number,
   tp1: number,
-): Exclude<BreakoutExitOutcome, 'TIMEOUT'> | null {
+): Exclude<BreakoutExitOutcome, 'TIMEOUT' | 'OPEN'> | null {
   if (side === 'LONG') {
     const hitSl = bar.low <= sl;
     const hitTp = bar.high >= tp1;
@@ -560,6 +574,11 @@ function hitBreakoutLevelsOnBar(
  * Forward-simulate first TP/SL hit (or TIMEOUT at maxHold) after activeOpenTime.
  * Used by level-occupancy dedupe (B) so the level frees when the representative
  * trade closes — not after a fixed calendar window from open.
+ *
+ * Live/truncated series: if klines end before maxHold and no TP/SL has printed,
+ * returns outcome `'OPEN'` with `exitOpenTime = +Infinity` so the level stays
+ * occupied (do NOT treat "no exit in past data" as closed — that would free
+ * the level early and reintroduce same-level duplicate signals).
  */
 export function resolveBreakoutExit(params: {
   setup: BreakoutTradeLevels;
@@ -570,13 +589,16 @@ export function resolveBreakoutExit(params: {
   const { setup, klines1H } = params;
   const activeIdx = klines1H.findIndex((k) => k.openTime === setup.activeOpenTime);
   if (activeIdx < 0) {
+    // Cannot place the trade on the series → treat as still open (safe for live).
+    // Live only has past bars; "unknown exit" must default to "still occupied".
     return {
-      outcome: 'TIMEOUT',
+      outcome: 'OPEN',
       barsHeld: null,
-      exitOpenTime: setup.activeOpenTime + maxHold * MS_1H,
+      exitOpenTime: BREAKOUT_EXIT_OPEN_SENTINEL,
     };
   }
-  const endIdx = Math.min(klines1H.length - 1, activeIdx + maxHold);
+  const maxEndIdx = activeIdx + maxHold;
+  const endIdx = Math.min(klines1H.length - 1, maxEndIdx);
   for (let i = activeIdx + 1; i <= endIdx; i++) {
     const hit = hitBreakoutLevelsOnBar(setup.side, klines1H[i]!, setup.sl, setup.tp1);
     if (hit) {
@@ -587,10 +609,24 @@ export function resolveBreakoutExit(params: {
       };
     }
   }
+
+  // Reached max-hold bar with no hit → real TIMEOUT (level frees after that bar).
+  if (endIdx >= maxEndIdx && endIdx > activeIdx) {
+    return {
+      outcome: 'TIMEOUT',
+      barsHeld: endIdx - activeIdx,
+      exitOpenTime: klines1H[endIdx]!.openTime,
+    };
+  }
+
+  // No exit found and series is truncated before maxHold (typical live scan):
+  // still open — keep occupied indefinitely until more bars arrive.
+  // Live only sees the past; "unknown exit" must default to "still occupied"
+  // so we do not free the level and reopen a same-level duplicate.
   return {
-    outcome: 'TIMEOUT',
-    barsHeld: endIdx > activeIdx ? endIdx - activeIdx : null,
-    exitOpenTime: klines1H[endIdx]!.openTime,
+    outcome: 'OPEN',
+    barsHeld: null,
+    exitOpenTime: BREAKOUT_EXIT_OPEN_SENTINEL,
   };
 }
 
@@ -734,13 +770,21 @@ export function scanBreakoutSetups(params: ScanBreakoutParams): BreakoutTradeLev
     evalEndOpenTimeExclusive,
     dedupeByBrokenLevel = false,
     maxHoldBarsForLevelDedupe = 80,
-    levelTolerancePct = BREAKOUT_RETEST_BAND_PCT,
+    levelTolerancePct,
+    retestMaxBars = BREAKOUT_RETEST_MAX_BARS,
+    retestBandPct = BREAKOUT_RETEST_BAND_PCT,
+    tp1Rr = BREAKOUT_TP1_RR,
   } = params;
+
+  const bandPct = retestBandPct;
+  const dedupeTol = levelTolerancePct ?? bandPct;
 
   const setupOpts: BreakoutSetupOptions = {
     slMode,
     atrMult,
     requireStrongBreakout,
+    tp1Rr,
+    retestBandPct: bandPct,
   };
 
   const out: BreakoutTradeLevels[] = [];
@@ -778,7 +822,7 @@ export function scanBreakoutSetups(params: ScanBreakoutParams): BreakoutTradeLev
             klines1H,
             event,
             consolidationMode,
-            BREAKOUT_RETEST_MAX_BARS,
+            retestMaxBars,
             setupOpts,
           );
 
@@ -787,7 +831,7 @@ export function scanBreakoutSetups(params: ScanBreakoutParams): BreakoutTradeLev
 
   if (!dedupeByBrokenLevel) return out;
   return dedupeBreakoutSetupsByBrokenLevel(out, {
-    levelTolerancePct,
+    levelTolerancePct: dedupeTol,
     maxHoldBars1H: maxHoldBarsForLevelDedupe,
     klines1H,
   });

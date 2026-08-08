@@ -17,6 +17,10 @@ import { mergeByIdRemoteWins } from '../services/driveSyncMerge';
 import { persistGetJson, persistSetJson } from '../services/persistStorage';
 import { toAdvisorUpdatedAtUtc } from '../services/v41/rc3/adviserMetadata';
 import type { V41SessionAdviserPatch } from '../services/v41/rc3/tradeSessionAdviserTypes';
+import {
+  logXrpBreakoutSessionClosed,
+  logXrpBreakoutSessionOpened,
+} from '../services/v41/strategy/xrpBreakoutProductionSafeguard';
 
 const V41_SESSIONS_STORAGE_KEY = '@tradescore/v41_trade_sessions_v1';
 
@@ -195,6 +199,7 @@ export const useV41TradeSessionStore = create<V41TradeSessionStore>((set, get) =
     set({ sessions });
     void persistSessions(sessions);
     triggerV41SessionSync();
+    logXrpBreakoutSessionOpened(session);
     return session;
   },
 
@@ -214,11 +219,12 @@ export const useV41TradeSessionStore = create<V41TradeSessionStore>((set, get) =
     if (patches.length === 0) return;
     const byId = new Map(patches.map((p) => [p.sessionId, p]));
     let meaningful = false;
+    const newlyClosed: V41TradeSession[] = [];
     const sessions = get().sessions.map((session) => {
       const patch = byId.get(session.id);
       if (!patch) return session;
       if (patchIsMeaningful(session, patch)) meaningful = true;
-      return {
+      const next = {
         ...session,
         status: patch.status ?? session.status,
         current: patch.current ?? session.current,
@@ -233,13 +239,21 @@ export const useV41TradeSessionStore = create<V41TradeSessionStore>((set, get) =
           ? [...session.advisorHistory, patch.historyAppend]
           : session.advisorHistory,
       };
+      if (session.status !== 'Closed' && next.status === 'Closed') {
+        newlyClosed.push(next);
+      }
+      return next;
     });
     set({ sessions });
     void persistSessions(sessions);
     if (meaningful) triggerV41SessionSync();
+    for (const closed of newlyClosed) {
+      logXrpBreakoutSessionClosed(closed);
+    }
   },
 
   endSession: (id) => {
+    const before = get().sessions.find((s) => s.id === id);
     const sessions = get().sessions.map((s) =>
       s.id === id
         ? {
@@ -252,6 +266,10 @@ export const useV41TradeSessionStore = create<V41TradeSessionStore>((set, get) =
     set({ sessions });
     void persistSessions(sessions);
     triggerV41SessionSync();
+    if (before != null) {
+      const closed = sessions.find((s) => s.id === id) ?? before;
+      logXrpBreakoutSessionClosed(closed);
+    }
   },
 
   clearAll: () => {

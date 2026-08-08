@@ -16,6 +16,7 @@ export const AUDIT_EXPORT_COIN_BRAND: Record<AppTradeSymbol, string> = {
   NEARUSDT: '#00C08B',
   SOLUSDT: '#9945FF',
   BNBUSDT: '#F0B90B',
+  XRPUSDT: '#23292F',
 };
 
 export type AuditExportCoinOption = {
@@ -32,6 +33,7 @@ export const AUDIT_EXPORT_COIN_OPTIONS: readonly AuditExportCoinOption[] = [
   { id: 'NEARUSDT', label: 'NEAR', color: AUDIT_EXPORT_COIN_BRAND.NEARUSDT, treeChild: true },
   { id: 'SOLUSDT', label: 'SOL', color: AUDIT_EXPORT_COIN_BRAND.SOLUSDT, treeChild: true },
   { id: 'BNBUSDT', label: 'BNB', color: AUDIT_EXPORT_COIN_BRAND.BNBUSDT, treeChild: true },
+  { id: 'XRPUSDT', label: 'XRP', color: AUDIT_EXPORT_COIN_BRAND.XRPUSDT, treeChild: true },
 ];
 
 export function auditExportCoinLabel(selection: AuditExportCoinSelection): string {

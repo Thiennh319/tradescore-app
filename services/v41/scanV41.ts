@@ -80,6 +80,7 @@ export const DEFAULT_SCAN_SYMBOLS_V41 = [
   'SOLUSDT',
   'BNBUSDT',
   'BTCUSDT',
+  'XRPUSDT',
 ] as const;
 
 /** Đọc vị thế OPEN từ journal — chỉ đọc store, không ghi/sync. */
@@ -192,7 +193,7 @@ function resolveReversalState(
   raw: Awaited<ReturnType<typeof fetchRawMarketV41>>,
   snapshot: MarketIntelligenceSnapshot,
 ): ReversalState {
-  /** Path A EMA-retest — tắt cho symbol dùng breakout strategy (NEAR). */
+  /** Path A EMA-retest — tắt cho symbol dùng breakout strategy (NEAR / XRP). */
   if (resolveSymbolStrategy(symbol) === 'breakout') {
     return emptyReversalState(symbol);
   }

@@ -1064,8 +1064,9 @@ export const vi = {
     NEARUSDT: 'NEAR',
     SOLUSDT: 'SOL',
     BNBUSDT: 'BNB',
+    XRPUSDT: 'XRP',
     pickerTitle: 'Chọn cặp giao dịch',
-    searchPlaceholder: 'Tìm BTC, NEAR, SOL…',
+    searchPlaceholder: 'Tìm BTC, NEAR, SOL, XRP…',
     perpetual: 'Vĩnh cửu',
     pairColumn: 'Cặp',
     typeColumn: 'Loại',
@@ -1320,8 +1321,29 @@ export function formatScoreBiasVi(bias: ScoreBias): string {
   return vi.ai.bias[bias];
 }
 
-export function symbolLabelVi(symbol: AppTradeSymbol): string {
-  return vi.symbols[symbol];
+/**
+ * Coin label for UI (BTC / NEAR / …).
+ * Defensive: unknown / missing map keys fall back to stripping USDT — never return undefined
+ * (SignalBoard calls `.charAt` on this result after scan).
+ */
+export function symbolLabelVi(symbol: AppTradeSymbol | string): string {
+  const mapped = (vi.symbols as Record<string, unknown>)[symbol];
+  if (typeof mapped === 'string' && mapped.length > 0) return mapped;
+  const raw = String(symbol ?? '')
+    .trim()
+    .replace(/USDT$/i, '');
+  if (raw) {
+    console.warn('[symbolLabelVi] missing label map for symbol:', symbol);
+    return raw;
+  }
+  console.warn('[symbolLabelVi] empty symbol');
+  return '?';
+}
+
+/** First display character for pair icon badges — safe for undefined/non-string. */
+export function symbolIconChar(symbolOrLabel: string | null | undefined): string {
+  if (typeof symbolOrLabel !== 'string' || symbolOrLabel.length === 0) return '?';
+  return symbolOrLabel.charAt(0);
 }
 
 /** Task 15.8.1 — Trading Coach section / status labels (UI display). */

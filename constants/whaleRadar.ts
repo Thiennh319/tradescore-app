@@ -78,6 +78,20 @@ export const WHALE_SYMBOL_CONFIG: Record<AppTradeSymbol, WhaleSymbolConfig> = {
 
   },
 
+  XRPUSDT: {
+
+    minNotionalUSD: 500_000,
+
+    minAgeSeconds: 120,
+
+    minExecutedRatio: 0.08,
+
+    maxRefreshCount: 3,
+
+    maxDistanceATR: 0.45,
+
+  },
+
 };
 
 
@@ -101,6 +115,8 @@ export const WHALE_MIN_NOTIONAL_USD: Record<AppTradeSymbol, number> = {
   SOLUSDT: WHALE_SYMBOL_CONFIG.SOLUSDT.minNotionalUSD,
 
   BNBUSDT: WHALE_SYMBOL_CONFIG.BNBUSDT.minNotionalUSD,
+
+  XRPUSDT: WHALE_SYMBOL_CONFIG.XRPUSDT.minNotionalUSD,
 
 };
 

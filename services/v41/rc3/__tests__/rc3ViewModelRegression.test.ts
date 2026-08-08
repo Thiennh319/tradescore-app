@@ -85,4 +85,14 @@ describe('RC3 ViewModel TR regression — BTC/SOL/BNB', () => {
       ]);
     }
   });
+
+  it('routes XRPUSDT through breakout checklist when allow-listed (V41-XRP-3)', () => {
+    const card = buildRc3ViewModelFromRow(rowFor('XRPUSDT'));
+    expect(card.checklist.map((c) => c.id)).toEqual([
+      'consolidation',
+      'breakout',
+      'retest',
+      'momentum',
+    ]);
+  });
 });

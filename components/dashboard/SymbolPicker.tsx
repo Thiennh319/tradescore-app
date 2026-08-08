@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, TRADE_SYMBOLS, type AppTradeSymbol } from '../../constants/scoring';
 import { RADIUS } from '../../constants/theme';
-import { symbolLabelVi, vi } from '../../constants/vi';
+import { symbolIconChar, symbolLabelVi, vi } from '../../constants/vi';
 
 interface SymbolPickerProps {
   selected: AppTradeSymbol;
@@ -14,6 +14,7 @@ const SYMBOL_META: Record<AppTradeSymbol, { color: string }> = {
   NEARUSDT: { color: '#00C08B' },
   SOLUSDT: { color: '#9945FF' },
   BNBUSDT: { color: '#F0B90B' },
+  XRPUSDT: { color: '#23292F' },
 };
 
 function splitPair(symbol: AppTradeSymbol) {
@@ -49,7 +50,7 @@ export function SymbolPicker({ selected, onSelect }: SymbolPickerProps) {
         >
           <View style={styles.triggerLeft}>
             <View style={[styles.icon, { backgroundColor: SYMBOL_META[selected].color }]}>
-              <Text style={styles.iconText}>{base.charAt(0)}</Text>
+              <Text style={styles.iconText}>{symbolIconChar(base)}</Text>
             </View>
             <View>
               <View style={styles.pairRow}>
@@ -86,7 +87,7 @@ export function SymbolPicker({ selected, onSelect }: SymbolPickerProps) {
                     <View
                       style={[styles.icon, styles.iconSm, { backgroundColor: SYMBOL_META[sym].color }]}
                     >
-                      <Text style={styles.iconTextSm}>{b.charAt(0)}</Text>
+                      <Text style={styles.iconTextSm}>{symbolIconChar(b)}</Text>
                     </View>
                     <Text style={styles.optionPair}>
                       <Text style={[styles.optionBase, active && styles.optionBaseActive]}>
