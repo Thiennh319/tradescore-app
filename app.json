@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.tradescore.app",
-      "versionCode": 14,
+      "versionCode": 15,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
