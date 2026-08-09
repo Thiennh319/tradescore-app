@@ -46,15 +46,22 @@ describe('exportAuditCoin helpers', () => {
       'SOLUSDT',
       'BNBUSDT',
       'XRPUSDT',
+      'ETHUSDT',
+      'LINKUSDT',
+      'AVAXUSDT',
     ]);
     expect(AUDIT_EXPORT_COIN_BRAND.BTCUSDT).toBe('#F7931A');
     expect(AUDIT_EXPORT_COIN_BRAND.NEARUSDT).toBe('#00C08B');
     expect(AUDIT_EXPORT_COIN_BRAND.SOLUSDT).toBe('#9945FF');
     expect(AUDIT_EXPORT_COIN_BRAND.BNBUSDT).toBe('#F0B90B');
     expect(AUDIT_EXPORT_COIN_BRAND.XRPUSDT).toBe('#23292F');
+    expect(AUDIT_EXPORT_COIN_BRAND.ETHUSDT).toBe('#627EEA');
+    expect(AUDIT_EXPORT_COIN_BRAND.LINKUSDT).toBe('#2A5ADA');
+    expect(AUDIT_EXPORT_COIN_BRAND.AVAXUSDT).toBe('#E84142');
     expect(auditExportCoinLabel('ALL')).toBe('Tất cả coin');
     expect(auditExportCoinLabel('NEARUSDT')).toBe('NEAR');
     expect(auditExportCoinLabel('XRPUSDT')).toBe('XRP');
+    expect(auditExportCoinLabel('ETHUSDT')).toBe('ETH');
     expect(auditExportCoinDotColor('ALL')).toBe('#848E9C');
   });
 

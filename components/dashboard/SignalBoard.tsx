@@ -168,6 +168,9 @@ const SYMBOL_COLORS: Record<string, string> = {
   SOLUSDT: '#9945FF',
   BNBUSDT: '#F0B90B',
   XRPUSDT: '#23292F',
+  ETHUSDT: '#627EEA',
+  LINKUSDT: '#2A5ADA',
+  AVAXUSDT: '#E84142',
 };
 
 const DECISION_COLOR: Record<TradeDecisionLabel, string> = {

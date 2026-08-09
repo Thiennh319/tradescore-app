@@ -50,8 +50,17 @@ describe('DEFAULT_SETTINGS', () => {
 });
 
 describe('TRADE_SYMBOLS', () => {
-  it('includes BTC, NEAR, SOL and BNB perpetuals', () => {
-    expect(TRADE_SYMBOLS).toEqual(['BTCUSDT', 'NEARUSDT', 'SOLUSDT', 'BNBUSDT']);
+  it('includes board V4 8 perpetuals (BTC…XRP + ETH/LINK/AVAX)', () => {
+    expect(TRADE_SYMBOLS).toEqual([
+      'BTCUSDT',
+      'NEARUSDT',
+      'SOLUSDT',
+      'BNBUSDT',
+      'XRPUSDT',
+      'ETHUSDT',
+      'LINKUSDT',
+      'AVAXUSDT',
+    ]);
   });
 });
 

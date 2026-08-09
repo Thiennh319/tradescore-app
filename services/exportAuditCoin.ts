@@ -17,6 +17,9 @@ export const AUDIT_EXPORT_COIN_BRAND: Record<AppTradeSymbol, string> = {
   SOLUSDT: '#9945FF',
   BNBUSDT: '#F0B90B',
   XRPUSDT: '#23292F',
+  ETHUSDT: '#627EEA',
+  LINKUSDT: '#2A5ADA',
+  AVAXUSDT: '#E84142',
 };
 
 export type AuditExportCoinOption = {
@@ -34,6 +37,9 @@ export const AUDIT_EXPORT_COIN_OPTIONS: readonly AuditExportCoinOption[] = [
   { id: 'SOLUSDT', label: 'SOL', color: AUDIT_EXPORT_COIN_BRAND.SOLUSDT, treeChild: true },
   { id: 'BNBUSDT', label: 'BNB', color: AUDIT_EXPORT_COIN_BRAND.BNBUSDT, treeChild: true },
   { id: 'XRPUSDT', label: 'XRP', color: AUDIT_EXPORT_COIN_BRAND.XRPUSDT, treeChild: true },
+  { id: 'ETHUSDT', label: 'ETH', color: AUDIT_EXPORT_COIN_BRAND.ETHUSDT, treeChild: true },
+  { id: 'LINKUSDT', label: 'LINK', color: AUDIT_EXPORT_COIN_BRAND.LINKUSDT, treeChild: true },
+  { id: 'AVAXUSDT', label: 'AVAX', color: AUDIT_EXPORT_COIN_BRAND.AVAXUSDT, treeChild: true },
 ];
 
 export function auditExportCoinLabel(selection: AuditExportCoinSelection): string {
