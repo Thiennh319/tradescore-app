@@ -15,3 +15,14 @@ export function isU1DirectionButtonEnabled(opts: {
   if (opts.side !== opts.officialDirection) return false;
   return opts.directionReady;
 }
+
+/**
+ * Badge "Sẵn sàng" / READY phải dùng cùng điều kiện với nút LONG/SHORT (và mũi tên tip).
+ * Không dùng totalScore≥9 hay canEnter tổng hợp — tránh badge xanh trong khi nút xám.
+ */
+export function shouldShowReadyBadge(
+  longBtnEnabled: boolean,
+  shortBtnEnabled: boolean,
+): boolean {
+  return longBtnEnabled || shortBtnEnabled;
+}

@@ -83,7 +83,10 @@ import {
 } from '../../services/exportAuditCoin';
 import type { MarketIntelligenceSnapshot } from '../../services/v41/types';
 import { TradePlanModal } from './TradePlanModal';
-import { isU1DirectionButtonEnabled } from './signalBoardU1';
+import {
+  isU1DirectionButtonEnabled,
+  shouldShowReadyBadge,
+} from './signalBoardU1';
 import { formatUsdPrice } from '../../utils/formatPrice';
 
 type AppExportKind = 'trace-rule-score-bundle' | TraceReviewExportKind;
@@ -481,9 +484,10 @@ function hasAnyHardBlock(
 function resolveCardBadge(
   row: SignalRow,
   snap: ReturnType<typeof resolveSignalRow>,
-  totalScore: number,
   blockReasons: string[],
   btcChange24h: number,
+  /** Cùng điều kiện nút LONG/SHORT (U1 + directionReady) — không dùng totalScore≥9. */
+  enterActionable: boolean,
 ): CardBadgeDisplay {
   const longCanEnter = resolveDirectionCanEnter(row, 'LONG', snap, btcChange24h);
   const shortCanEnter = resolveDirectionCanEnter(row, 'SHORT', snap, btcChange24h);
@@ -556,8 +560,8 @@ function resolveCardBadge(
     };
   }
 
-  // [5] Xanh — score ≥ 9, không block
-  if (longCanEnter || shortCanEnter || totalScore >= 9) {
+  // [5] Xanh — có thể vào lệnh đúng hướng nút (cùng điều kiện với mũi tên tip)
+  if (enterActionable) {
     return {
       kind: 'READY',
       text: '🟢 SẴN SÀNG',
@@ -565,7 +569,7 @@ function resolveCardBadge(
     };
   }
 
-  // [6] Xám — còn lại
+  // [6] Xám — còn lại (kể cả totalScore≥9 nhưng nút hướng chưa bấm được)
   return {
     kind: 'WATCH',
     text: '⚪ THEO DÕI THÊM',
@@ -630,8 +634,6 @@ function resolveSignalRowUiChrome(
   const hardBlockReasons = collectHardBlockReasons(hardBlockSnapInput);
   const planBlockReasons = activePlanV3?.blockReasons ?? [];
   const blockReasons = [...new Set([...hardBlockReasons, ...planBlockReasons])];
-  const totalScore = snap.awaitingRescore ? 0 : (snap.score ?? 0);
-  const cardBadge = resolveCardBadge(row, snap, totalScore, blockReasons, btcChange24h);
   const longReady = isDirectionReady('LONG', snap, row, blockReasons);
   const shortReady = isDirectionReady('SHORT', snap, row, blockReasons);
   const longBtnEnabled = isU1DirectionButtonEnabled({
@@ -646,6 +648,13 @@ function resolveSignalRowUiChrome(
     isAmbiguous,
     directionReady: shortReady,
   });
+  const cardBadge = resolveCardBadge(
+    row,
+    snap,
+    blockReasons,
+    btcChange24h,
+    shouldShowReadyBadge(longBtnEnabled, shortBtnEnabled),
+  );
   return {
     snap,
     isAmbiguous,
@@ -1720,8 +1729,6 @@ function SignalCard({
   const adxGate = row.adxGate;
   const planBlockReasons = activePlanV3?.blockReasons ?? [];
   const blockReasons = [...new Set([...hardBlockReasons, ...planBlockReasons])];
-  const totalScore = displayScore ?? snap.score ?? 0;
-  const cardBadge = resolveCardBadge(row, snap, totalScore, blockReasons, btcChange24h);
   const sessionLabel = sessionLabelFromL9(layer9Score(snap.layers));
   const btcPctLabel = `${btcChange24h >= 0 ? '+' : ''}${btcChange24h.toFixed(1)}%`;
   const btcDisplay = btcSummaryDisplay(btcChange24h);
@@ -1739,6 +1746,13 @@ function SignalCard({
     isAmbiguous,
     directionReady: shortReady,
   });
+  const cardBadge = resolveCardBadge(
+    row,
+    snap,
+    blockReasons,
+    btcChange24h,
+    shouldShowReadyBadge(longBtnEnabled, shortBtnEnabled),
+  );
 
   const longScoreActive = longBtnEnabled;
   const shortScoreActive = shortBtnEnabled;
