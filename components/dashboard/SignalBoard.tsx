@@ -28,7 +28,7 @@ import {
 import { PANEL, RADIUS, SPACING } from '../../constants/theme';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import type { StrategySource } from '../../constants/aiJournal';
-import { symbolLabelVi, vi } from '../../constants/vi';
+import { symbolIconChar, symbolLabelVi, vi } from '../../constants/vi';
 import type { SignalRow } from '../../hooks/useSignalBoard';
 import {
   resolveFinalEntryStatus,
@@ -46,6 +46,7 @@ import { FinalEntryStatus } from '../../types/scoring';
 import { calculateFinalEntryStatus, resolveFinalEntryDisplay } from '../../services/finalEntryStatus';
 import { isFixHardReasonLabelingEnabled } from '../../config/featureFlags';
 import { resolveSnapEntryBlocked } from '../../services/entryBlockedLabeling';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { FinalEntryBadge } from '../FinalEntryBadge';
 import { GroupScoreBar } from '../GroupScoreBar';
 import { AdxMarketRegimeSection } from './AdxMarketRegimeSection';
@@ -166,6 +167,7 @@ const SYMBOL_COLORS: Record<string, string> = {
   NEARUSDT: '#00C08B',
   SOLUSDT: '#9945FF',
   BNBUSDT: '#F0B90B',
+  XRPUSDT: '#23292F',
 };
 
 const DECISION_COLOR: Record<TradeDecisionLabel, string> = {
@@ -602,6 +604,77 @@ function isDirectionReady(
   return score >= 9 && !isDirectionBlocked(direction, row, snap, blockReasons);
 }
 
+/** Badge + direction buttons — shared by desktop cards & mobile compact rows (UI only). */
+function resolveSignalRowUiChrome(
+  row: SignalRow,
+  scorerVersion: ScorerVersion,
+  btcChange24h: number,
+) {
+  const snap = resolveSignalRow(row, scorerVersion);
+  const isAmbiguous = snap.isAmbiguousDirection === true;
+  const activePlanV3 = resolveTradePlanV3(row, scorerVersion);
+  const hardBlockSnapInput: HardBlockSnapInput = {
+    direction: snap.direction,
+    mandatoryViolations: snap.mandatoryViolations,
+    groupBlocks: snap.groupBlocks,
+    longHardBlocks: snap.longHardBlocks,
+    shortHardBlocks: snap.shortHardBlocks,
+    longBlockReasons: snap.longBlockReasons,
+    shortBlockReasons: snap.shortBlockReasons,
+    hardBlocked: resolveSnapEntryBlocked(snap),
+    entryBlocked: snap.entryBlocked,
+  };
+  const hardBlockReasons = collectHardBlockReasons(hardBlockSnapInput);
+  const planBlockReasons = activePlanV3?.blockReasons ?? [];
+  const blockReasons = [...new Set([...hardBlockReasons, ...planBlockReasons])];
+  const totalScore = snap.awaitingRescore ? 0 : (snap.score ?? 0);
+  const cardBadge = resolveCardBadge(row, snap, totalScore, blockReasons, btcChange24h);
+  const longReady = isDirectionReady('LONG', snap, row, blockReasons);
+  const shortReady = isDirectionReady('SHORT', snap, row, blockReasons);
+  const longBtnEnabled = isU1DirectionButtonEnabled({
+    side: 'LONG',
+    officialDirection: snap.direction,
+    isAmbiguous,
+    directionReady: longReady,
+  });
+  const shortBtnEnabled = isU1DirectionButtonEnabled({
+    side: 'SHORT',
+    officialDirection: snap.direction,
+    isAmbiguous,
+    directionReady: shortReady,
+  });
+  return {
+    snap,
+    isAmbiguous,
+    cardBadge,
+    longBtnEnabled,
+    shortBtnEnabled,
+    sessionLabel: sessionLabelFromL9(layer9Score(snap.layers)),
+  };
+}
+
+function compactBadgeLabel(kind: CardBadgeKind, fullText: string): string {
+  if (kind === 'READY') return vi.signalBoard.badgeReadyShort;
+  if (kind === 'WATCH') return vi.signalBoard.badgeWatchShort;
+  if (kind === 'HARD_BLOCK') return 'Bị chặn';
+  if (kind === 'PARTIAL_BLOCK') return 'Một chiều';
+  if (kind === 'BAD_SESSION') return 'Phiên xấu';
+  if (kind === 'UNCLEAR') return 'Choppy';
+  const stripped = fullText.replace(/^[🟢🟡⚪🔴⛔♦]\s*/, '').trim();
+  return stripped.length > 22 ? `${stripped.slice(0, 20)}…` : stripped || fullText;
+}
+
+function compactTipSignal(
+  snap: ReturnType<typeof resolveSignalRow>,
+  longBtnEnabled: boolean,
+  shortBtnEnabled: boolean,
+): { text: string; color: string } {
+  if (longBtnEnabled) return { text: '↑ L', color: SCORE_DIR_LONG_ACTIVE };
+  if (shortBtnEnabled) return { text: '↓ S', color: SCORE_DIR_SHORT_ACTIVE };
+  if (snap.direction === 'LONG') return { text: '↑ L', color: COLORS.textMuted };
+  return { text: '↓ S', color: COLORS.textMuted };
+}
+
 function manualSetupFromTradePlanV3(
   plan: TradePlanV3,
   planSource: ScorerVersion,
@@ -724,6 +797,10 @@ export function SignalBoard({
   const auditMenuTriggerRef = useRef<View>(null);
   const coinMenuTriggerRef = useRef<View>(null);
   const [exportToast, setExportToast] = useState<string | null>(null);
+  /** Mobile compact list only — 'ready' | 'all' (Task 4B mockup). Desktop ignores. */
+  const [mobileListFilter, setMobileListFilter] = useState<'ready' | 'all'>('ready');
+  const [expandedSymbol, setExpandedSymbol] = useState<AppTradeSymbol | null>(null);
+  const { isMobile } = useResponsiveLayout();
   const scorerVersion = useTradeStore((s) => s.scorerVersion);
   const setScorerVersion = useTradeStore((s) => s.setScorerVersion);
   const esmBridge = useTradeStore((s) => s.esmBridge);
@@ -731,9 +808,21 @@ export function SignalBoard({
   const boardStrategySource =
     (scorerVersion === 'v3' ? vi.signalBoard.scorerV3 : vi.signalBoard.scorerV4) as StrategySource;
 
+  const btcChange24h =
+    rows.find((r) => r.symbol === 'BTCUSDT')?.change24h ?? 0;
+
   const entryRows = rows
     .map((row) => ({ row, snap: resolveSignalRow(row, scorerVersion) }))
     .filter(({ row, snap }) => snap.canEnter && !row.error);
+
+  const readyRows = rows.filter((row) => {
+    if (row.error) return false;
+    return (
+      resolveSignalRowUiChrome(row, scorerVersion, btcChange24h).cardBadge.kind === 'READY'
+    );
+  });
+  const mobileDisplayRows =
+    mobileListFilter === 'ready' ? readyRows : rows;
   const isAutoLatest =
     autoTriggeredAt != null &&
     lastScannedAt != null &&
@@ -879,9 +968,11 @@ export function SignalBoard({
     <View style={styles.panel}>
       <View style={styles.accentStrip} />
       <View style={styles.body}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>{vi.signalBoard.title}</Text>
+        <View style={[styles.headerRow, isMobile && styles.headerRowMobile]}>
+          <View style={[styles.headerText, isMobile && styles.headerTextMobile]}>
+            <Text style={styles.title} numberOfLines={isMobile ? 1 : undefined}>
+              {vi.signalBoard.title}
+            </Text>
             <View style={styles.versionRow}>
               <Text style={styles.versionLabel}>{vi.signalBoard.scorerEngine}:</Text>
               {onTierPress ? (
@@ -918,8 +1009,8 @@ export function SignalBoard({
               })}
             </View>
           </View>
-          <View style={styles.headerActions}>
-            <View style={styles.auditExportWrap}>
+          <View style={[styles.headerActions, isMobile && styles.headerActionsMobile]}>
+            <View style={[styles.auditExportWrap, isMobile && styles.auditExportWrapMobile]}>
               <View ref={coinMenuTriggerRef} collapsable={false}>
                 <Pressable
                   onPress={openCoinExportMenu}
@@ -1040,31 +1131,111 @@ export function SignalBoard({
           </View>
         ) : null}
 
-        <View style={styles.grid}>
-          {rows.length === 0 && loading
-            ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-            : rows.map((row) => (
-                <SignalCard
+        {isMobile ? (
+          <View style={styles.mobileListWrap}>
+            <View style={styles.mobileFilterRow}>
+              <Pressable
+                onPress={() => setMobileListFilter('ready')}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mobileListFilter === 'ready' }}
+                style={[
+                  styles.mobileFilterTab,
+                  mobileListFilter === 'ready' && styles.mobileFilterTabReadyActive,
+                  webPointer,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.mobileFilterTabText,
+                    mobileListFilter === 'ready' && styles.mobileFilterTabTextReadyActive,
+                  ]}
+                >
+                  {vi.signalBoard.filterReady(readyRows.length)}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setMobileListFilter('all')}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mobileListFilter === 'all' }}
+                style={[
+                  styles.mobileFilterTab,
+                  mobileListFilter === 'all' && styles.mobileFilterTabAllActive,
+                  webPointer,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.mobileFilterTabText,
+                    mobileListFilter === 'all' && styles.mobileFilterTabTextAllActive,
+                  ]}
+                >
+                  {vi.signalBoard.filterAll(rows.length)}
+                </Text>
+              </Pressable>
+            </View>
+
+            {rows.length === 0 && loading ? (
+              Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : mobileDisplayRows.length === 0 ? (
+              <Text style={styles.mobileFilterEmpty}>
+                {vi.signalBoard.filterReadyEmpty}
+              </Text>
+            ) : (
+              mobileDisplayRows.map((row) => (
+                <ErrorBoundary
                   key={row.symbol}
-                  row={row}
-                  btcChange24h={
-                    rows.find((r) => r.symbol === 'BTCUSDT')?.change24h ?? 0
-                  }
-                  scorerVersion={scorerVersion}
-                  boardStrategySource={boardStrategySource}
-                  lockedPlanOverlay={lockedPlanOverlay}
-                  showPlan={planSymbol === row.symbol}
-                  onShowPlan={() => setPlanSymbol(row.symbol)}
-                  onHidePlan={() => setPlanSymbol(null)}
-                  onOpenPosition={onOpenPosition}
-                  onRequestConfirmTrade={onRequestConfirmTrade}
-                  onRequestPendingOrder={onRequestPendingOrder}
-                  onPendingOrder={onPendingOrder}
-                  onRecordSkippedSetup={onRecordSkippedSetup}
-                  lockedPlanMonitor={lockedPlanMonitor}
-                />
-              ))}
-        </View>
+                  scope={`SignalCardCompact:${row.symbol}`}
+                  fallbackTitle={`Lỗi hiển thị ${row.symbol}`}
+                >
+                  <SignalCardCompact
+                    row={row}
+                    btcChange24h={btcChange24h}
+                    scorerVersion={scorerVersion}
+                    boardStrategySource={boardStrategySource}
+                    expanded={expandedSymbol === row.symbol}
+                    onToggleExpand={() =>
+                      setExpandedSymbol((prev) =>
+                        prev === row.symbol ? null : row.symbol,
+                      )
+                    }
+                    onOpenPosition={onOpenPosition}
+                    onRequestConfirmTrade={onRequestConfirmTrade}
+                    onRecordSkippedSetup={onRecordSkippedSetup}
+                  />
+                </ErrorBoundary>
+              ))
+            )}
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {rows.length === 0 && loading
+              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+              : rows.map((row) => (
+                  <ErrorBoundary
+                    key={row.symbol}
+                    scope={`SignalCard:${row.symbol}`}
+                    fallbackTitle={`Lỗi hiển thị ${row.symbol}`}
+                  >
+                    <SignalCard
+                      row={row}
+                      btcChange24h={btcChange24h}
+                      scorerVersion={scorerVersion}
+                      boardStrategySource={boardStrategySource}
+                      lockedPlanOverlay={lockedPlanOverlay}
+                      showPlan={planSymbol === row.symbol}
+                      onShowPlan={() => setPlanSymbol(row.symbol)}
+                      onHidePlan={() => setPlanSymbol(null)}
+                      onOpenPosition={onOpenPosition}
+                      onRequestConfirmTrade={onRequestConfirmTrade}
+                      onRequestPendingOrder={onRequestPendingOrder}
+                      onPendingOrder={onPendingOrder}
+                      onRecordSkippedSetup={onRecordSkippedSetup}
+                      lockedPlanMonitor={lockedPlanMonitor}
+                    />
+                  </ErrorBoundary>
+                ))}
+          </View>
+        )}
       </View>
       <Modal
         visible={coinMenuOpen}
@@ -1180,6 +1351,213 @@ function SkeletonCard() {
   return (
     <View style={[styles.card, signalCardLayout, styles.cardSkeleton]}>
       <ActivityIndicator color={COLORS.accent} />
+    </View>
+  );
+}
+
+/** Mobile-only compact row — expand inline shows LONG/SHORT (Task 4B mockup). */
+function SignalCardCompact({
+  row,
+  btcChange24h,
+  scorerVersion,
+  boardStrategySource,
+  expanded,
+  onToggleExpand,
+  onOpenPosition,
+  onRequestConfirmTrade,
+  onRecordSkippedSetup,
+}: {
+  row: SignalRow;
+  btcChange24h: number;
+  scorerVersion: ScorerVersion;
+  boardStrategySource: StrategySource;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onOpenPosition?: (row: SignalRow, manual?: boolean, setup?: ManualTradeSetup) => void;
+  onRequestConfirmTrade?: (row: SignalRow, setup: ManualTradeSetup) => void;
+  onRecordSkippedSetup?: (row: SignalRow, setupDirection?: TradeDirection) => void;
+}) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalDir, setModalDir] = useState<TradeDirection>('LONG');
+
+  const base = symbolLabelVi(row.symbol);
+  const iconColor = SYMBOL_COLORS[row.symbol] ?? COLORS.accent;
+  const changeColor = row.change24h >= 0 ? COLORS.bullish : COLORS.bearish;
+  const {
+    snap,
+    cardBadge,
+    longBtnEnabled,
+    shortBtnEnabled,
+    sessionLabel,
+  } = resolveSignalRowUiChrome(row, scorerVersion, btcChange24h);
+  const badgeShort = compactBadgeLabel(cardBadge.kind, cardBadge.text);
+  const tip = compactTipSignal(snap, longBtnEnabled, shortBtnEnabled);
+  const btcPctLabel = `${btcChange24h >= 0 ? '+' : ''}${btcChange24h.toFixed(2)}%`;
+  const btcDisplay = btcSummaryDisplay(btcChange24h);
+
+  return (
+    <View style={styles.compactRow}>
+      <Pressable
+        onPress={onToggleExpand}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${base}/USDT ${expanded ? 'thu gọn' : 'mở rộng'}`}
+        style={({ pressed }) => [
+          styles.compactRowHeader,
+          pressed && styles.compactRowHeaderPressed,
+          webPointer,
+        ]}
+      >
+        <View style={styles.compactLeft}>
+          <View style={styles.compactPairLine}>
+            <View style={[styles.compactIcon, { backgroundColor: iconColor }]}>
+              <Text style={styles.compactIconText}>{symbolIconChar(base)}</Text>
+            </View>
+            <View style={styles.compactPairMeta}>
+              <Text style={styles.compactPairText}>
+                <Text style={styles.pairBase}>{base}</Text>
+                <Text style={styles.pairQuote}>/USDT</Text>
+              </Text>
+              <View
+                style={[
+                  styles.compactStatusChip,
+                  { backgroundColor: cardBadge.backgroundColor },
+                ]}
+              >
+                <Text style={styles.compactStatusChipText}>{badgeShort}</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={styles.compactScoresLine}>
+            L {snap.longScore.toFixed(1)} / S {snap.shortScore.toFixed(1)}
+          </Text>
+        </View>
+
+        <View style={styles.compactRight}>
+          <Text style={styles.compactPrice}>{formatUsdPrice(row.symbol, row.price)}</Text>
+          <Text style={[styles.compactChange, { color: changeColor }]}>
+            {row.change24h >= 0 ? '+' : ''}
+            {row.change24h.toFixed(2)}%
+          </Text>
+          <View style={styles.compactTipRow}>
+            <Text style={[styles.compactTip, { color: tip.color }]}>{tip.text}</Text>
+            <Text style={styles.compactChevron}>{expanded ? '▲' : '▼'}</Text>
+          </View>
+        </View>
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.compactExpand}>
+          {row.error ? (
+            <Text style={styles.error}>{row.error}</Text>
+          ) : (
+            <>
+              <View style={styles.compactMetaRow}>
+                <Text style={styles.scoreTier2Text}>Phiên: {sessionLabel}</Text>
+                <Text
+                  style={[
+                    styles.scoreTier2Text,
+                    { color: btcTier2Color(btcChange24h) },
+                  ]}
+                >
+                  BTC: {btcPctLabel} {btcDisplay.icon}
+                </Text>
+              </View>
+
+              <View style={styles.directionBtnRow}>
+                <Pressable
+                  disabled={!longBtnEnabled}
+                  accessibilityState={{ disabled: !longBtnEnabled }}
+                  onPress={() => {
+                    if (!longBtnEnabled) return;
+                    setModalDir('LONG');
+                    setModalVisible(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.directionBtn,
+                    longBtnEnabled
+                      ? styles.directionBtnCompactLong
+                      : styles.directionBtnIdle,
+                    pressed && longBtnEnabled && styles.scanBtnPressed,
+                    webPointer,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.directionBtnText,
+                      longBtnEnabled
+                        ? styles.directionBtnTextCompactLong
+                        : styles.directionBtnTextIdle,
+                    ]}
+                  >
+                    LONG  {snap.longScore.toFixed(1)}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  disabled={!shortBtnEnabled}
+                  accessibilityState={{ disabled: !shortBtnEnabled }}
+                  onPress={() => {
+                    if (!shortBtnEnabled) return;
+                    setModalDir('SHORT');
+                    setModalVisible(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.directionBtn,
+                    shortBtnEnabled
+                      ? styles.directionBtnCompactShort
+                      : styles.directionBtnIdle,
+                    pressed && shortBtnEnabled && styles.scanBtnPressed,
+                    webPointer,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.directionBtnText,
+                      shortBtnEnabled
+                        ? styles.directionBtnTextCompactShort
+                        : styles.directionBtnTextIdle,
+                    ]}
+                  >
+                    SHORT  {snap.shortScore.toFixed(1)}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <TradePlanModal
+                visible={modalVisible}
+                direction={modalDir}
+                symbol={row.symbol}
+                row={row}
+                onClose={() => setModalVisible(false)}
+                onConfirm={() => {
+                  setModalVisible(false);
+                  const plan = resolvePlanForDirection(row, modalDir);
+                  if (!plan) return;
+                  const setup = manualSetupFromTradePlanV3(
+                    plan,
+                    scorerVersion,
+                    boardStrategySource,
+                  );
+                  if (onRequestConfirmTrade) {
+                    onRequestConfirmTrade(row, setup);
+                  } else if (onOpenPosition) {
+                    onOpenPosition(row, false, setup);
+                  }
+                }}
+                onRecordSkippedSetup={onRecordSkippedSetup}
+                onSkip={() => setModalVisible(false)}
+                entryExplain={explainEntry(row, modalDir)}
+                slExplain={explainSL(row, modalDir)}
+                tp1Explain={explainTP(row, 1, modalDir)}
+                tp2Explain={explainTP(row, 2, modalDir)}
+                tp3Explain={explainTP(row, 3, modalDir)}
+                blockInfo={explainBlocks(row, modalDir)}
+                canEnter={modalDir === 'LONG' ? longBtnEnabled : shortBtnEnabled}
+              />
+            </>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1372,7 +1750,7 @@ function SignalCard({
       <View style={styles.cardTop}>
         <View style={styles.pairRow}>
           <View style={[styles.icon, { backgroundColor: iconColor }]}>
-            <Text style={styles.iconText}>{base.charAt(0)}</Text>
+            <Text style={styles.iconText}>{symbolIconChar(base)}</Text>
           </View>
           <View>
             <Text style={styles.pairText}>
@@ -2038,15 +2416,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: SPACING.md,
   },
+  headerRowMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
   },
+  headerActionsMobile: {
+    flexWrap: 'wrap',
+    width: '100%',
+  },
   auditExportWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
+  },
+  auditExportWrapMobile: {
+    flex: 1,
+    flexWrap: 'wrap',
   },
   auditModeBtn: {
     flexDirection: 'row',
@@ -2173,6 +2563,10 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
+  headerTextMobile: {
+    flex: 0,
+    width: '100%',
+  },
   title: {
     fontSize: 15,
     fontWeight: '800',
@@ -2288,6 +2682,173 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: SPACING.md,
     marginTop: SPACING.xs,
+  },
+  mobileListWrap: {
+    marginTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  mobileFilterRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.xs,
+  },
+  mobileFilterTab: {
+    flex: 1,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileFilterTabReadyActive: {
+    borderColor: CARD_SUCCESS,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+  },
+  mobileFilterTabAllActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(250, 204, 21, 0.1)',
+  },
+  mobileFilterTabText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  mobileFilterTabTextReadyActive: {
+    color: CARD_SUCCESS,
+  },
+  mobileFilterTabTextAllActive: {
+    color: COLORS.accent,
+  },
+  mobileFilterEmpty: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    paddingVertical: SPACING.lg,
+  },
+  compactRow: {
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  compactRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    gap: SPACING.sm,
+  },
+  compactRowHeaderPressed: {
+    opacity: 0.85,
+  },
+  compactLeft: {
+    flex: 1,
+    gap: 6,
+    minWidth: 0,
+  },
+  compactPairLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  compactIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactIconText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  compactPairMeta: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  compactPairText: {
+    fontSize: 15,
+  },
+  compactStatusChip: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  compactStatusChipText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  compactScoresLine: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    paddingLeft: 42,
+  },
+  compactRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  compactPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  compactChange: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  compactTipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  compactTip: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  compactChevron: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+  compactExpand: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  compactMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  directionBtnCompactLong: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: SCORE_DIR_LONG_ACTIVE,
+  },
+  directionBtnCompactShort: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: SCORE_DIR_SHORT_ACTIVE,
+  },
+  directionBtnTextCompactLong: {
+    color: SCORE_DIR_LONG_ACTIVE,
+    fontWeight: '800',
+  },
+  directionBtnTextCompactShort: {
+    color: SCORE_DIR_SHORT_ACTIVE,
+    fontWeight: '800',
   },
   card: {
     flexGrow: 1,
