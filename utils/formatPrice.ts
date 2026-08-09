@@ -1,16 +1,21 @@
 import type { AppTradeSymbol } from '../constants/scoring';
 
-/** Binance Futures tick display — NEAR perp uses 3 decimals */
+/**
+ * Số thập phân HIỂN THỊ UI (`formatPrice` / `formatUsdPrice`).
+ * Khác tickSize sàn: LINK/AVAX Futures tickSize 0.10 nhưng UI dùng 3 dp để theo dõi.
+ * Không đặt lại bước giá lệnh trên sàn.
+ */
 export const PRICE_DECIMALS: Record<AppTradeSymbol, number> = {
   BTCUSDT: 2,
   NEARUSDT: 3,
   SOLUSDT: 2,
   BNBUSDT: 2,
   XRPUSDT: 4,
-  /** Futures tickSize 0.10 → 1 decimal */
+  /** ETH ~$1.9k–3.4k — 1 dp đủ; tickSize Futures 0.10 */
   ETHUSDT: 1,
-  LINKUSDT: 1,
-  AVAXUSDT: 1,
+  /** UI display 3 dp (tickSize sàn vẫn 0.10) */
+  LINKUSDT: 3,
+  AVAXUSDT: 3,
 };
 
 /** Luôn dùng en-US khi hiển thị số — tránh "6,00" bị parse thành 600 trên máy VN. */
