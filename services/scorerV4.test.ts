@@ -19,7 +19,8 @@ import { computeAtr1hFromKlines } from './atr1h';
 import type { AnalysisInput } from './analysisInput';
 import { DEFAULT_SCORING_PSYCHOLOGY_CHECKLIST, FundingState } from '../constants/scoring';
 import { LAYER_L5B_ID } from '../constants/scoring';
-import { getFundingAnalysisV3 } from './indicators';
+import { getEMAAnalysisV3, getFundingAnalysisV3 } from './indicators';
+import { applyXrpOnlyCvdVolRelScale } from './xrpCvdVolRelScale';
 
 function ema(overrides: Partial<EMAAnalysisV3> = {}): EMAAnalysisV3 {
   return {
@@ -546,5 +547,117 @@ describe('scoreAnalysisV4 L11 squeezeRisk', () => {
       dailyLossUSDT: 0,
     });
     expect('squeezeRisk' in result).toBe(false);
+  });
+});
+
+function scoringFingerprint(result: ReturnType<typeof scoreAnalysisV4>): string {
+  const side = (d: (typeof result)['long']) =>
+    [
+      d.officialTotalScore ?? 'null',
+      d.referenceTotalScore,
+      d.decision,
+      d.rawLayerScores[5],
+      d.groupScores.A,
+      d.groupScores.B,
+      d.groupScores.C,
+      d.hardBlocks.join('|'),
+      d.groupBlocks.join('|'),
+    ].join(',');
+  return `L:${side(result.long)};S:${side(result.short)}`;
+}
+
+describe('scoreAnalysisV4 XRP-only CVD Option A — peer fingerprint freeze', () => {
+  const today = { consecutiveLosses: 0, dailyLossUSDT: 0 };
+
+  function peerFixture(symbol: 'BTCUSDT' | 'SOLUSDT' | 'BNBUSDT'): AnalysisInputV4 {
+    const klines1h = risingKlines(120, symbol === 'BTCUSDT' ? 60_000 : 100);
+    const klines4h = risingKlines(80, symbol === 'BTCUSDT' ? 58_000 : 95);
+    const currentPrice = klines1h[klines1h.length - 1].close;
+    const cvdPoints = klines1h.slice(-30).map((k, i) => ({
+      timestamp: k.openTime,
+      cvd: -400_000 - i * 50_000,
+      price: k.close,
+    }));
+    return {
+      ...(baseInput({
+        symbol,
+        currentPrice,
+        klines1h,
+        klines4h,
+        cvdPoints,
+        atr1h: computeAtr1hFromKlines(klines1h, currentPrice),
+      }) as AnalysisInputV4),
+      btcKlines1h: klines1h,
+    };
+  }
+
+  it('BTC/SOL/BNB: applyXrpOnly returns same ref + L5a matches absolute scoreL5aV4', () => {
+    for (const symbol of ['BTCUSDT', 'SOLUSDT', 'BNBUSDT'] as const) {
+      const input = peerFixture(symbol);
+      const scaled = applyXrpOnlyCvdVolRelScale(
+        input.symbol,
+        input.cvdPoints,
+        input.currentPrice,
+        input.klines1h,
+      );
+      expect(scaled).toBe(input.cvdPoints);
+
+      const full = scoreAnalysisV4(input, today);
+      const ema = getEMAAnalysisV3(input.klines1h);
+      const ctx = { currentPrice: input.currentPrice, ema20: ema.ema20 };
+      expect(full.long.rawLayerScores[5]).toBe(
+        scoreL5aV4('LONG', input.cvdPoints, ctx).layerResult.score,
+      );
+      expect(full.short.rawLayerScores[5]).toBe(
+        scoreL5aV4('SHORT', input.cvdPoints, ctx).layerResult.score,
+      );
+
+      // Freeze: re-score identical fingerprint (no nondet scale branch)
+      expect(scoringFingerprint(scoreAnalysisV4(input, today))).toBe(
+        scoringFingerprint(full),
+      );
+    }
+  });
+
+  it('XRP: scale applied — L5a follows scaled points, not raw absolute', () => {
+    const klines1h = risingKlines(120, 0.5).map((k) => ({
+      ...k,
+      volume: 50_000_000,
+    }));
+    const currentPrice = klines1h[klines1h.length - 1].close;
+    const cvdPoints = klines1h.slice(-30).map((k, i) => ({
+      timestamp: k.openTime,
+      cvd: -2_000_000 - i * 100_000,
+      price: k.close,
+    }));
+    const input: AnalysisInputV4 = {
+      ...(baseInput({
+        symbol: 'XRPUSDT',
+        currentPrice,
+        klines1h,
+        klines4h: risingKlines(80, 0.48),
+        cvdPoints,
+        atr1h: computeAtr1hFromKlines(klines1h, currentPrice),
+      }) as AnalysisInputV4),
+      btcKlines1h: risingKlines(120, 60_000),
+    };
+
+    const scaled = applyXrpOnlyCvdVolRelScale(
+      'XRPUSDT',
+      cvdPoints,
+      currentPrice,
+      klines1h,
+    );
+    expect(scaled).not.toBe(cvdPoints);
+    expect(scaled[0].cvd).not.toBe(cvdPoints[0].cvd);
+
+    const full = scoreAnalysisV4(input, today);
+    const ema = getEMAAnalysisV3(klines1h);
+    const ctx = { currentPrice, ema20: ema.ema20 };
+    expect(full.long.rawLayerScores[5]).toBe(
+      scoreL5aV4('LONG', scaled, ctx).layerResult.score,
+    );
+    // Raw array must not be mutated in place
+    expect(cvdPoints[0].cvd).toBe(-2_000_000);
   });
 });

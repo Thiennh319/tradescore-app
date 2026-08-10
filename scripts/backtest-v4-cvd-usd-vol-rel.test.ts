@@ -58,8 +58,8 @@ const OUT = path.resolve(__dirname, '../docs/exports');
 const SYMBOLS: AppTradeSymbol[] = ['XRPUSDT', 'BTCUSDT', 'SOLUSDT', 'BNBUSDT'];
 const DAYS = 21;
 
-/** Soft = 12% × quote; hard SHORT production-ratio → ~48% × quote (= 4× soft). */
-const SOFT_PCT = 0.12;
+/** Soft = 10% × quote; hard SHORT production-ratio → ~40% × quote (= 4× soft). */
+const SOFT_PCT = 0.10;
 
 type PlanLike = {
   recommendedEntry: number;

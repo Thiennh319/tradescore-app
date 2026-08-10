@@ -66,7 +66,16 @@ export interface EntryQualityScore {
 export type TradeSymbol = string;
 
 /** Supported perpetual pairs in the dashboard */
-export const TRADE_SYMBOLS = ['BTCUSDT', 'NEARUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'] as const;
+export const TRADE_SYMBOLS = [
+  'BTCUSDT',
+  'NEARUSDT',
+  'SOLUSDT',
+  'BNBUSDT',
+  'XRPUSDT',
+  'ETHUSDT',
+  'LINKUSDT',
+  'AVAXUSDT',
+] as const;
 
 export type AppTradeSymbol = (typeof TRADE_SYMBOLS)[number];
 
@@ -744,6 +753,13 @@ export const HARD_BLOCK_RULES_V4 = {
   CVD_MILD_POSITIVE: 500_000,
   CVD_STEEP_SLOPE_DELTA: 200_000,
 } as const;
+
+/**
+ * XRP-only (Option A): soft CVD threshold as % of 24h quote volume.
+ * Maps XRP base CVD → units comparable to HARD_BLOCK_RULES_V4 absolute thresholds
+ * inside scoreAnalysisV4. BTC/SOL/BNB/NEAR unchanged (absolute base CVD).
+ */
+export const XRP_CVD_SOFT_PCT_OF_24H_QUOTE = 0.09;
 
 export const LAYER_NAMES_V4: Record<number, string> = {
   1: 'Giá & EMA (Slope)',

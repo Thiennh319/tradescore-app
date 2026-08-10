@@ -743,17 +743,30 @@ export async function main(): Promise<void> {
   const args = process.argv.slice(2);
   let symbol: AppTradeSymbol = 'XRPUSDT';
   let days = 21;
+  /** Optional filename tag — avoids overwriting prior peer CSVs (e.g. baseline7). */
+  let outTag = '';
+  /** Skip V3 when only V4 metrics are needed. */
+  let v4Only = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--symbol') {
       const raw = (args[++i] ?? 'XRPUSDT').toUpperCase();
       symbol = (raw.endsWith('USDT') ? raw : `${raw}USDT`) as AppTradeSymbol;
     } else if (args[i] === '--days') {
       days = Math.max(1, Number(args[++i] ?? 21));
+    } else if (args[i] === '--out-tag') {
+      outTag = String(args[++i] ?? '')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, '');
+    } else if (args[i] === '--v4-only') {
+      v4Only = true;
+    } else if (args[i] === '--force-absolute-cvd') {
+      process.env.TRADESCORE_FORCE_ABSOLUTE_CVD = '1';
     }
   }
 
+  const absCvd = process.env.TRADESCORE_FORCE_ABSOLUTE_CVD === '1';
   console.log(
-    `=== Trusted-window V3+V4 backtest ${symbol} days=${days} (amb=${DEFAULT_AMBIGUITY_THRESHOLD ?? AMBIGUOUS_THRESHOLD}) ===`,
+    `=== Trusted-window ${v4Only ? 'V4-only' : 'V3+V4'} backtest ${symbol} days=${days} (amb=${DEFAULT_AMBIGUITY_THRESHOLD ?? AMBIGUOUS_THRESHOLD})${absCvd ? ' FORCE_ABSOLUTE_CVD=1' : ''}${outTag ? ` outTag=${outTag}` : ''} ===`,
   );
 
   const bundle = await loadMarketBundle(symbol, days);
@@ -771,21 +784,30 @@ export async function main(): Promise<void> {
   console.log('[eval] building V4 bar cache…');
   const cacheV4 = buildBarEvalV4(bundle);
   console.log(`[eval] V4 bars=${cacheV4.length}`);
-  console.log('[eval] building V3 bar cache…');
-  const cacheV3 = buildBarEvalV3(bundle);
-  console.log(`[eval] V3 bars=${cacheV3.length}`);
+  let cacheV3: BarEval[] = [];
+  if (!v4Only) {
+    console.log('[eval] building V3 bar cache…');
+    cacheV3 = buildBarEvalV3(bundle);
+    console.log(`[eval] V3 bars=${cacheV3.length}`);
+  }
 
   const thr = DEFAULT_AMBIGUITY_THRESHOLD ?? AMBIGUOUS_THRESHOLD;
   const v4 = simulateEngine(bundle, cacheV4, 'V4', thr);
-  const v3 = simulateEngine(bundle, cacheV3, 'V3', thr);
+  const v3 = v4Only
+    ? null
+    : simulateEngine(bundle, cacheV3, 'V3', thr);
 
   const stamp = new Date().toISOString().slice(0, 10);
   const outDir = path.resolve(__dirname, '../docs/exports');
   fs.mkdirSync(outDir, { recursive: true });
-  const base = `${symbol.replace('USDT', '').toLowerCase()}_v3v4_trusted_${days}d`;
+  const tagPart = outTag ? `_${outTag}` : '';
+  const base = `${symbol.replace('USDT', '').toLowerCase()}${tagPart}_v3v4_trusted_${days}d`;
   const csvV4 = path.join(outDir, `${base}_v4_trades.csv`);
   const csvV3 = path.join(outDir, `${base}_v3_trades.csv`);
-  const mdPath = path.join(outDir, `REPORT_BACKTEST_XRP_V3V4_TRUSTED_${stamp}.md`);
+  const mdName = outTag
+    ? `REPORT_BACKTEST_${symbol.replace('USDT', '')}${tagPart.toUpperCase()}_V4_TRUSTED_${stamp}.md`
+    : `REPORT_BACKTEST_XRP_V3V4_TRUSTED_${stamp}.md`;
+  const mdPath = path.join(outDir, mdName);
 
   const writeTradesCsv = (file: string, rows: TradeRow[]) => {
     const cols = [
@@ -819,9 +841,9 @@ export async function main(): Promise<void> {
   };
 
   writeTradesCsv(csvV4, v4.trades);
-  writeTradesCsv(csvV3, v3.trades);
+  if (v3) writeTradesCsv(csvV3, v3.trades);
 
-  const md = `# REPORT — Backtest XRP V3/V4 Trusted Window (~OI/LS overlap)
+  const md = `# REPORT — Backtest ${symbol} ${v4Only ? 'V4-only' : 'V3/V4'} Trusted Window (~OI/LS overlap)
 
 **Ngày:** ${stamp}  
 **Symbol:** ${symbol}  
@@ -833,6 +855,8 @@ export async function main(): Promise<void> {
 **Ambiguity threshold:** ${thr} (live)  
 **ADX gate:** \`evaluateADXGate\` — CHOPPY 1H+4H → block; WARNING/BONUS scale TP/SL  
 **TP/SL:** \`calculateTradePlanV3\` / \`calculateTradePlanV4\`  
+**FORCE_ABSOLUTE_CVD:** ${absCvd ? 'YES (XRP Option A disabled for this run)' : 'no'}  
+**out-tag:** ${outTag || '(default)'}  
 **KHÔNG:** V41 breakout / resolveSymbolStrategy  
 
 ## Caveat mẫu nhỏ
@@ -840,35 +864,42 @@ export async function main(): Promise<void> {
 Window ~${spans.trustedDays} ngày ≈ ${cacheV4.length} bar 1H sau warmup — **n trades thấp, WR không kết luận được cho 365d**.  
 365d vẫn **không tin cậy** vì OI/LS public Binance chỉ ~21d (xem gate report).
 
-## Peers
-
-Chạy lần này: **chỉ ${symbol}** (theo lựa chọn user). BTC/SOL/BNB để đối chiếu → chạy lại \`--symbol BTCUSDT\` cùng script khi cần.
-
 ## Kết quả
 
 ${renderEngineReport('V4', v4.trades, v4.counterfactuals, v4.hardBlockLayerCounts, v4.gateCounts, v4.meta)}
 
-${renderEngineReport('V3', v3.trades, v3.counterfactuals, v3.hardBlockLayerCounts, v3.gateCounts, v3.meta)}
+${
+  v3
+    ? renderEngineReport(
+        'V3',
+        v3.trades,
+        v3.counterfactuals,
+        v3.hardBlockLayerCounts,
+        v3.gateCounts,
+        v3.meta,
+      )
+    : '_V3 skipped (`--v4-only`)._'
+}
 
 ## Files
 
 - Trades V4: \`${path.relative(path.resolve(__dirname, '..'), csvV4)}\`
-- Trades V3: \`${path.relative(path.resolve(__dirname, '..'), csvV3)}\`
-
-## BƯỚC 4 — Đề xuất (điền tự động sau run — xem cuối file)
+${v3 ? `- Trades V3: \`${path.relative(path.resolve(__dirname, '..'), csvV3)}\`` : ''}
 `;
 
   fs.writeFileSync(mdPath, md, 'utf8');
   console.log(`\n[out] ${mdPath}`);
   console.log(`[out] ${csvV4} (n=${v4.trades.length})`);
-  console.log(`[out] ${csvV3} (n=${v3.trades.length})`);
+  if (v3) console.log(`[out] ${csvV3} (n=${v3.trades.length})`);
   console.log(
-    `[summary] V4 WR=${v4.trades.length ? computeStats(v4.trades).wr.toFixed(1) : 'n/a'}% n=${v4.trades.length} | V3 WR=${v3.trades.length ? computeStats(v3.trades).wr.toFixed(1) : 'n/a'}% n=${v3.trades.length}`,
+    `[summary] V4 WR=${v4.trades.length ? computeStats(v4.trades).wr.toFixed(1) : 'n/a'}% n=${v4.trades.length}${v3 ? ` | V3 WR=${v3.trades.length ? computeStats(v3.trades).wr.toFixed(1) : 'n/a'}% n=${v3.trades.length}` : ' | V3 skipped'}`,
   );
+
+  if (v4Only) return;
 
   // Append BƯỚC 4 proposals with numbers from this run (no production edits).
   const v4Stats = computeStats(v4.trades);
-  const v3Stats = computeStats(v3.trades);
+  const v3Stats = computeStats(v3!.trades);
   const softCf = v4.counterfactuals.filter((c) => c.gate === 'SOFT_BLOCK');
   const softWin = softCf.filter((c) => c.wouldWin).length;
   const buoc4 = `

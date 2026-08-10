@@ -9,14 +9,18 @@ import { storageGetItem, storageSetItem } from './storage';
 // ─── Config ────────────────────────────────────────────────────────────────────
 
 const REQUEST_TIMEOUT_MS = 8000;
-/** Max in-flight Binance REST/WS market calls (global concurrency queue). */
-export const BINANCE_MAX_CONCURRENT = 3;
+/** Max in-flight Binance REST market calls (global concurrency queue). */
+export const BINANCE_MAX_CONCURRENT = 5;
 const CACHE_PREFIX = '@tradescore/binance/v1/';
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const ORDERBOOK_CACHE_TTL_MS = 15_000;
 const TICKER_CACHE_TTL_MS = 3_000;
 const FORCE_ORDERS_WS_COLLECT_MS = 2_000;
-const FORCE_ORDERS_CACHE_TTL_MS = 45_000;
+/**
+ * Proactive forceOrders cache — must be ≥ SCAN_INTERVAL_MS (60s) so the 60s
+ * unified tick usually hits cache. 90s gives a 30s buffer across jitter.
+ */
+export const FORCE_ORDERS_CACHE_TTL_MS = 90_000;
 const BINANCE_WS_BASE = 'wss://fstream.binance.com/ws';
 
 /** Floor for IP ban pause when Binance returns HTTP 418 (ms). */
@@ -883,6 +887,9 @@ export async function fetchDeepOrderBook(symbol: TradeSymbol): Promise<DeepOrder
 /**
  * Market liquidation orders for a symbol (public, no signed headers).
  * Uses WebSocket `@forceOrder` — never sends `X-MBX-APIKEY` or HMAC signature.
+ *
+ * Prefer {@link peekForceOrdersCache} + {@link scheduleForceOrdersRefresh} on the
+ * scan critical path so WS collect (~2s) does not block scoring.
  */
 export async function fetchForceOrders(
   symbol: TradeSymbol,
@@ -902,24 +909,74 @@ export async function fetchForceOrders(
       };
     }
 
-    return withBinanceConcurrency(async () => {
-      try {
-        const orders = await collectForceOrdersWebSocket(symbol, limit);
-        await writeCache(key, orders);
-        return { symbol, orders: orders.slice(0, limit), fromCache: false };
-      } catch (error) {
-        if (cached) {
-          return {
-            symbol,
-            orders: cached.data.slice(0, limit),
-            fromCache: true,
-            cachedAt: cached.cachedAt,
-          };
-        }
-        throw error;
+    // WebSocket collect is not REST weight — do not hold BINANCE_MAX_CONCURRENT
+    // (background refresh would starve klines/OI for other symbols for ~2s).
+    try {
+      assertBinanceTrafficAllowed();
+      const orders = await collectForceOrdersWebSocket(symbol, limit);
+      await writeCache(key, orders);
+      return { symbol, orders: orders.slice(0, limit), fromCache: false };
+    } catch (error) {
+      if (cached) {
+        return {
+          symbol,
+          orders: cached.data.slice(0, limit),
+          fromCache: true,
+          cachedAt: cached.cachedAt,
+        };
       }
-    });
+      throw error;
+    }
   });
+}
+
+/**
+ * Non-blocking peek for scan critical path.
+ * - `allowStale: true` (default for scan): return cache even past TTL so heatmap
+ *   can keep last liquidation buckets while a background refresh runs.
+ * - Returns null when no cache exists yet (first install / cleared storage).
+ */
+export async function peekForceOrdersCache(
+  symbol: TradeSymbol,
+  limit = 100,
+  opts?: { allowStale?: boolean },
+): Promise<ForceOrdersResult | null> {
+  const allowStale = opts?.allowStale !== false;
+  const storageKey = `forceOrders:${symbol}:${limit}`;
+  const key = cacheKey(storageKey);
+  const cached = await readCache<ForceOrder[]>(key);
+  if (!cached) return null;
+  const age = Date.now() - cached.cachedAt;
+  const fresh = age <= FORCE_ORDERS_CACHE_TTL_MS;
+  if (!fresh && !allowStale) return null;
+  return {
+    symbol,
+    orders: cached.data.slice(0, limit),
+    fromCache: true,
+    cachedAt: cached.cachedAt,
+  };
+}
+
+/**
+ * Fire-and-forget WS refresh. Safe to call every scan — `fetchForceOrders`
+ * no-ops (returns cache) while still within TTL.
+ */
+export function scheduleForceOrdersRefresh(
+  symbol: TradeSymbol,
+  limit = 100,
+  onDone?: (result: ForceOrdersResult) => void,
+): void {
+  void fetchForceOrders(symbol, limit)
+    .then((result) => {
+      try {
+        onDone?.(result);
+      } catch {
+        // ignore consumer errors
+      }
+    })
+    .catch(() => {
+      // keep last cache; scan already proceeded without blocking
+    });
 }
 
 export async function fetchOIEngine(
@@ -1062,16 +1119,21 @@ export async function fetchAllMarketData(
     promise: fetchKlines(symbol, tf, tf === '5m' || tf === '15m' ? mtfKlineLimit : klineLimit),
   }));
 
+  const forceOrdersPeekP = peekForceOrdersCache(symbol, 100, { allowStale: true });
+  // Background WS refresh — never awaited on the scan critical path.
+  scheduleForceOrdersRefresh(symbol);
+
   const [klineSettled, otherSettled] = await Promise.all([
     Promise.allSettled(klineTasks.map((t) => t.promise)),
     Promise.allSettled([
       fetchDeepOrderBook(symbol),
-      fetchForceOrders(symbol),
       fetchOIEngine(symbol, oiPeriod),
       fetchFundingRateHistoryResult(symbol, fundingLimit),
       fetchLongShortRatio(symbol, lsPeriod),
     ]),
   ]);
+
+  const forceOrders = await forceOrdersPeekP;
 
   const klines: KlinesByTimeframe = {};
   const errors: Partial<Record<string, string>> = {};
@@ -1087,7 +1149,7 @@ export async function fetchAllMarketData(
     }
   });
 
-  const [orderBookResult, forceOrdersResult, oiEngineResult, fundingResult, lsRatioResult] =
+  const [orderBookResult, oiEngineResult, fundingResult, lsRatioResult] =
     otherSettled;
 
   if (fundingResult.status === 'rejected') {
@@ -1106,13 +1168,15 @@ export async function fetchAllMarketData(
     return null;
   };
 
+  if (forceOrders?.fromCache) anyFromCache = true;
+
   return {
     symbol,
     fetchedAt: Date.now(),
     fromCache: anyFromCache,
     klines,
     orderBook: unwrap(orderBookResult, 'orderBook'),
-    forceOrders: unwrap(forceOrdersResult, 'forceOrders'),
+    forceOrders,
     oiEngine: unwrap(oiEngineResult, 'oiEngine'),
     fundingHistory: unwrap(fundingResult, 'fundingHistory'),
     longShortRatio: unwrap(lsRatioResult, 'longShortRatio'),

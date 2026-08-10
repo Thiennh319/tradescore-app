@@ -19,6 +19,17 @@ describe('formatPrice', () => {
   it('uses 2 decimals for BTC', () => {
     expect(formatPrice('BTCUSDT', 65000.5)).toBe('65,000.50');
   });
+
+  it('uses 1 decimal for ETH; 3 decimals for LINK/AVAX (UI display)', () => {
+    expect(priceDecimals('ETHUSDT')).toBe(1);
+    expect(priceDecimals('LINKUSDT')).toBe(3);
+    expect(priceDecimals('AVAXUSDT')).toBe(3);
+    expect(formatPrice('ETHUSDT', 3450.15)).toBe('3,450.2');
+    expect(formatUsdPrice('LINKUSDT', 8.3124)).toBe('$8.312');
+    expect(formatUsdPrice('AVAXUSDT', 6.5231)).toBe('$6.523');
+    expect(formatUsdPrice('LINKUSDT', 18.4)).toBe('$18.400');
+    expect(formatUsdPrice('AVAXUSDT', 25.05)).toBe('$25.050');
+  });
 });
 
 describe('formatUsdt', () => {

@@ -24,6 +24,7 @@ import {
 } from './indicators';
 import { resolveWhaleWallsForConfirmation } from './whaleMarketBehavior';
 import { scoreL7FlowWithWhaleConfirmation } from './whaleConfirmation';
+import { applyXrpOnlyCvdVolRelScale } from './xrpCvdVolRelScale';
 
 import {
   classifyFundingState,
@@ -1151,6 +1152,14 @@ export function scoreAnalysisV4(
   input: AnalysisInputV4,
   todayStats: TodayStats,
 ): ScoringResultV4 {
+  // Option A: XRP-only CVD vol-rel scale before L5a; peers keep absolute base CVD.
+  const cvdPoints = applyXrpOnlyCvdVolRelScale(
+    input.symbol,
+    input.cvdPoints,
+    input.currentPrice,
+    input.klines1h,
+  );
+
   const ema1h = getEMAAnalysisV3(input.klines1h);
   const ema4h = getEMAAnalysisV3(input.klines4h);
   const bb1h = getBollingerAnalysisV3(input.klines1h);
@@ -1189,7 +1198,7 @@ export function scoreAnalysisV4(
     }
     const signalTags = nearShortL3.signalTags;
 
-    const l5aRes = scoreL5aV4(direction, input.cvdPoints, {
+    const l5aRes = scoreL5aV4(direction, cvdPoints, {
       currentPrice: input.currentPrice,
       ema20: ema1h.ema20,
     });

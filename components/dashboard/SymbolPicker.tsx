@@ -15,6 +15,9 @@ const SYMBOL_META: Record<AppTradeSymbol, { color: string }> = {
   SOLUSDT: { color: '#9945FF' },
   BNBUSDT: { color: '#F0B90B' },
   XRPUSDT: { color: '#23292F' },
+  ETHUSDT: { color: '#627EEA' },
+  LINKUSDT: { color: '#2A5ADA' },
+  AVAXUSDT: { color: '#E84142' },
 };
 
 function splitPair(symbol: AppTradeSymbol) {

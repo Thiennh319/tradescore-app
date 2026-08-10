@@ -27,10 +27,14 @@ import {
   fetch24hTickerChange,
   fetchAllMarketData,
   fetchTickerPrice,
+  scheduleForceOrdersRefresh,
   statsPeriodFor,
   type Kline,
 } from './binanceApi';
-import { publishScanMarketSnapshot } from './scanMarketSnapshotStore';
+import {
+  getScanMarketSnapshot,
+  publishScanMarketSnapshot,
+} from './scanMarketSnapshotStore';
 import {
   applyEntryBlockedFields,
   resolveSnapEntryBlocked,
@@ -1067,6 +1071,16 @@ export async function scanSignalSymbol(
       btcChange24h,
       scannedAt: Date.now(),
     });
+    // When background forceOrders WS finishes, merge into snapshot for UI (heatmap).
+    // Scoring for this tick already used peek/stale/null — next tick benefits too.
+    scheduleForceOrdersRefresh(symbol, 100, (fo) => {
+      const snap = getScanMarketSnapshot(symbol);
+      if (!snap) return;
+      publishScanMarketSnapshot({
+        ...snap,
+        market: { ...snap.market, forceOrders: fo },
+      });
+    });
 
     const mtfChain = computeMtfChain(market);
     const analysis = computeTradeAnalysis(market, timeframe, mtfChain);
@@ -1368,7 +1382,7 @@ export async function scanSignalSymbol(
   }
 }
 
-/** Quét 4 cặp — Scorer V3 + Phase 4 cho trade plan. */
+/** Quét TRADE_SYMBOLS — Scorer V3 + V4 + trade plan (symbols song song, REST ≤ BINANCE_MAX_CONCURRENT). */
 export async function scanAllSignalRows(
   timeframe: AnalysisTimeframe,
   psychologyChecklist: PsychologyChecklistV2,
@@ -1376,10 +1390,9 @@ export async function scanAllSignalRows(
   ambiguityStores?: AmbiguityStateStores,
 ): Promise<SignalRow[]> {
   const btcChange24h = await fetchBtcChange24hPct();
-  const rows: SignalRow[] = [];
-  for (const sym of TRADE_SYMBOLS) {
-    rows.push(
-      await scanSignalSymbol(
+  const settled = await Promise.allSettled(
+    TRADE_SYMBOLS.map((sym) =>
+      scanSignalSymbol(
         sym,
         timeframe,
         btcChange24h,
@@ -1387,7 +1400,10 @@ export async function scanAllSignalRows(
         scanContext,
         ambiguityStores,
       ),
-    );
-  }
-  return rows;
+    ),
+  );
+  return settled.map((result, i) => {
+    if (result.status === 'fulfilled') return result.value;
+    return errorRow(TRADE_SYMBOLS[i], String(result.reason));
+  });
 }

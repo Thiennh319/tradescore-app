@@ -333,8 +333,46 @@ describe('binanceApi', () => {
     expect(data.orderBook).not.toBeNull();
     expect(data.oiEngine?.deltaOI).toBe(100);
     expect(data.fundingHistory?.records).toHaveLength(1);
-    expect(data.forceOrders?.orders.length).toBeGreaterThanOrEqual(0);
+    // Bước 1: forceOrders is peek/cache-only on critical path (may be null on cold).
+    expect(data.forceOrders == null || data.forceOrders.orders.length >= 0).toBe(true);
     expect(data.errors.forceOrders).toBeUndefined();
+  });
+
+  it('fetchAllMarketData does not block ~2s on forceOrders WS collect', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        '/fapi/v1/klines': () =>
+          new Response(JSON.stringify([klineRow]), { status: 200 }),
+        '/fapi/v1/depth': () =>
+          new Response(
+            JSON.stringify({ lastUpdateId: 1, bids: [], asks: [] }),
+            { status: 200 },
+          ),
+        '/fapi/v1/openInterest': () =>
+          new Response(
+            JSON.stringify({ openInterest: '1000', symbol: 'SOLUSDT', time: 1 }),
+            { status: 200 },
+          ),
+        '/futures/data/openInterestHist': () =>
+          new Response(JSON.stringify([]), { status: 200 }),
+        '/fapi/v1/fundingRate': () =>
+          new Response(
+            JSON.stringify([
+              { symbol: 'SOLUSDT', fundingRate: '0.0001', fundingTime: 1, markPrice: '1' },
+            ]),
+            { status: 200 },
+          ),
+        '/futures/data/topLongShortAccountRatio': () =>
+          new Response(JSON.stringify([]), { status: 200 }),
+      }),
+    );
+
+    const t0 = performance.now();
+    await fetchAllMarketData('SOLUSDT', 10, 5);
+    const ms = performance.now() - t0;
+    // Pre-fix cold path was ~2000ms+ due to WS collect; critical path must be well under that.
+    expect(ms).toBeLessThan(1500);
   });
 
   describe('429 / 418 traffic gate', () => {

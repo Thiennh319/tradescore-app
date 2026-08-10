@@ -59,7 +59,7 @@ internal static class Program
 
         try
         {
-            Application.Run(new MainForm(server.BaseUrl, ResolveUserDataDir(appRoot)));
+            Application.Run(new MainForm(server.BaseUrl, ResolveUserDataDir(appRoot), appRoot));
             return 0;
         }
         finally
@@ -103,7 +103,7 @@ internal static class Program
     {
         try
         {
-            Application.Run(new MainForm(url, ResolveUserDataDir(ResolveAppRoot())));
+            Application.Run(new MainForm(url, ResolveUserDataDir(ResolveAppRoot()), ResolveAppRoot()));
             return 0;
         }
         catch
